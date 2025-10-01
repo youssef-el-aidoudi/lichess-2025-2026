@@ -21,14 +21,14 @@ services:
     ports:
       - "8080:8080"
 
-  etl:
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
+#  etl:
+#    environment:
+#      SPRING_PROFILES_ACTIVE: dev
 
-  worker:
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
+#  worker:
+#    environment:
+#      SPRING_PROFILES_ACTIVE: dev
 
-  producer:
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
+#  producer:
+#    environment:
+#      SPRING_PROFILES_ACTIVE: dev

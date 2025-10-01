@@ -1,5 +1,5 @@
 # ===== STAGE 1: BUILD =====
-FROM 26-trixie AS build
+FROM openjdk:26-trixie AS build
 WORKDIR /workspace
 
 # Copie les descripteurs d'abord pour profiter du cache
@@ -13,9 +13,9 @@ COPY src src
 RUN ./mvnw -q -B -DskipTests package
 
 # ===== STAGE 2: RUNTIME =====
-FROM 26-trixie
+FROM openjdk:26-trixie
 WORKDIR /app
-# Copie le jar produit (adapte le nom si nécessaire)
+# Copie le jar produit
 COPY --from=build /workspace/target/*.jar /app/app.jar
 
 # Bonnes pratiques JVM dans un conteneur

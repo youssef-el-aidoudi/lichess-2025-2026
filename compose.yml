@@ -8,12 +8,15 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    networks: [data]
+    networks:
+      - internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-appdb}"]
       interval: 10s
       timeout: 5s
       retries: 10
+    labels:
+      - traefik.enable=false
 
   rabbitmq:
     image: rabbitmq:4.1-management
@@ -23,12 +26,15 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?set in .env}
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
-    networks: [mq]
+    networks:
+      - internal
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
       retries: 12
+    labels:
+      - traefik.enable=false
 
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
@@ -40,25 +46,168 @@ services:
       MINIO_SERVER_URL: ${MINIO_SERVER_URL:-http://minio:9000}
     volumes:
       - minio-data:/data
-    networks: [data, ingress]
+    networks:
+      - internal
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.minio.entrypoints=websecure
+      - traefik.http.routers.minio.tls=true
+      - traefik.http.services.minio.loadbalancer.server.port=80
+      - traefik.docker.network=sens2viz_public
+      - traefik.http.routers.minio.rule=Host(`${MINIO_HOST}`)
+      - traefik.http.routers.minio.middlewares=securityheaders
 
-#  etl:
-#    build:
-#      context: ./etl
-#      dockerfile: Dockerfile
-#    restart: unless-stopped
-#    environment:
-#      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-appdb}
-#      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-app}
-#      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-#      MINIO_ENDPOINT: http://minio:9000
-#      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
-#      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-#    depends_on:
-#      postgres:
-#        condition: service_healthy
-#    networks: [backend, data]
+  traefik:
+    container_name: traefik
+    build:
+      context: ./traefik
+    environment:
+      ENV: production
+    command:
+      - --log.level=ERROR
+      - --api.debug=false
+      - --global.checknewversion=false
+      - --global.sendAnonymousUsage=true
+      - --api=true
+      - --api.dashboard=false
+      - --ping=true
+      - --ping.entryPoint=ping
+      - --entrypoints.ping.address=:8080
+      - --providers.docker=true
+      - --providers.docker.watch=true
+      - --providers.docker.endpoint=unix:///var/run/docker.sock
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.filename=/etc/traefik/tls.yml
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http.tls=true
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/tls.yml:/etc/traefik/tls.yml:ro
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8085:8080"
+    networks:
+      - public
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.service=api@internal
+      - traefik.http.routers.api.entrypoints=websecure
+      - traefik.http.routers.api.tls=true
+
+      # Security headers https://owasp.org/www-project-secure-headers/index.html#configuration-proposal
+      # Traefik ajoute automatiquement les en-têtes X-Forwarded-For
+      # Configuration proposal
+      - traefik.http.middlewares.securityheaders.headers.stsSeconds=31536000
+      - traefik.http.middlewares.securityheaders.headers.stsIncludeSubdomains=true
+      #      - traefik.http.middlewares.securityheaders.headers.frameDeny=true PGADMIN4 en a besoin :Refused to display 'https://pg4.docker.localhost/' in a frame because it set 'X-Frame-Options' to 'deny'.
+      - traefik.http.middlewares.securityheaders.headers.contentTypeNosniff=true
+      # Stack trop complexe pour gérer à la main le CSP.
+      # On fait confiance aux apps pour le mettre le CSP elles-mêmes.
+      #      - traefik.http.middlewares.securityheaders.headers.contentSecurityPolicy=default-src 'self'; script-src-elem 'self' https://cdn.jsdelivr.net 'sha256-QOOQu4W1oxGqd2nbXbxiA1Di6OHQOLQD+o+G9oWL8YY='; img-src 'self' https://fastapi.tiangolo.com data:; style-src 'self' https://cdn.jsdelivr.net; style-src-elem 'self' https://cdn.jsdelivr.net; form-action 'self'; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests; block-all-mixed-content
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Permitted-Cross-Domain-Policies=none
+      #      - traefik.http.middlewares.securityheaders.headers.referrerPolicy=no-referrer # Nécessaire pour PGADMIN4 sinon cela met "Failed to load preferences"
+      #      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Clear-Site-Data="cache","cookies","storage"
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Cross-Origin-Embedder-Policy="require-corp"
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Cross-Origin-Opener-Policy="same-origin"
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Cross-Origin-Resource-Policy="same-origin"
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Permissions-Policy=accelerometer=(), autoplay=(), camera=(), cross-origin-isolated=(), display-capture=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), keyboard-map=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(self), usb=(), web-share=(), xr-spatial-tracking=(), clipboard-read=(), clipboard-write=(), gamepad=(), hid=(), idle-detection=(), interest-cohort=(), serial=(), unload=()
+      #      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Cache-Control="no-store, max-age=0"
+      # Prevent information disclosure via HTTP headers
+      # $wsep ça fait bug et pas besoin car c'est WebSphere que l'on n'utilise pas.
+      #      - traefik.http.middlewares.securityheaders.headers.customrequestheaders.$wsep=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Host-Header=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.K-Proxy-Request=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Liferay-Portal=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.OracleCommerceCloud-Version=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Pega-Host=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Powered-By=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Product=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.Server=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.SourceMap=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-AspNet-Version=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-AspNetMvc-Version=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Atmosphere-error=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Atmosphere-first-request=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Atmosphere-tracking-id=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-B3-ParentSpanId=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-B3-Sampled=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-B3-SpanId=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-B3-TraceId=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-BEServer=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-CF-Powered-By=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-CMS=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-CalculatedBETarget=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Cocoon-Version=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Content-Encoded-By=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-DiagInfo=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Envoy-Attempt-Count=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Envoy-External-Address=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Envoy-Internal=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Envoy-Original-Dst-Host=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Envoy-Upstream-Service-Time=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-FEServer=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Framework=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Generated-By=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Generator=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Jitsi-Release=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Joomla-Version=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Kubernetes-PF-FlowSchema-UI=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Kubernetes-PF-PriorityLevel-UID=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-LiteSpeed-Cache=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-LiteSpeed-Purge=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-LiteSpeed-Tag=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-LiteSpeed-Vary=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Litespeed-Cache-Control=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Mod-Pagespeed=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Nextjs-Cache=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Nextjs-Matched-Path=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Nextjs-Page=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Nextjs-Redirect=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-OWA-Version=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Old-Content-Length=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-OneAgent-JS-Injection=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Page-Speed=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Php-Version=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Powered-By=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Powered-By-Plesk=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Powered-CMS=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Redirect-By=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Server-Powered-By=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-SourceFiles=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-SourceMap=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Turbo-Charged-By=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Umbraco-Version=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Varnish-Backend=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-Varnish-Server=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-dtAgentId=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-dtHealthCheck=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-dtInjectedServlet=""
+      - traefik.http.middlewares.securityheaders.headers.customResponseHeaders.X-ruxit-JS-Agent=""
+
+  #  etl:
+  #    build:
+  #      context: ./etl
+  #      dockerfile: Dockerfile
+  #    restart: unless-stopped
+  #    environment:
+  #      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+  #      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-appdb}
+  #      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-app}
+  #      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+  #      MINIO_ENDPOINT: http://minio:9000
+  #      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+  #      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  #    depends_on:
+  #      postgres:
+  #        condition: service_healthy
+  #    networks: [backend, data]
 
   backend:
     build:
@@ -76,7 +225,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks: [backend, data, ingress]
+    networks:
+      - internal
+      - public
+    labels:
+      - traefik.enable=true
+      #      - traefik.http.routers.fastapi.tls.certresolver=letsencrypt
+      - traefik.http.routers.backend.entrypoints=websecure
+      - traefik.http.routers.backend.tls=true
+      - traefik.http.services.backend.loadbalancer.server.port=80
+      - traefik.docker.network=sens2viz_public
+      - traefik.http.routers.backend.rule=Host(`${BACKEND_HOST}`)
+      - traefik.http.routers.backend.middlewares=securityheaders
 
 #  worker:
 #    build:
@@ -120,10 +280,14 @@ services:
 #    networks: [backend, data, mq]
 
 networks:
-  ingress:
-  backend:
-  data:
-  mq:
+  public:
+    name: chessmate_public
+    driver: bridge
+  proxy:
+    name: chessmate_proxy
+    internal: true
+  internal:
+    name: chessmate_internal
     internal: true
 
 volumes:
