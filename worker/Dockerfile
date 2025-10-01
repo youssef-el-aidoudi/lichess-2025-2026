@@ -1,5 +1,5 @@
 # ===== STAGE 1: BUILD =====
-FROM eclipse-temurin:21-jdk-jammy AS build
+FROM 26-trixie AS build
 WORKDIR /workspace
 
 # Copie les descripteurs d'abord pour profiter du cache
@@ -13,7 +13,7 @@ COPY src src
 RUN ./mvnw -q -B -DskipTests package
 
 # ===== STAGE 2: RUNTIME =====
-FROM eclipse-temurin:21-jre-jammy
+FROM 26-trixie
 WORKDIR /app
 # Copie le jar produit (adapte le nom si nécessaire)
 COPY --from=build /workspace/target/*.jar /app/app.jar

@@ -42,23 +42,23 @@ services:
       - minio-data:/data
     networks: [data, ingress]
 
-  etl:
-    build:
-      context: ./etl
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-appdb}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-app}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks: [backend, data]
+#  etl:
+#    build:
+#      context: ./etl
+#      dockerfile: Dockerfile
+#    restart: unless-stopped
+#    environment:
+#      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-appdb}
+#      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-app}
+#      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+#      MINIO_ENDPOINT: http://minio:9000
+#      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+#      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#    networks: [backend, data]
 
   backend:
     build:
@@ -78,46 +78,46 @@ services:
         condition: service_healthy
     networks: [backend, data, ingress]
 
-  worker:
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-appdb}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-app}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-app}
-      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    networks: [backend, data, mq]
+#  worker:
+#    build:
+#      context: ./worker
+#      dockerfile: Dockerfile
+#    restart: unless-stopped
+#    environment:
+#      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-appdb}
+#      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-app}
+#      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+#      RABBITMQ_HOST: rabbitmq
+#      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-app}
+#      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+#      MINIO_ENDPOINT: http://minio:9000
+#      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+#      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#      rabbitmq:
+#        condition: service_healthy
+#    networks: [backend, data, mq]
 
-  producer:
-    build:
-      context: ./producer
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-app}
-      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    networks: [backend, data, mq]
+#  producer:
+#    build:
+#      context: ./producer
+#      dockerfile: Dockerfile
+#    restart: unless-stopped
+#    environment:
+#      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+#      RABBITMQ_HOST: rabbitmq
+#      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-app}
+#      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+#      MINIO_ENDPOINT: http://minio:9000
+#      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+#      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+#    depends_on:
+#      rabbitmq:
+#        condition: service_healthy
+#    networks: [backend, data, mq]
 
 networks:
   ingress:
