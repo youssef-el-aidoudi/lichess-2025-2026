@@ -1,1 +1,11 @@
 .idea
+.target
+.git
+.gitignore
+node_modules
+*.iml
+.idea
+.gradle
+.mvn/wrapper/*.jar
+**/tmp/
+**/logs/
