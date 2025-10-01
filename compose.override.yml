@@ -1,0 +1,34 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  rabbitmq:
+    # En dev, on expose pour l’UI et les tests locaux,
+    # tout en restant isolé des autres services (seuls worker/producer y sont connectés).
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI
+
+  minio:
+    ports:
+      - "9000:9000"     # S3 API
+      - "9001:9001"     # Console UI
+
+  backend:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+    ports:
+      - "8080:8080"
+
+  etl:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+
+  worker:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+
+  producer:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
