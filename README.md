@@ -17,7 +17,7 @@ docker compose version
 
 ### Ajouter votre utilisateur au groupe `docker`
 
-Pour exécuter Docker sans `sudo` :
+Pour exécuter Docker sans `sudo`:
 
 ```bash
 sudo usermod -aG docker $USER
@@ -53,19 +53,19 @@ Le fichier `.env` centralise les variables de configuration du projet (ports, UR
 
 ## 3) Générer les certificats de développement (Traefik)
 
-Se placer dans le répertoire `traefik` :
+Se placer dans le répertoire `traefik`:
 
 ```bash
 cd traefik
 ```
 
-Générer la clé privée RSA :
+Générer la clé privée RSA:
 
 ```bash
 openssl genrsa -out private.key 2048
 ```
 
-Générer le certificat auto-signé (remplacez `docker.localhost` par votre domaine si nécessaire) :
+Générer le certificat auto-signé (remplacez `docker.localhost` par votre domaine si nécessaire):
 
 ```bash
 openssl req -new -x509 -key private.key -out cert.pem -days 365 -subj "/CN=docker.localhost"
@@ -88,7 +88,7 @@ docker compose up --build
 
 ## 5) Créer un **GitLab Personal Access Token**
 
-1. Ouvrir **GitLab** → **Preferences** → **Access Tokens**.
+1. Ouvrir **GitLab** → **Preferences** → **Access Tokens**.
 2. Cliquer sur **Add new token** et choisir un nom explicite.
 3. Cocher les permissions :
 
