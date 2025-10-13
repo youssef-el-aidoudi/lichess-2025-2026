@@ -1,12 +1,25 @@
-.idea
-.target
-.git
-.gitignore
-node_modules
+# IDEs & project metadata
+.idea/
 *.iml
-.idea
-.gradle
+
+# Build / compilation artifacts
+target/
+.gradle/
 .mvn/wrapper/*.jar
+
+# Node.js dependencies
+node_modules/
+
+# Temporary & log files
 **/tmp/
 **/logs/
+
+# Environment variables
 .env
+
+# Git metadata (inutile mais sans risque)
+.gitignore
+
+# Optionnel (mais propre)
+# Exclure le dossier .git n’a pas de sens, car il ne peut pas être versionné de toute façon.
+# .git
