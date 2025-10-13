@@ -4,6 +4,33 @@ Ce document décrit, dans l’ordre, les étapes pour préparer l’environnemen
 
 ---
 
+## 0) Cloner le dépôt
+
+> **Note** : le serveur GitLab peut avoir un certificat SSL mal configuré. Deux options :
+>
+> **Option A – Désactiver globalement (rapide mais non recommandé)**
+>
+> ```bash
+> git config --global http.sslVerify false
+> git clone https://gitlabvigan.iem/m1projettutore2025-2026-groupe4/lichess-2025-2026.git
+> cd lichess-2025-2026
+> ```
+>
+> **Option B – Désactiver au cas par cas (recommandé)**
+>
+> ```bash
+> git -c http.sslVerify=false clone https://gitlabvigan.iem/m1projettutore2025-2026-groupe4/lichess-2025-2026.git
+> cd lichess-2025-2026
+> ```
+>
+> Pensez à réactiver la vérification SSL plus tard si vous avez utilisé l’option A :
+>
+> ```bash
+> git config --global http.sslVerify true
+> ```
+
+---
+
 ## 1) Prérequis : installer Docker & Docker Compose
 
 Suivre la documentation officielle de votre système pour installer **Docker** et **Docker Compose**.
@@ -17,7 +44,7 @@ docker compose version
 
 ### Ajouter votre utilisateur au groupe `docker`
 
-Pour exécuter Docker sans `sudo`:
+Pour exécuter Docker sans `sudo` :
 
 ```bash
 sudo usermod -aG docker $USER
@@ -53,19 +80,19 @@ Le fichier `.env` centralise les variables de configuration du projet (ports, UR
 
 ## 3) Générer les certificats de développement (Traefik)
 
-Se placer dans le répertoire `traefik`:
+Se placer dans le répertoire `traefik` :
 
 ```bash
 cd traefik
 ```
 
-Générer la clé privée RSA:
+Générer la clé privée RSA :
 
 ```bash
 openssl genrsa -out private.key 2048
 ```
 
-Générer le certificat auto-signé (remplacez `docker.localhost` par votre domaine si nécessaire):
+Générer le certificat auto-signé (remplacez `docker.localhost` par votre domaine si nécessaire) :
 
 ```bash
 openssl req -new -x509 -key private.key -out cert.pem -days 365 -subj "/CN=docker.localhost"
@@ -77,8 +104,7 @@ openssl req -new -x509 -key private.key -out cert.pem -days 365 -subj "/CN=docke
 
 ## 4) Construire les images et lancer les conteneurs
 
-Après avoir rempli le `.env`, revenir à la racine du projet.
-Construire et lancer :
+Après avoir rempli le `.env`, construire et lancer :
 
 ```bash
 docker compose up --build
@@ -88,7 +114,7 @@ docker compose up --build
 
 ## 5) Créer un **GitLab Personal Access Token**
 
-1. Ouvrir **GitLab** → **Preferences** → **Access Tokens**.
+1. Ouvrir **GitLab** → **Preferences** → **Access Tokens**.
 2. Cliquer sur **Add new token** et choisir un nom explicite.
 3. Cocher les permissions :
 
@@ -101,9 +127,37 @@ docker compose up --build
 
 ---
 
-## 6) (À compléter) MinIO : accès, jetons et permissions
+## 6) Configuration de MinIO
 
-> **Section à rédiger** : préciser comment obtenir/configurer les identifiants MinIO (access key / secret key), les politiques/permissions, l’éventuel **access_token**, et comment les exposer via le `.env` pour manipuler MinIO depuis les services/outils du projet.
+### Se connecter à l’interface MinIO
+
+* **URL de développement (par défaut)** : [https://storage.docker.localhost/](https://storage.docker.localhost/)
+  *(Adaptez selon votre nom de domaine.)*
+* À l’écran de connexion : **Other Authentication Methods** → **Use Credentials**.
+* **Utilisateur** : `minio_admin`
+* **Mot de passe** : valeur définie lors de l’exécution de `generate_env.py` (ou dans votre `.env`).
+
+Les identifiants root se configurent dans le fichier `.env` via :
+
+```
+MINIO_ROOT_USER=minio_admin
+MINIO_ROOT_PASSWORD=CHANGEME
+```
+
+### Créer une Access Key
+
+1. Ouvrir **Access Keys** dans la barre latérale gauche.
+2. Cliquer sur **Create access key +**.
+3. Cliquer sur **Create** pour générer une nouvelle paire (Access/Secret).
+4. **Copier** les valeurs générées et mettre à jour votre `.env` :
+
+```
+# Identifiants d’accès applicatifs MinIO
+MINIO_ACCESS_KEY=PASTE_ACCESS_KEY_HERE
+MINIO_SECRET_KEY=PASTE_SECRET_KEY_HERE
+```
+
+> Astuce : conservez ces clés en lieu sûr et ne les versionnez jamais.
 
 Points à prévoir :
 
