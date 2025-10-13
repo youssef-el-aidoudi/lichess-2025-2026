@@ -77,7 +77,8 @@ openssl req -new -x509 -key private.key -out cert.pem -days 365 -subj "/CN=docke
 
 ## 4) Construire les images et lancer les conteneurs
 
-Après avoir rempli le `.env`, construire et lancer :
+Après avoir rempli le `.env`, revenir à la racine du projet.
+Construire et lancer :
 
 ```bash
 docker compose up --build
