@@ -1,7 +1,7 @@
 # The Docker image that will be used to build your app
 image: jetbrains/writerside-builder:243.22562
 variables:
-  INSTANCE: 'docs/Writerside/hi'
+  INSTANCE: 'Writerside/hi'
   DOCKER_VERSION: '243.22562'
 
 stages:
