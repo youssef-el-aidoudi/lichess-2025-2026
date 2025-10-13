@@ -6,9 +6,9 @@ Ce document décrit, dans l’ordre, les étapes pour préparer l’environnemen
 
 ## 0) Cloner le dépôt
 
-> **Note** : le serveur GitLab peut avoir un certificat SSL mal configuré. Deux options :
+> **Note** : le serveur GitLab a un certificat SSL mal configuré. Deux options :
 >
-> **Option A – Désactiver globalement (rapide mais non recommandé)**
+> **Option A – Désactiver globalement (rapide mais attention quand vous allez cloner d'autres repos)**
 >
 > ```bash
 > git config --global http.sslVerify false
@@ -16,7 +16,7 @@ Ce document décrit, dans l’ordre, les étapes pour préparer l’environnemen
 > cd lichess-2025-2026
 > ```
 >
-> **Option B – Désactiver au cas par cas (recommandé)**
+> **Option B – Désactiver au cas par cas (recommandé mais il faut ajouter le prefix pour chaque push/pull etc.)**
 >
 > ```bash
 > git -c http.sslVerify=false clone https://gitlabvigan.iem/m1projettutore2025-2026-groupe4/lichess-2025-2026.git
