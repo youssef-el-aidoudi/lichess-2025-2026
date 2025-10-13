@@ -1,93 +1,119 @@
-# LiChess 2025-2026
+# README – Installation & Démarrage
 
+Ce document décrit, dans l’ordre, les étapes pour préparer l’environnement, construire les images et lancer l’application.
 
+---
 
-## Getting started
+## 1) Prérequis : installer Docker & Docker Compose
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Suivre la documentation officielle de votre système pour installer **Docker** et **Docker Compose**.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+**Vérifier l’installation :**
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlabvigan.iem/m1projettutore2025-2026-groupe4/lichess-2025-2026.git
-git branch -M main
-git push -uf origin main
+```bash
+docker --version
+docker compose version
 ```
 
-## Integrate with your tools
+### Ajouter votre utilisateur au groupe `docker`
 
-- [ ] [Set up project integrations](https://gitlabvigan.iem/m1projettutore2025-2026-groupe4/lichess-2025-2026/-/settings/integrations)
+Pour exécuter Docker sans `sudo` :
 
-## Collaborate with your team
+```bash
+sudo usermod -aG docker $USER
+```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+> Déconnectez-vous puis reconnectez-vous (ou redémarrez la machine) pour appliquer le changement.
 
-## Test and Deploy
+**Contrôle rapide :**
 
-Use the built-in continuous integration in GitLab.
+```bash
+docker ps
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+Si la commande s’exécute sans erreur, vous êtes bien dans le groupe `docker`.
 
-***
+---
 
-# Editing this README
+## 2) Configuration de l’environnement – fichier `.env`
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Le fichier `.env` centralise les variables de configuration du projet (ports, URLs, identifiants, secrets, etc.).
 
-## Suggestions for a good README
+1. Copier le modèle fourni :
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+   ```bash
+   cp .env.example .env
+   ```
+2. Ouvrir `.env` et adapter **les valeurs** à votre contexte local (domaines, ports, mots de passe, clés d’API…).
+3. Conserver `.env` **en local** (ne pas le committer si le repository est public) car il contient des secrets.
 
-## Name
-Choose a self-explaining name for your project.
+> **Note :** Plusieurs services (Traefik, MinIO, etc.) lisent leurs paramètres depuis ce fichier. Vérifiez que **toutes** les clés requises sont renseignées avant de démarrer.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+---
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## 3) Générer les certificats de développement (Traefik)
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+Se placer dans le répertoire `traefik` :
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```bash
+cd traefik
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Générer la clé privée RSA :
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+```bash
+openssl genrsa -out private.key 2048
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Générer le certificat auto-signé (remplacez `docker.localhost` par votre domaine si nécessaire) :
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```bash
+openssl req -new -x509 -key private.key -out cert.pem -days 365 -subj "/CN=docker.localhost"
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+> **Remarque :** Les navigateurs signaleront un avertissement (connexion non sécurisée) car le certificat n’est pas signé par une autorité de confiance. Pour un usage **développement**, cela reste suffisant.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+---
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## 4) Construire les images et lancer les conteneurs
 
-## License
-For open source projects, say how it is licensed.
+Après avoir rempli le `.env`, construire et lancer :
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+```bash
+docker compose up --build
+```
+
+---
+
+## 5) Créer un **GitLab Personal Access Token**
+
+1. Ouvrir **GitLab** → **Preferences** → **Access Tokens**.
+2. Cliquer sur **Add new token** et choisir un nom explicite.
+3. Cocher les permissions :
+
+   * ✅ `api`
+   * ✅ `read_registry`
+   * ✅ `write_registry`
+4. Cliquer sur **Create personal access token** et **copier immédiatement** le token affiché.
+
+> Conservez ce token en sécurité ; il pourra être référencé via le `.env` si nécessaire.
+
+---
+
+## 6) (À compléter) MinIO : accès, jetons et permissions
+
+> **Section à rédiger** : préciser comment obtenir/configurer les identifiants MinIO (access key / secret key), les politiques/permissions, l’éventuel **access_token**, et comment les exposer via le `.env` pour manipuler MinIO depuis les services/outils du projet.
+
+Points à prévoir :
+
+* Où récupérer les identifiants (UI MinIO, variables par défaut, procédure d’initialisation…).
+* Quelles variables ajouter dans `.env` (ex. `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION`, `MINIO_BUCKET_*`, etc.).
+* Bonnes pratiques (droits minimaux, rotation des secrets, stockage hors VCS).
+
+---
+
+## 7) Notes & dépannage (rapide)
+
+* Si `docker ps` échoue sans `sudo`, vérifiez votre appartenance au groupe `docker` et reconnectez votre session.
+* En cas d’alerte SSL dans le navigateur, c’est attendu en **dev** avec un certificat auto-signé.
+* Assurez-vous que toutes les valeurs sensibles de `.env` sont bien définies avant `docker compose up`.
