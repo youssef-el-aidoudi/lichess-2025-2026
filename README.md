@@ -22,12 +22,6 @@ Ce document décrit, dans l’ordre, les étapes pour préparer l’environnemen
 > git -c http.sslVerify=false clone https://gitlabvigan.iem/m1projettutore2025-2026-groupe4/lichess-2025-2026.git
 > cd lichess-2025-2026
 > ```
->
-> Pensez à réactiver la vérification SSL plus tard si vous avez utilisé l’option A :
->
-> ```bash
-> git config --global http.sslVerify true
-> ```
 
 ---
 
