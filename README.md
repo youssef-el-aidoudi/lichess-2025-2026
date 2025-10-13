@@ -4,11 +4,26 @@ Ce document décrit, dans l’ordre, les étapes pour préparer l’environnemen
 
 ---
 
-## 0) Cloner le dépôt
+## 0) Créer un **GitLab Personal Access Token**
 
-> **Note** : le serveur GitLab a un certificat SSL mal configuré. Deux options :
+1. Ouvrir **GitLab** → **Preferences** → **Access Tokens**.
+2. Cliquer sur **Add new token** et choisir un nom explicite.
+3. Cocher les permissions :
+
+   * ✅ `api`
+   * ✅ `read_registry`
+   * ✅ `write_registry`
+4. Cliquer sur **Create personal access token** et **copier immédiatement** le token affiché.
+
+> Conservez ce token en sécurité ; il pourra être référencé via le `.env` si nécessaire. Avec Git en HTTPS, il peut aussi être demandé comme **mot de passe** lors des opérations `clone/pull/push`.
+
+---
+
+## 1) Cloner le dépôt
+
+> **Note** : le serveur GitLab peut avoir un certificat SSL mal configuré. Deux options :
 >
-> **Option A – Désactiver globalement (rapide mais attention quand vous allez cloner d'autres repos)**
+> **Option A – Désactiver globalement (rapide mais non recommandé)**
 >
 > ```bash
 > git config --global http.sslVerify false
@@ -16,16 +31,22 @@ Ce document décrit, dans l’ordre, les étapes pour préparer l’environnemen
 > cd lichess-2025-2026
 > ```
 >
-> **Option B – Désactiver au cas par cas (recommandé mais il faut ajouter le prefix pour chaque push/pull etc.)**
+> **Option B – Désactiver au cas par cas (recommandé)**
 >
 > ```bash
 > git -c http.sslVerify=false clone https://gitlabvigan.iem/m1projettutore2025-2026-groupe4/lichess-2025-2026.git
 > cd lichess-2025-2026
 > ```
+>
+> Pensez à réactiver la vérification SSL plus tard si vous avez utilisé l’option A :
+>
+> ```bash
+> git config --global http.sslVerify true
+> ```
 
 ---
 
-## 1) Prérequis : installer Docker & Docker Compose
+## 2) Prérequis : installer Docker & Docker Compose
 
 Suivre la documentation officielle de votre système pour installer **Docker** et **Docker Compose**.
 
@@ -56,7 +77,7 @@ Si la commande s’exécute sans erreur, vous êtes bien dans le groupe `docker`
 
 ---
 
-## 2) Configuration de l’environnement – fichier `.env`
+## 3) Configuration de l’environnement – fichier `.env`
 
 Le fichier `.env` centralise les variables de configuration du projet (ports, URLs, identifiants, secrets, etc.).
 
@@ -72,7 +93,7 @@ Le fichier `.env` centralise les variables de configuration du projet (ports, UR
 
 ---
 
-## 3) Générer les certificats de développement (Traefik)
+## 4) Générer les certificats de développement (Traefik)
 
 Se placer dans le répertoire `traefik` :
 
@@ -86,7 +107,7 @@ Générer la clé privée RSA :
 openssl genrsa -out private.key 2048
 ```
 
-Générer le certificat auto-signé (remplacez `docker.localhost` par votre domaine si nécessaire) :
+Générer le certificat auto-signé (remplacez `docker.localhost` par votre domaine si nécessaire):
 
 ```bash
 openssl req -new -x509 -key private.key -out cert.pem -days 365 -subj "/CN=docker.localhost"
@@ -96,29 +117,13 @@ openssl req -new -x509 -key private.key -out cert.pem -days 365 -subj "/CN=docke
 
 ---
 
-## 4) Construire les images et lancer les conteneurs
+## 5) Construire les images et lancer les conteneurs
 
 Après avoir rempli le `.env`, construire et lancer :
 
 ```bash
 docker compose up --build
 ```
-
----
-
-## 5) Créer un **GitLab Personal Access Token**
-
-1. Ouvrir **GitLab** → **Preferences** → **Access Tokens**.
-2. Cliquer sur **Add new token** et choisir un nom explicite.
-3. Cocher les permissions :
-
-   * ✅ `api`
-   * ✅ `read_registry`
-   * ✅ `write_registry`
-4. Cliquer sur **Create personal access token** et **copier immédiatement** le token affiché.
-
-> Conservez ce token en sécurité ; il pourra être référencé via le `.env` si nécessaire.
-
 ---
 
 ## 6) Configuration de MinIO
@@ -146,6 +151,9 @@ MINIO_ROOT_PASSWORD=CHANGEME
 4. **Copier** les valeurs générées et mettre à jour votre `.env` :
 
 ```
+# URL interne utilisée par les services (Docker ↔ MinIO)
+MINIO_SERVER_URL=http://minio:9000
+
 # Identifiants d’accès applicatifs MinIO
 MINIO_ACCESS_KEY=PASTE_ACCESS_KEY_HERE
 MINIO_SECRET_KEY=PASTE_SECRET_KEY_HERE
@@ -153,7 +161,7 @@ MINIO_SECRET_KEY=PASTE_SECRET_KEY_HERE
 
 > Astuce : conservez ces clés en lieu sûr et ne les versionnez jamais.
 
-Points à prévoir :
+**Points à prévoir :**
 
 * Où récupérer les identifiants (UI MinIO, variables par défaut, procédure d’initialisation…).
 * Quelles variables ajouter dans `.env` (ex. `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION`, `MINIO_BUCKET_*`, etc.).
@@ -166,3 +174,10 @@ Points à prévoir :
 * Si `docker ps` échoue sans `sudo`, vérifiez votre appartenance au groupe `docker` et reconnectez votre session.
 * En cas d’alerte SSL dans le navigateur, c’est attendu en **dev** avec un certificat auto-signé.
 * Assurez-vous que toutes les valeurs sensibles de `.env` sont bien définies avant `docker compose up`.
+
+## 8) URLS en dev
+https://minio.docker.localhost
+https://api.docker.localhost (backend)
+https://traefik.docker.localhost (url traefik en dev)
+
+Besoin d'autres ?? Signaler le à votre devops préféré.
