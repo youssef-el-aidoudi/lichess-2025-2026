@@ -174,7 +174,10 @@ MINIO_SECRET_KEY=PASTE_SECRET_KEY_HERE
 * Si `docker ps` échoue sans `sudo`, vérifiez votre appartenance au groupe `docker` et reconnectez votre session.
 * En cas d’alerte SSL dans le navigateur, c’est attendu en **dev** avec un certificat auto-signé.
 * Assurez-vous que toutes les valeurs sensibles de `.env` sont bien définies avant `docker compose up`.
-
+* Si vous êtes sur windows attention au retour de ligne. Pour bien configurer votre projet, utilisez les commandes ci-dessous. 
+git config core.autocrlf input
+git rm --cached -r .
+git reset --hard
 ## 8) URLS en dev
 https://minio.docker.localhost
 https://api.docker.localhost (backend)
