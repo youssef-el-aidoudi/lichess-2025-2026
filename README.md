@@ -59,7 +59,7 @@ docker compose version
 
 ### Ajouter votre utilisateur au groupe `docker`
 
-Pour exécuter Docker sans `sudo` :
+Pour exécuter Docker sans `sudo`:
 
 ```bash
 sudo usermod -aG docker $USER
@@ -95,13 +95,13 @@ Le fichier `.env` centralise les variables de configuration du projet (ports, UR
 
 ## 4) Générer les certificats de développement (Traefik)
 
-Se placer dans le répertoire `traefik` :
+Se placer dans le répertoire `traefik`:
 
 ```bash
 cd traefik
 ```
 
-Générer la clé privée RSA :
+Générer la clé privée RSA:
 
 ```bash
 openssl genrsa -out private.key 2048
