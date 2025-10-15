@@ -13,14 +13,14 @@ public class ChessMateETL {
     public static void main(String[] args) throws Exception {
         //connexion à MinIO
         MinioClient minioClient = MinioClient.builder()
-            .endpoint("http://localhost:9000")
-            .credentials("minioadmin", "minioadmin")
+            .endpoint("http://minio:9000")
+            .credentials("admin", "liChess25-26")
             .build();
 
         InputStream in = minioClient.getObject(
             GetObjectArgs.builder()
-                .bucket("lichess-raw")
-                .object("lichess_2025_09.pgn")
+                .bucket("lichess-data")
+                .object("lichess_db_broadcast_2025-09.pgn")
                 .build()
         );
 
@@ -57,7 +57,7 @@ public class ChessMateETL {
             }
         }
         ps.executeBatch();
-        System.out.println("✅ Done. Total games inserted: " + total);
+        System.out.println("Done. Games inserees: " + total);
     }
 
     // ------------- Fonctions utilitaires -------------
