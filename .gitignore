@@ -19,7 +19,7 @@ node_modules/
 
 # Git metadata (inutile mais sans risque)
 .gitignore
-
+data/*
 # Optionnel (mais propre)
 # Exclure le dossier .git n’a pas de sens, car il ne peut pas être versionné de toute façon.
 # .git
