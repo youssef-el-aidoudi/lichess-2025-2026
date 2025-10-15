@@ -62,8 +62,6 @@ services:
     container_name: traefik
     build:
       context: ./traefik
-    environment:
-      ENV: production
     command:
       - --log.level=ERROR
       - --api.debug=false
