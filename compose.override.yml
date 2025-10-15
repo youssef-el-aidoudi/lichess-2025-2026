@@ -37,3 +37,7 @@ services:
   worker:
     environment:
       SPRING_PROFILES_ACTIVE: dev
+
+  postgres:
+    volumes:
+      - ./postgres/scripts:/scripts
