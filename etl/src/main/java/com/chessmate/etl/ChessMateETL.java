@@ -1,3 +1,5 @@
+package com.chessmate.etl;
+
 import io.minio.*;
 import java.io.*;
 import java.sql.*;

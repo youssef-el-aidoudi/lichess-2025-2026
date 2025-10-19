@@ -1,4 +1,4 @@
-package com.chessmate.backend.Entiter;
+package com.chessmate.backend.entiter;
 
 import java.time.LocalDateTime;
 

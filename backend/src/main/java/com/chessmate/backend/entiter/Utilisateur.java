@@ -1,4 +1,4 @@
-package com.chessmate.backend.Entiter;
+package com.chessmate.backend.entiter;
 
 import java.time.LocalDateTime;
 
@@ -33,7 +33,7 @@ public class Utilisateur {
         this.email = email;
         this.nom = nom;
         this.prenom = prenom;
-        //this.inscription_a = LocalDateTime.now();
+        this.inscription_a = LocalDateTime.now();
     }
 
     //getteurs
