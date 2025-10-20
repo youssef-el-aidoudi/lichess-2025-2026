@@ -23,3 +23,7 @@ node_modules/
 # Optionnel (mais propre)
 # Exclure le dossier .git n’a pas de sens, car il ne peut pas être versionné de toute façon.
 # .git
+
+# Fichiers liés au certificat local
+/traefik/cert.pem
+/traefik/private.key
