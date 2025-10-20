@@ -1,6 +1,6 @@
 CREATE TABLE Joueur
 (
-    id           COUNTER,
+    id           SERIAL,
     pseudonyme   VARCHAR(50),
     elo          SMALLINT,
     nb_victoires INT,
@@ -11,14 +11,14 @@ CREATE TABLE Joueur
 
 CREATE TABLE Utilisateur
 (
-    id            COUNTER,
+    id            SERIAL,
     email         VARCHAR(150) NOT NULL,
     hash          VARCHAR(255) NOT NULL,
     nom           VARCHAR(50),
     prenom        VARCHAR(50),
-    inscription_a DATETIME     NOT NULL,
-    connexion_a   DATETIME,
-    banni_a       DATETIME,
+    inscription_a TIMESTAMP     NOT NULL,
+    connexion_a   TIMESTAMP,
+    banni_a       TIMESTAMP,
     id_joueur     INT          NOT NULL,
     PRIMARY KEY (id),
     UNIQUE (id_joueur),
@@ -28,7 +28,7 @@ CREATE TABLE Utilisateur
 
 CREATE TABLE Cadence
 (
-    id        COUNTER,
+    id        SERIAL,
     libelle   VARCHAR(50),
     temps     SMALLINT,
     increment SMALLINT,
@@ -37,21 +37,21 @@ CREATE TABLE Cadence
 
 CREATE TABLE Role
 (
-    id      COUNTER,
+    id      SERIAL,
     libelle VARCHAR(50),
     PRIMARY KEY (id)
 );
 
 CREATE TABLE Profil
 (
-    id      COUNTER,
+    id      SERIAL,
     libelle VARCHAR(50),
     PRIMARY KEY (id)
 );
 
 CREATE TABLE Position_Stats
 (
-    id                     COUNTER,
+    id                     SERIAL,
     pgn                    TEXT NOT NULL,
     nb_victoires           INT,
     nb_defaites            INT,
@@ -65,11 +65,11 @@ CREATE TABLE Position_Stats
 
 CREATE TABLE Tournoi
 (
-    id              COUNTER,
+    id              SERIAL,
     libelle         VARCHAR(50),
     code            VARCHAR(10),
-    cree_a          DATETIME,
-    modifie_a       DATETIME,
+    cree_a          TIMESTAMP,
+    modifie_a       TIMESTAMP,
     Id_Organisateur INT NOT NULL,
     id_cadence      INT NOT NULL,
     PRIMARY KEY (id),
@@ -79,7 +79,7 @@ CREATE TABLE Tournoi
 
 CREATE TABLE Ouverture
 (
-    id          COUNTER,
+    id          SERIAL,
     code        VARCHAR(50)  NOT NULL,
     libelle     VARCHAR(150) NOT NULL,
     id_position INT          NOT NULL,
@@ -90,10 +90,10 @@ CREATE TABLE Ouverture
 
 CREATE TABLE Partie
 (
-    id               COUNTER,
+    id               SERIAL,
     resultat         SMALLINT,
     pgn              TEXT,
-    date_heure_utc   DATETIME,
+    date_heure_utc   TIMESTAMP,
     elo_blanc        SMALLINT,
     elo_noir         SMALLINT,
     score_blanc_diff SMALLINT,
@@ -120,7 +120,7 @@ CREATE TABLE participer
 (
     id_joueur   INT,
     id_tournoi  INT,
-    inscription DATETIME,
+    inscription TIMESTAMP,
     PRIMARY KEY (id_joueur, id_tournoi),
     FOREIGN KEY (id_joueur) REFERENCES Joueur (id),
     FOREIGN KEY (id_tournoi) REFERENCES Tournoi (id)
