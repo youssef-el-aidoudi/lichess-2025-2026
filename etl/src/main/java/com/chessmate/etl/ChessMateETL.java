@@ -1,7 +1,12 @@
 import io.minio.*;
 import java.io.*;
-import java.sql.*;
+import java.sql.Date;
 import java.util.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+
 
 public class ChessMateETL {
 
