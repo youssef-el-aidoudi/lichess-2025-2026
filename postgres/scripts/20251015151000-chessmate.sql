@@ -1,12 +1,15 @@
 CREATE TABLE Joueur
 (
     id           SERIAL,
-    pseudonyme   VARCHAR(50),
+    pseudonyme   VARCHAR(50) NOT NULL,
     elo          SMALLINT,
-    nb_victoires INT,
-    nb_defaites  INT,
-    nb_nulles    INT,
-    PRIMARY KEY (id)
+    nb_victoires INT DEFAULT 0,
+    nb_defaites  INT DEFAULT 0,
+    nb_nulles    INT DEFAULT 0,
+    equipe       VARCHAR(100),
+    fide_id      VARCHAR(20),
+    PRIMARY KEY (id),
+    UNIQUE (pseudonyme)
 );
 
 CREATE TABLE Utilisateur
@@ -29,10 +32,11 @@ CREATE TABLE Utilisateur
 CREATE TABLE Cadence
 (
     id        SERIAL,
-    libelle   VARCHAR(50),
+    libelle   VARCHAR(50) NOT NULL,
     temps     SMALLINT,
     increment SMALLINT,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    UNIQUE (libelle)
 );
 
 CREATE TABLE Role
@@ -53,26 +57,29 @@ CREATE TABLE Position_Stats
 (
     id                     SERIAL,
     pgn                    TEXT NOT NULL,
-    nb_victoires           INT,
-    nb_defaites            INT,
-    nb_nulles              INT,
+    nb_victoires           INT DEFAULT 0,
+    nb_defaites            INT DEFAULT 0,
+    nb_nulles              INT DEFAULT 0,
     probabilite_coup       VARCHAR(50),
-    id_position_precedente INT  NOT NULL,
+    id_position_precedente INT,
     PRIMARY KEY (id),
-    UNIQUE (id_position_precedente),
     FOREIGN KEY (id_position_precedente) REFERENCES Position_Stats (id)
 );
 
 CREATE TABLE Tournoi
 (
     id              SERIAL,
-    libelle         VARCHAR(50),
+    libelle         VARCHAR(255),
     code            VARCHAR(10),
-    cree_a          TIMESTAMP,
+    site            TEXT,
+    broadcast_url   TEXT,
+    date_debut      DATE,
+    cree_a          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     modifie_a       TIMESTAMP,
     Id_Organisateur INT NOT NULL,
     id_cadence      INT NOT NULL,
     PRIMARY KEY (id),
+    UNIQUE (libelle),
     FOREIGN KEY (Id_Organisateur) REFERENCES Joueur (id),
     FOREIGN KEY (id_cadence) REFERENCES Cadence (id)
 );
@@ -82,7 +89,7 @@ CREATE TABLE Ouverture
     id          SERIAL,
     code        VARCHAR(50)  NOT NULL,
     libelle     VARCHAR(150) NOT NULL,
-    id_position INT          NOT NULL,
+    id_position INT,
     PRIMARY KEY (id),
     UNIQUE (code),
     FOREIGN KEY (id_position) REFERENCES Position_Stats (id)
@@ -90,6 +97,7 @@ CREATE TABLE Ouverture
 
 CREATE TABLE Partie
 (
+    code         VARCHAR(255),
     id               SERIAL,
     resultat         SMALLINT,
     pgn              TEXT,
@@ -101,12 +109,14 @@ CREATE TABLE Partie
     titre_blanc      VARCHAR(5),
     titre_noir       VARCHAR(5),
     type_resultat    VARCHAR(50),
-    round            SMALLINT,
-    code             VARCHAR(10),
+    round            VARCHAR(20),
+    broadcast_url    TEXT,
+    game_url         TEXT,
+    variant          VARCHAR(50),
     id_ouverture     INT,
     id_cadence       INT,
-    Id_Joueur_Blanc  INT,
-    Id_Joueur_Noir   INT,
+    Id_Joueur_Blanc  INT NOT NULL,
+    Id_Joueur_Noir   INT NOT NULL,
     id_tournoi       INT,
     PRIMARY KEY (id),
     FOREIGN KEY (id_ouverture) REFERENCES Ouverture (id),
@@ -152,3 +162,7 @@ CREATE TABLE Profil_Role
     FOREIGN KEY (id_role) REFERENCES Role (id),
     FOREIGN KEY (id_profil) REFERENCES Profil (id)
 );
+
+-- Données initiales nécessaires
+INSERT INTO Joueur (pseudonyme, elo) VALUES ('System', 2000);
+INSERT INTO Cadence (libelle) VALUES ('Standard');
