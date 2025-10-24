@@ -1,6 +1,7 @@
 # IDEs & project metadata
 .idea/
 *.iml
+.vscode/
 
 # Build / compilation artifacts
 target/
