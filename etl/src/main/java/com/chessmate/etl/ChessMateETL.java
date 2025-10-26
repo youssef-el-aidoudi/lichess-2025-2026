@@ -3,6 +3,7 @@ package com.chessmate.etl;
 import io.minio.*;
 import java.io.*;
 import java.sql.*;
+import java.sql.Date;
 import java.util.*;
 
 public class ChessMateETL {

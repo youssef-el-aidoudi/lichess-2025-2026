@@ -44,8 +44,14 @@
 		<dependency>
 			<groupId>io.minio</groupId>
 			<artifactId>minio</artifactId>
+<<<<<<< Updated upstream
 			<version>8.5.7</version> 
 		</dependency>
+=======
+			<version>8.5.4</version> <!-- vérifie la dernière version sur Maven Central -->
+		</dependency>
+
+>>>>>>> Stashed changes
 	</dependencies>
 
 	<build>
