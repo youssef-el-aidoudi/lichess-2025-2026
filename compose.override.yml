@@ -26,24 +26,38 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DEVTOOLS_RESTART_ENABLED: true
+    volumes:
+      - ./backend:/app
 
   etl:
+    image: maven:3.9.9-eclipse-temurin-21
+    command: mvn -q spring-boot:run -Dspring-boot.run.profiles=dev
     environment:
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DEVTOOLS_RESTART_ENABLED: true
+    ports:
+      - "8080:8080"
+    volumes :
+      - ./etl:/app
+      - maven-cache:/root/.m2
 
   producer:
     environment:
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DEVTOOLS_RESTART_ENABLED: true
-
+    volumes:
+      - ./producer:/app
 
   worker:
     environment:
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DEVTOOLS_RESTART_ENABLED: true
-
+    volumes:
+      - ./worker:/app
 
   postgres:
     volumes:
       - ./postgres/scripts:/scripts
+
+volumes:
+  maven-cache:
