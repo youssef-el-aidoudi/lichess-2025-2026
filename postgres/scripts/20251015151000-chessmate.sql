@@ -99,7 +99,7 @@ CREATE TABLE Ouverture
 
 CREATE TABLE Partie
 (
-    code         VARCHAR(255),
+    title            VARCHAR(255),
     id               SERIAL,
     resultat         SMALLINT,
     pgn              TEXT,
