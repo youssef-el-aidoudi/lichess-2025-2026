@@ -93,7 +93,6 @@ CREATE TABLE Ouverture
     libelle     VARCHAR(150) NOT NULL,
     id_suite_coups_stats INT,
     PRIMARY KEY (id),
-    UNIQUE (code),
     FOREIGN KEY (id_suite_coups_stats) REFERENCES Suite_Coups_Stats (id)
 );
 
