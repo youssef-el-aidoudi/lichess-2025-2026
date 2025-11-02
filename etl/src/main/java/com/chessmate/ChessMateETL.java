@@ -19,7 +19,7 @@ public class ChessMateETL {
         //connexion à la base, mots de passe à changer lol
         Connection connection = DriverManager.getConnection(
             "jdbc:postgresql://localhost:5432/chessmate", "chessmate", "AdleneTest");
-        
+
         connection.setAutoCommit(false); // on commit nous même, pas de commit auto
 
         /**
@@ -44,7 +44,7 @@ public class ChessMateETL {
             "INSERT INTO Tournoi (libelle, site, broadcast_url, date_debut, Id_Organisateur, id_cadence) " +
             "VALUES (?, ?, ?, ?, 1, 1) " +
             "ON CONFLICT (libelle) DO NOTHING RETURNING id");
-        
+
 
         /**
          * PreparedStatement pour vérifier l'existence d'un tournoi via son libellé.
@@ -63,7 +63,7 @@ public class ChessMateETL {
             "INSERT INTO Ouverture (code, libelle, id_position) VALUES (?, ?, ?) " +
             "ON CONFLICT (code) DO UPDATE SET libelle = EXCLUDED.libelle " +
             "RETURNING id");
-        
+
 
         /**
          * PreparedStatement pour insérer une partie d'échecs.
@@ -89,7 +89,7 @@ public class ChessMateETL {
             e.printStackTrace();
             return; // arrête le programme si une erreur IO survient
         }
-        
+
         //déclaration variables utiles pour la boucle principale
         String ligne;
         Game gameActuelle = new Game(); //initialisation de la game
@@ -101,7 +101,7 @@ public class ChessMateETL {
         /**
          * BOUCLE PRINCIPALE
          * Lit un fichier PGN ligne par ligne, parse les informations des parties et insère les données dans la base.
-         * 
+         *
          * Pour chaque ligne du fichier :
          * - Si la ligne commence par '[', elle contient des métadonnées (nom des joueurs, date, résultat, etc.)
          *   et est parsée via la méthode parseMetadata.
@@ -118,17 +118,17 @@ public class ChessMateETL {
          *   - La partie est enfin insérée dans la table Partie.
          *   - Un commit est fait tous les 100 parties pour optimiser les performances.
          * - Les parties qui ne passent pas le filtre sont ignorées.
-         * 
+         *
          * À la fin de la lecture :
          * - Un commit final est effectué pour les parties restantes.
          * - Le reader est fermé.
          * - La connexion à la base est fermée.
-         * 
+         *
          * Les variables de suivi :
          * - totalGames : nombre total de parties insérées.
          * - skippedGames : nombre de parties ignorées.
          * - cptGamesTmp : compteur temporaire pour commits par lot.
-         * 
+         *
          * Gestion des erreurs :
          * - En cas d'exception lors de l'insertion d'une partie, un rollback est effectué pour cette transaction
          *   et un message d'erreur est affiché.
@@ -137,10 +137,10 @@ public class ChessMateETL {
             if (ligne.startsWith("[")) { //chaque ligne commence par un "[" et se termine par un "]"
                 parseMetadata(ligne, gameActuelle); //parse les metadatas genre white, black, date etc
 
-            //sinon si la ligne commence pas par "[", ça sera la liste des coups joués    
+            //sinon si la ligne commence pas par "[", ça sera la liste des coups joués
             } else if (!ligne.trim().isEmpty() && !ligne.startsWith("[")) {
                 gameActuelle.moves.append(ligne).append("\n"); // stock les coups
-            
+
             //vérification si partie terminée->next partie (ligne vide, mais joueur white toujours stocké par ex)
             } else if (ligne.trim().isEmpty() && gameActuelle.white != null) {
 
@@ -150,11 +150,11 @@ public class ChessMateETL {
                 if (filter(gameActuelle) && idCadence != null) { //ffiltre a choisir
                     try {
                         //insert les joueurs et recup id
-                        int idBlanc = insererJoueur(psJoueur, gameActuelle.white, gameActuelle.whiteElo, 
+                        int idBlanc = insererJoueur(psJoueur, gameActuelle.white, gameActuelle.whiteElo,
                                                      gameActuelle.whiteTeam, gameActuelle.whiteFideId);
-                        int idNoir = insererJoueur(psJoueur, gameActuelle.black, gameActuelle.blackElo, 
+                        int idNoir = insererJoueur(psJoueur, gameActuelle.black, gameActuelle.blackElo,
                                                     gameActuelle.blackTeam, gameActuelle.blackFideId);
-                        
+
                         //insertion tournoi && recup idTournoi
                         Integer idTournoi = null;
                         if (gameActuelle.broadcastName != null) {
@@ -163,20 +163,20 @@ public class ChessMateETL {
 
                         // Récupérer l'ID de Suite_Coups_Stats AVANT l'ouverture
                         Integer idSuiteCoups = getIdSuiteCoups(connection, gameActuelle.moves.toString());
-                        
+
                         //insertion ouverture && recup idOuverture
                         Integer idOuverture = null;
                         if (gameActuelle.eco != null) {
                             idOuverture = insererOuverture(psOuverture, gameActuelle.eco, gameActuelle.opening, idSuiteCoups);
                         }
-                        
-                        
+
+
                         //insertion de la partie dans la bd
                         insererPartie(psPartie, gameActuelle, idBlanc, idNoir, idOuverture, idCadence, idTournoi, idSuiteCoups);
-                        
+
                         totalGames++; //nombre total de parties insérées
                         cptGamesTmp++; //nombre temporaire de parties inserées (jusqu'a 100)
-                        
+
                         if (cptGamesTmp >= 100) { //commit tous les 100 parties
                             connection.commit();
                             cptGamesTmp = 0;
@@ -193,11 +193,11 @@ public class ChessMateETL {
                 gameActuelle=new Game();
             }
         }
-        
+
         if (cptGamesTmp > 0) { //commit final
             connection.commit();
         }
-        
+
         reader.close();
         System.out.println("terminé ! total : " + totalGames + " parties insérées, " + skippedGames + " ignorées");
         connection.close();
@@ -208,29 +208,29 @@ public class ChessMateETL {
 
     /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
-     * 
+     *
      * Exemple de ligne PGN : [White "MagnusCarlsen"]
-     * 
+     *
      * Étapes :
      *  - Extrait la clé ("White") et la valeur ("MagnusCarlsen")
      *  - Met à jour le bon attribut de l'objet Game selon la clé
-     * 
+     *
      * @param line Ligne extraite du fichier PGN (doit commencer par un crochet ouvrant '[')
      * @param game Instance de Game dans laquelle les informations doivent être enregistrées
      */
     static void parseMetadata(String line, Game game) {
         //trouve la position de la fin de le clé, dès qu'on trouve un espace
-        int finCle = line.indexOf(" "); 
+        int finCle = line.indexOf(" ");
         //trouve la position de début et fin de "valeur" entre guillemets
-        int valStart = line.indexOf("\"") + 1;  
-        int valEnd = line.lastIndexOf("\""); 
+        int valStart = line.indexOf("\"") + 1;
+        int valEnd = line.lastIndexOf("\"");
 
         //ignorer les cas non complets
-        if (finCle == -1 || valStart == -1 || valEnd == -1) return;  
-        
+        if (finCle == -1 || valStart == -1 || valEnd == -1) return;
+
         String key = line.substring(1, finCle);  //recuperation cle
         String val = line.substring(valStart, valEnd);      //recuperation valeur
-        
+
         switch (key) { //switch case pour remplir les infos de la game
             //infos sur la game
             case "Event": game.event = val; break;
@@ -243,19 +243,19 @@ public class ChessMateETL {
             case "ECO": game.eco = val; break;
             case "Opening": game.opening = val; break;
             case "TimeControl": game.timeControl = val; break;
-            
+
             //infos sur joueur blanc
             case "WhiteElo": game.whiteElo = parseInt(val); break;
             case "WhiteTitle": game.whiteTitle = val; break;
             case "WhiteTeam": game.whiteTeam = val; break;
             case "WhiteFideId": game.whiteFideId = val; break;
-            
+
             //infos sur joueur noir
             case "BlackElo": game.blackElo = parseInt(val); break;
             case "BlackTitle": game.blackTitle = val; break;
             case "BlackTeam": game.blackTeam = val; break;
             case "BlackFideId": game.blackFideId = val; break;
-            
+
             //liens et datage
             case "UTCDate": game.utcDate = val; break;
             case "UTCTime": game.utcTime = val; break;
@@ -264,15 +264,15 @@ public class ChessMateETL {
             case "GameURL": game.gameUrl = val; break;
         }
     }
-    
+
 
     /**
      * Filtre les parties non valides selon certains critères de cohérence.
-     * 
+     *
      * Une partie est considérée valide si :
      *  - Les deux joueurs ont un ELO défini et supérieur ou égal à 800
      *  - Le résultat est renseigné et différent de "*"
-     * 
+     *
      * @param g L'objet {@link Game} représentant une partie
      * @return true si la partie passe le filtre, false sinon
      */
@@ -282,7 +282,7 @@ public class ChessMateETL {
             && g.whiteElo >= 800 && g.blackElo >= 800
             && g.result != null && !g.result.equals("*");
     }
-    
+
 
 
 
@@ -292,15 +292,15 @@ public class ChessMateETL {
      *
      * @param s La chaîne à convertir en entier.
      * @return Un objet {@link Integer} correspondant à la valeur entière de {@code s}, ou {@code null} en cas d’erreur.
-     */    
+     */
     static Integer parseInt(String s) {
         try { return Integer.parseInt(s); } catch (Exception e) { return null; }
     }
-    
 
 
 
-    
+
+
     /**
      * Insère un joueur dans la base de données ou met à jour ses informations s'il existe déjà.
      * Utilise la clause SQL "ON CONFLICT" pour éviter les doublons sur le pseudonyme.
@@ -313,7 +313,7 @@ public class ChessMateETL {
      * @return         l'identifiant unique (id) du joueur inséré ou mis à jour
      * @throws SQLException si une erreur SQL survient lors de l’exécution
      */
-    static int insererJoueur(PreparedStatement ps, String nom, Integer elo, 
+    static int insererJoueur(PreparedStatement ps, String nom, Integer elo,
                              String equipe, String fideId) throws SQLException {
         ps.setString(1, nom);
         ps.setObject(2, elo);
@@ -327,7 +327,7 @@ public class ChessMateETL {
 
 
 
-    
+
     /**
      * Insère un tournoi dans la base de données s'il n'existe pas déjà.
      * Vérifie l’existence du tournoi à partir de son libellé avant insertion.
@@ -338,10 +338,10 @@ public class ChessMateETL {
      * @return          l’identifiant du tournoi inséré ou déjà existant, sinon null
      * @throws SQLException si une erreur SQL survient lors de l’insertion ou de la vérification
      */
-    static Integer insererTournoi(PreparedStatement psInsert, PreparedStatement psCheck, 
+    static Integer insererTournoi(PreparedStatement psInsert, PreparedStatement psCheck,
                                   Game game) throws SQLException {
         String libelle = truncate(game.broadcastName, 255); //clean les names hyper longs
-        
+
 
         //vérification de l'existence du tournoi
         psCheck.setString(1, libelle);
@@ -349,13 +349,13 @@ public class ChessMateETL {
         if (rs.next()) {
             return rs.getInt("id");
         }
-        
+
         //insertion sinon
         psInsert.setString(1, libelle);
         psInsert.setString(2, game.site);
         psInsert.setString(3, game.broadcastUrl);
         psInsert.setDate(4, parseDate(game.utcDate));
-        
+
         ResultSet rsInsert = psInsert.executeQuery();
         if (rsInsert.next()) {
             return rsInsert.getInt("id");
@@ -365,7 +365,7 @@ public class ChessMateETL {
 
 
 
-    
+
     /**
      * Insère une ouverture dans la base de données ou met à jour son libellé si le code existe déjà.
      * Utilise un PreparedStatement pour exécuter l'opération et récupère l'ID généré.
@@ -378,7 +378,7 @@ public class ChessMateETL {
      * @return L'identifiant ({@link Integer}) de l'ouverture insérée ou mise à jour.
      * @throws SQLException Si une erreur SQL survient lors de l'exécution du statement.
      */
-    static Integer insererOuverture(PreparedStatement ps, String eco, String opening, 
+    static Integer insererOuverture(PreparedStatement ps, String eco, String opening,
                                     Integer idSuiteCoups) throws SQLException {
         ps.setString(1, truncate(eco, 3));
         ps.setString(2, opening != null ? truncate(opening, 150) : "Unknown");
@@ -394,7 +394,7 @@ public class ChessMateETL {
 
     /**
      * Recherche ou insère une séquence de coups (suite de coups PGN) dans la table Suite_Coups_Stats.
-     * 
+     *
      * Cette méthode s'assure qu'une séquence donnée de coups n'est enregistrée qu'une seule fois :
      *  - Si la séquence existe déjà (même PGN), on récupère son identifiant.
      *  - Sinon, on insère une nouvelle entrée et on renvoie le nouvel ID.
@@ -405,7 +405,7 @@ public class ChessMateETL {
      * @throws SQLException En cas d'erreur SQL (connexion ou requête)
      */
     static Integer getIdSuiteCoups(Connection connection, String pgn) throws SQLException {
-        String pgnNettoye = nettoyerPgnCoups(pgn); //PGN ou y a que les coups propres (pour SuiteCoupsStats)        
+        String pgnNettoye = nettoyerPgnCoups(pgn); //PGN ou y a que les coups propres (pour SuiteCoupsStats)
         //verification si la position existe déja
         PreparedStatement ps = connection.prepareStatement(
             "SELECT id FROM Suite_Coups_Stats WHERE pgn = ?"
@@ -413,7 +413,7 @@ public class ChessMateETL {
         ps.setString(1, pgnNettoye);
         ResultSet rs = ps.executeQuery();
         if (rs.next()) return rs.getInt("id");
-        
+
 
         //sinon insertion
         ps = connection.prepareStatement(
@@ -427,13 +427,13 @@ public class ChessMateETL {
 
     /**
      * Récupère l'identifiant d'une cadence (temps + incrément) à partir du champ TimeControl d'une partie PGN.
-     * 
+     *
      * Cette méthode tente de faire correspondre la valeur TimeControl (ex: "90+30") à une cadence
      * existante dans la base (table Cadence). Si aucune correspondance n'est trouvée, la méthode renvoie null.
-     * 
+     *
      * Exemple :
      *   "90+30"  →  recherche Cadence.libelle = "90+30"
-     * 
+     *
      * @param conn Connexion active à la base de données PostgreSQL
      * @param timeControl Valeur brute du champ TimeControl extraite du PGN
      * @return L'identifiant de la cadence correspondante, ou null si aucune trouvée
@@ -444,7 +444,7 @@ public class ChessMateETL {
 
         //parse le format "temps+increment" (ex: "90+30", "10+0")
         String cleanTimeControl = normalizeCadence(timeControl);
-       
+
 
         //requete pour trouver la cadence dans la BD
         PreparedStatement ps = conn.prepareStatement(
@@ -465,18 +465,18 @@ public class ChessMateETL {
 
     /**
      * Nettoie un texte PGN brut pour ne conserver que la séquence de coups pure.
-     * 
+     *
      * Cette méthode retire tout ce qui n’est pas directement lié aux coups :
      *  - Les commentaires entre accolades { ... }
      *  - Les annotations (!, ?, !!, ?!, etc.)
      *  - Les notations de coups noirs ("...")
      *  - Les résultats de partie (1-0, 0-1, 1/2-1/2, *)
      *  - Les espaces superflus
-     * 
+     *
      * Exemple :
      *   Entrée : "1. e4 {Coup classique} e5 2. Nf3 Nc6 1-0"
      *   Sortie : "1. e4 e5 2. Nf3 Nc6"
-     * 
+     *
      * @param raw Chaîne PGN brute extraite du fichier
      * @return Le PGN nettoyé, contenant uniquement les coups, ou null si l’entrée est null
      */
@@ -508,12 +508,12 @@ public class ChessMateETL {
 
     /**
      * Insère une partie dans la base de données via un {@link PreparedStatement} déjà préparé.
-     * 
+     *
      * Cette méthode mappe les champs de l'objet {@link Game} aux colonnes de la table Partie :
      *  - Convertit le résultat textuel ("1-0", "0-1", "1/2-1/2") en entier
      *  - Convertit les dates/horaires PGN en {@link Timestamp}
      *  - Nettoie et tronque les chaînes si nécessaire
-     * 
+     *
      * @param ps Requête SQL préparée d’insertion dans la table Partie
      * @param game Objet contenant toutes les informations d’une partie PGN
      * @param idBlanc Identifiant du joueur blanc
@@ -525,10 +525,10 @@ public class ChessMateETL {
      * @throws SQLException En cas d’erreur lors de l’insertion SQL
      */
     static void insererPartie(PreparedStatement ps, Game game, int idBlanc, int idNoir,
-                              Integer idOuverture, Integer idCadence, Integer idTournoi, 
+                              Integer idOuverture, Integer idCadence, Integer idTournoi,
                               Integer idSuiteCoups) throws SQLException {
         int resultat = game.result.equals("1-0") ? 2 : game.result.equals("0-1") ? 0 : 1;
-        
+
         int idx = 1;
         ps.setString(idx++, truncate(game.event, 255)); //titre
         ps.setInt(idx++, resultat);
@@ -548,17 +548,17 @@ public class ChessMateETL {
         ps.setObject(idx++, idCadence);
         ps.setObject(idx++, idTournoi);
         ps.setString(idx++, cleanPgn(game.moves.toString())); // PGN complet pour Partie
-        
+
         ps.executeUpdate();
     }
 
 
 
 
-    
 
 
-    
+
+
     /**
      * Convertit une date au format PGN (ex: "2024.09.18") en objet SQL Date.
      *
@@ -575,7 +575,7 @@ public class ChessMateETL {
             return null;
         }
     }
-    
+
 
 
 
@@ -598,13 +598,13 @@ public class ChessMateETL {
             return null;
         }
     }
-    
+
 
 
 
     /**
      * Tronque une chaîne de caractères à une longueur maximale spécifiée.
-     * 
+     *
      * Utile pour éviter les erreurs SQL sur des champs trop longs
      * (par exemple, les noms de tournois ou les URLs très longues).
      *
