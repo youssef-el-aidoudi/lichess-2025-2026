@@ -91,10 +91,10 @@ CREATE TABLE Ouverture
     id          SERIAL,
     code        VARCHAR(50)  NOT NULL,
     libelle     VARCHAR(150) NOT NULL,
-    id_position INT,
+    id_suite_coups_stats INT,
     PRIMARY KEY (id),
     UNIQUE (code),
-    FOREIGN KEY (id_position) REFERENCES Suite_Coups_Stats (id)
+    FOREIGN KEY (id_suite_coups_stats) REFERENCES Suite_Coups_Stats (id)
 );
 
 CREATE TABLE Partie

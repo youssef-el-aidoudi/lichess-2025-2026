@@ -2,9 +2,9 @@ package com.chessmate;
 
 import java.io.*;
 import java.sql.*;
+import io.github.cdimascio.dotenv.Dotenv;
 
 public class ChessMateETL {
-
     /**
      * Point d’entrée principal du programme ETL ChessMate.
      *
@@ -16,9 +16,17 @@ public class ChessMateETL {
      * @param args arguments de ligne de commande (chemin du fichier PGN, etc.)
      */
     public static void main(String[] args) throws Exception {
-        //connexion à la base, mots de passe à changer lol
+        // Chargement des variables d'environnement du projet
+        Dotenv dotenv = Dotenv.configure()
+                .directory("..")
+                .load();
+
+        //connexion à la base
         Connection connection = DriverManager.getConnection(
-            "jdbc:postgresql://localhost:5432/chessmate", "chessmate", "AdleneTest");
+                "jdbc:postgresql://localhost:5432/" + dotenv.get("POSTGRES_DB"),
+                dotenv.get("POSTGRES_USER"),
+                dotenv.get("POSTGRES_PASSWORD")
+        );
 
         connection.setAutoCommit(false); // on commit nous même, pas de commit auto
 
