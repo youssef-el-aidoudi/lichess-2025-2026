@@ -142,10 +142,11 @@ public class ChessMateETL {
             //vérification si partie terminée->next partie (ligne vide, mais joueur white toujours stocké par ex)
             } else if (ligne.trim().isEmpty() && gameActuelle.white != null) {
 
-                //recherche & recup idCadence
+                //recherche & recup idCadence & idOuverture
                 Integer idCadence = getIdCadence(connection, gameActuelle.timeControl);
+                Integer idOuverture=getIdOuverture(connection, gameActuelle);
                 //si la partie convient nos filtres
-                if (filter(gameActuelle) && idCadence != null) { //ffiltre a choisir
+                if (filter(gameActuelle) && idCadence != null && idOuverture != null) { //ffiltre a choisir
                     try {
                         //insert les joueurs et recup id
                         int idBlanc = insererJoueur(psJoueur, gameActuelle.white, gameActuelle.whiteElo,
@@ -164,7 +165,7 @@ public class ChessMateETL {
 
 
                         //insertion de la partie dans la bd
-                        insererPartie(psPartie, gameActuelle, idBlanc, idNoir, null, idCadence, idTournoi, idSuiteCoups);
+                        insererPartie(psPartie, gameActuelle, idBlanc, idNoir, idOuverture, idCadence, idTournoi, idSuiteCoups);
 
                         totalGames++; //nombre total de parties insérées
                         cptGamesTmp++; //nombre temporaire de parties inserées (jusqu'a 100)
@@ -651,16 +652,29 @@ public class ChessMateETL {
         return rawCadence; // ex: "90minutes + 30 seconds" → "90+30"
     }
 
-
-    static Integer getOuverture(Connection connection, Game game) throws SQLException{
-        //recherche nom ouverture
-        PreparedStatement ps = connection.prepareStatement(
-            "SELECT id FROM Ouverture WHERE code = ?"
-        );
-        ps.setString(1, game.eco);
-
-        ResultSet rs = ps.executeQuery();
-        if (rs.next()) return rs.getInt("id");
-        return rs.getInt("id");
+    /**
+     * Récupère l'identifiant de l'ouverture associée à une partie d'échecs.
+     *
+     * Cette méthode cherche dans la table "Ouverture" l'entrée correspondant
+     * au code ECO de la partie (champ `game.eco`). Si une ouverture correspondante
+     * est trouvée, elle retourne son identifiant (id). Sinon, elle retourne `null`.
+     *
+     * @param connection la connexion active à la base de données
+     * @param game       l'objet Game contenant les métadonnées de la partie, notamment le code ECO
+     * @return l'identifiant de l'ouverture si trouvée, sinon `null`
+     * @throws SQLException en cas d'erreur SQL lors de l'exécution de la requête
+     */
+    static Integer getIdOuverture(Connection connection, Game game) throws SQLException {
+    String query = "SELECT id FROM Ouverture WHERE code = ?";
+    PreparedStatement ps = connection.prepareStatement(query);
+    ps.setString(1, game.eco);
+    try (ResultSet rs = ps.executeQuery()) {
+        if (rs.next()) {
+            return rs.getInt("id");
+        } else {
+            return null;
+        }
+    }
     }
 }
+
