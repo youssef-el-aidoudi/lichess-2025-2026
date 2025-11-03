@@ -6,8 +6,10 @@ import java.util.Optional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.chessmate.backend.entiter.Ouverture;
 import com.chessmate.backend.entiter.Utilisateur;
 import com.chessmate.backend.repository.UtilisateurRepository;
 
@@ -22,16 +24,13 @@ public class UtilisateurController {
         this.repUser = rep;
     }
     
-    @GetMapping("/all")
-    public List<Utilisateur> all()
+    @GetMapping
+    public Object getUtilisateur(@RequestParam(value="id", required=false) Long id)
     {
+        if(id!=null)
+        {
+            return repUser.findById(id);
+        }
         return repUser.findAll();
     }
-
-    @GetMapping("/{id}")
-    public Optional<Utilisateur> getUtilisateur(@PathVariable long id)
-    {
-        return repUser.findById(id);
-    }
-
 }

@@ -16,8 +16,8 @@ public class Tournoi {
 
     private String libelle;
     private String code;
-    private LocalDateTime cree_a;
-    private LocalDateTime modifier_a;
+    private LocalDateTime creeA;
+    private LocalDateTime modifierA;
 
     public Tournoi() {}
 
@@ -25,17 +25,17 @@ public class Tournoi {
     {
         this.libelle = libelle;
         this.code = code;
-        this.cree_a = cree;
+        this.creeA = cree;
     }
 
     //getteurs
     public String getLibelle() {return this.libelle;}
     public String getCode(){ return this.code; }
-    public LocalDateTime getCree_A() {return this.cree_a;}
-    public LocalDateTime getModifier_A() {return this.modifier_a;}
+    public LocalDateTime getCree_A() {return this.creeA;}
+    public LocalDateTime getModifier_A() {return this.modifierA;}
 
     //setteurs
     public void setLibelle(String l) { this.libelle = l; }
     public void setCode(String c) { this.code = c; }
-    public void setModifier_A(LocalDateTime dt){ this.modifier_a = dt;}
+    public void setModifier_A(LocalDateTime dt){ this.modifierA = dt;}
 }

@@ -10,7 +10,7 @@ import com.chessmate.backend.entiter.Cadence;
 import com.chessmate.backend.repository.CadenceRopository;
 
 @RestController
-@RequestMapping("/cadence")
+@RequestMapping("/cadences")
 public class CadenceController {
     private final CadenceRopository repCadence;
 
@@ -19,8 +19,8 @@ public class CadenceController {
         this.repCadence = rep;
     }
 
-    @GetMapping("/all")
-    public List<Cadence> all()
+    @GetMapping
+    public Object getCadence()
     {
         return repCadence.findAll();
     }

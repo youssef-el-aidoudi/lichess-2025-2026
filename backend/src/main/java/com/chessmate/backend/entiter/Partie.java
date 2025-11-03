@@ -17,14 +17,14 @@ public class Partie {
 
     private String resultat;
     private String pgn;
-    private LocalDateTime date_heure;
-    private int elo_blanc;
-    private int elo_noir;
+    private LocalDateTime dateHeure;
+    private int eloBlanc;
+    private int eloNoir;
     private int score_blanc_diff;
     private int score_noir_diff;
-    private String titre_blanc;
-    private String titre_noir;
-    private String type_resultat;
+    private String titreBlanc;
+    private String titreNoir;
+    private String typeResultat;
     private int round;
     private String code;
 
@@ -36,14 +36,14 @@ public class Partie {
     {
         this.resultat = result;
         this.pgn = pgn;
-        this.date_heure = dt;
-        this.elo_blanc = elo_b;
-        this.elo_noir = elo_n;
+        this.dateHeure = dt;
+        this.eloBlanc = elo_b;
+        this.eloNoir = elo_n;
         this.score_blanc_diff = sc_b_diff;
         this.score_noir_diff = sc_n_diff;
-        this.titre_blanc = titre_b;
-        this.titre_noir = titre_n;
-        this.type_resultat = type_result;
+        this.titreBlanc = titre_b;
+        this.titreNoir = titre_n;
+        this.typeResultat = type_result;
         this.round = round;
         this.code = code;
     }
@@ -53,14 +53,14 @@ public class Partie {
     public String getPgnPartie() { return this.pgn; }
     public int getScore_Blanc_Diff() { return this.score_blanc_diff; }
     public int getScore_Noir_Diff() { return this.score_noir_diff; }
-    public String getTitre_blanc() { return this.titre_blanc; }
-    public String getTitre_noir() { return this.titre_noir; }
-    public String getType_Resultat() { return this.type_resultat; }
+    public String getTitre_blanc() { return this.titreBlanc; }
+    public String getTitre_noir() { return this.titreNoir; }
+    public String getType_Resultat() { return this.typeResultat; }
     public String getCodePartie() { return this.code; }
     public int getRound() { return this.round; }
-    public int getElo_Blanc() { return this.elo_blanc; }
-    public int getElo_Noir() { return this.elo_noir; }
-    public LocalDateTime getDateHeurePartie() { return this.date_heure; }
+    public int getElo_Blanc() { return this.eloBlanc; }
+    public int getElo_Noir() { return this.eloNoir; }
+    public LocalDateTime getDateHeurePartie() { return this.dateHeure; }
 
 
 }
