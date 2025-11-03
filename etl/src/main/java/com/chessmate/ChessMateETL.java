@@ -61,16 +61,6 @@ public class ChessMateETL {
         PreparedStatement psCheckTournoi = connection.prepareStatement(
             "SELECT id FROM Tournoi WHERE libelle = ?");
 
-        /**
-         * PreparedStatement pour insérer ou mettre à jour une ouverture d'échecs.
-         * Insère code, libellé et id_position.
-         * Si le code existe déjà, met à jour uniquement le libellé.
-         * Retourne l'id de l'ouverture insérée ou existante.
-         */
-        PreparedStatement psOuverture = connection.prepareStatement(
-            "INSERT INTO Ouverture (code, libelle, id_position) VALUES (?, ?, ?) " +
-            "ON CONFLICT (code) DO UPDATE SET libelle = EXCLUDED.libelle " +
-            "RETURNING id");
 
 
         /**
@@ -172,20 +162,14 @@ public class ChessMateETL {
                         // Récupérer l'ID de Suite_Coups_Stats AVANT l'ouverture
                         Integer idSuiteCoups = getIdSuiteCoups(connection, gameActuelle.moves.toString());
 
-                        //insertion ouverture && recup idOuverture
-                        Integer idOuverture = null;
-                        if (gameActuelle.eco != null) {
-                            idOuverture = insererOuverture(psOuverture, gameActuelle.eco, gameActuelle.opening, idSuiteCoups);
-                        }
-
 
                         //insertion de la partie dans la bd
-                        insererPartie(psPartie, gameActuelle, idBlanc, idNoir, idOuverture, idCadence, idTournoi, idSuiteCoups);
+                        insererPartie(psPartie, gameActuelle, idBlanc, idNoir, null, idCadence, idTournoi, idSuiteCoups);
 
                         totalGames++; //nombre total de parties insérées
                         cptGamesTmp++; //nombre temporaire de parties inserées (jusqu'a 100)
 
-                        if (cptGamesTmp >= 100) { //commit tous les 100 parties
+                        if (cptGamesTmp >= 2000) { //commit tous les 100 parties
                             connection.commit();
                             cptGamesTmp = 0;
                             System.out.println("parties insérées : " + totalGames + " (ignorées : " + skippedGames + ")");
@@ -665,5 +649,18 @@ public class ChessMateETL {
         if (rawCadence == null) return null;
         rawCadence = rawCadence.toLowerCase().replaceAll("[^0-9+]", "");
         return rawCadence; // ex: "90minutes + 30 seconds" → "90+30"
+    }
+
+
+    static Integer getOuverture(Connection connection, Game game) throws SQLException{
+        //recherche nom ouverture
+        PreparedStatement ps = connection.prepareStatement(
+            "SELECT id FROM Ouverture WHERE code = ?"
+        );
+        ps.setString(1, game.eco);
+
+        ResultSet rs = ps.executeQuery();
+        if (rs.next()) return rs.getInt("id");
+        return rs.getInt("id");
     }
 }
