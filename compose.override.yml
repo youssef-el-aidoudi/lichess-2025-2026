@@ -66,6 +66,10 @@ services:
   postgres:
     volumes:
       - ./postgres/scripts:/scripts
+    networks:
+      - public
+    ports:
+      - "5432:5432"
 
 volumes:
   maven-cache:
