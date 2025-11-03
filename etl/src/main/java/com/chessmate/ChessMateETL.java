@@ -2,9 +2,20 @@ package com.chessmate;
 
 import java.io.*;
 import java.sql.*;
+import java.util.Hashtable;
+import java.util.Dictionary;
 import io.github.cdimascio.dotenv.Dotenv;
 
 public class ChessMateETL {
+    /**
+     * Dictionnaire des cadences déjà récupérées : Dictionary<TimeControl, IdCadence)
+     */
+    private static Dictionary<String, Integer> cadences =  new Hashtable<>();
+    /**
+     * Dictionnaire des ouvertures déjà récupérées : Dictionary<ECO, IdOuverture)
+     */
+    private static Dictionary<String, Integer> ouvertures =  new Hashtable<>();
+
     /**
      * Point d’entrée principal du programme ETL ChessMate.
      *
@@ -136,15 +147,19 @@ public class ChessMateETL {
                 parseMetadata(ligne, gameActuelle); //parse les metadatas genre white, black, date etc
 
             //sinon si la ligne commence pas par "[", ça sera la liste des coups joués
-            } else if (!ligne.trim().isEmpty() && !ligne.startsWith("[")) {
+            } else if (!ligne.trim().isEmpty()) {
                 gameActuelle.moves.append(ligne).append("\n"); // stock les coups
 
             //vérification si partie terminée->next partie (ligne vide, mais joueur white toujours stocké par ex)
-            } else if (ligne.trim().isEmpty() && gameActuelle.white != null) {
+            } else if (gameActuelle.white != null) {
 
                 //recherche & recup idCadence & idOuverture
-                Integer idCadence = getIdCadence(connection, gameActuelle.timeControl);
-                Integer idOuverture=getIdOuverture(connection, gameActuelle);
+                String timeControl = gameActuelle.timeControl;
+                Integer idCadence = timeControl != null ? (cadences.get(timeControl) != null ? cadences.get(timeControl) : getIdCadence(connection, timeControl)) : null;
+
+                String eco = gameActuelle.eco; // code de l'ouverture jouée dans la partie
+                Integer idOuverture = eco != null ? (ouvertures.get(eco) != null ? ouvertures.get(eco) : getIdOuverture(connection, eco)) : null;
+
                 //si la partie convient nos filtres
                 if (filter(gameActuelle) && idCadence != null && idOuverture != null) { //ffiltre a choisir
                     try {
@@ -433,8 +448,6 @@ public class ChessMateETL {
      * @throws SQLException En cas d'erreur SQL
      */
     static Integer getIdCadence(Connection conn, String timeControl) throws SQLException {
-        if (timeControl == null) return null;
-
         //parse le format "temps+increment" (ex: "90+30", "10+0")
         String cleanTimeControl = normalizeCadence(timeControl);
 
@@ -447,7 +460,9 @@ public class ChessMateETL {
         ResultSet rs = ps.executeQuery();
 
         if (rs.next()) { //si on trouve la cadence, return id
-            return rs.getInt("id");
+            Integer idCadence =  rs.getInt("id");
+            cadences.put(timeControl, idCadence);
+            return idCadence;
         } else {
             return null;
         }
@@ -664,17 +679,19 @@ public class ChessMateETL {
      * @return l'identifiant de l'ouverture si trouvée, sinon `null`
      * @throws SQLException en cas d'erreur SQL lors de l'exécution de la requête
      */
-    static Integer getIdOuverture(Connection connection, Game game) throws SQLException {
-    String query = "SELECT id FROM Ouverture WHERE code = ?";
-    PreparedStatement ps = connection.prepareStatement(query);
-    ps.setString(1, game.eco);
-    try (ResultSet rs = ps.executeQuery()) {
-        if (rs.next()) {
-            return rs.getInt("id");
-        } else {
-            return null;
+    static Integer getIdOuverture(Connection connection, String eco) throws SQLException {
+        String query = "SELECT id FROM Ouverture WHERE code = ? ORDER BY id ASC LIMIT 1"; // TODO plus tard : améliorer la détection d'ouverture en comparant les premiers coups pour découvrir les variantes jouées plutôt que l'ouverture basique
+        PreparedStatement ps = connection.prepareStatement(query);
+        ps.setString(1, eco);
+        try (ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                Integer ouvertureId = rs.getInt("id");
+                ouvertures.put(eco, ouvertureId);
+                return ouvertureId;
+            } else {
+                return null;
+            }
         }
-    }
     }
 }
 
