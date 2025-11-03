@@ -29,12 +29,14 @@ CREATE TABLE Utilisateur
     FOREIGN KEY (id_joueur) REFERENCES Joueur (id)
 );
 
+CREATE TYPE CATEGORIE_CADENCE AS ENUM('Bullet','Blitz','Rapide','Classique');
 CREATE TABLE Cadence
 (
     id        SERIAL,
     libelle   VARCHAR(50) NOT NULL,
     temps     SMALLINT,
     increment SMALLINT,
+    type_partie CATEGORIE_CADENCE NOT NULL,
     PRIMARY KEY (id),
     UNIQUE (libelle)
 );
@@ -53,7 +55,7 @@ CREATE TABLE Profil
     PRIMARY KEY (id)
 );
 
-CREATE TABLE Position_Stats
+CREATE TABLE Suite_Coups_Stats
 (
     id                     SERIAL,
     pgn                    TEXT NOT NULL,
@@ -61,9 +63,9 @@ CREATE TABLE Position_Stats
     nb_defaites            INT DEFAULT 0,
     nb_nulles              INT DEFAULT 0,
     probabilite_coup       VARCHAR(50),
-    id_position_precedente INT,
+    id_suite_coups_stats_precedente INT,
     PRIMARY KEY (id),
-    FOREIGN KEY (id_position_precedente) REFERENCES Position_Stats (id)
+    FOREIGN KEY (id_suite_coups_stats_precedente) REFERENCES Suite_Coups_Stats (id)
 );
 
 CREATE TABLE Tournoi
@@ -89,15 +91,14 @@ CREATE TABLE Ouverture
     id          SERIAL,
     code        VARCHAR(50)  NOT NULL,
     libelle     VARCHAR(150) NOT NULL,
-    id_position INT,
+    id_suite_coups_stats INT,
     PRIMARY KEY (id),
-    UNIQUE (code),
-    FOREIGN KEY (id_position) REFERENCES Position_Stats (id)
+    FOREIGN KEY (id_suite_coups_stats) REFERENCES Suite_Coups_Stats (id)
 );
 
 CREATE TABLE Partie
 (
-    code         VARCHAR(255),
+    title            VARCHAR(255),
     id               SERIAL,
     resultat         SMALLINT,
     pgn              TEXT,
@@ -113,12 +114,14 @@ CREATE TABLE Partie
     broadcast_url    TEXT,
     game_url         TEXT,
     variant          VARCHAR(50),
+    id_suite_coups_stats INT NOT NULL,
     id_ouverture     INT,
     id_cadence       INT,
     Id_Joueur_Blanc  INT NOT NULL,
     Id_Joueur_Noir   INT NOT NULL,
     id_tournoi       INT,
     PRIMARY KEY (id),
+    FOREIGN KEY (id_suite_coups_stats) REFERENCES Suite_Coups_Stats (id),
     FOREIGN KEY (id_ouverture) REFERENCES Ouverture (id),
     FOREIGN KEY (id_cadence) REFERENCES Cadence (id),
     FOREIGN KEY (Id_Joueur_Blanc) REFERENCES Joueur (id),
@@ -162,7 +165,3 @@ CREATE TABLE Profil_Role
     FOREIGN KEY (id_role) REFERENCES Role (id),
     FOREIGN KEY (id_profil) REFERENCES Profil (id)
 );
-
--- Données initiales nécessaires
-INSERT INTO Joueur (pseudonyme, elo) VALUES ('System', 2000);
-INSERT INTO Cadence (libelle) VALUES ('Standard');
