@@ -1,0 +1,75 @@
+services:
+  traefik:
+    command:
+      - --log.level=DEBUG
+      - --api.debug=true
+      - --global.checknewversion=false
+      - --global.sendAnonymousUsage=true
+      - --api=true
+      - --api.dashboard=true
+      - --ping=true
+      - --ping.entryPoint=ping
+      - --entrypoints.ping.address=:8080
+      - --providers.docker=true
+      - --providers.docker.watch=true
+      - --providers.docker.endpoint=unix:///var/run/docker.sock
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.filename=/etc/traefik/tls.yml
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http.tls=true
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+
+  backend:
+    image: maven:3.9.9-eclipse-temurin-21
+    entrypoint: [ "/bin/sh", "-c", "/app/dev-entrypoint.sh" ]
+    working_dir: /app
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DEVTOOLS_RESTART_ENABLED: true
+    volumes:
+      - ./backend:/app
+
+  etl:
+    image: maven:3.9.9-eclipse-temurin-21
+    entrypoint: [ "/bin/sh", "-c", "/app/dev-entrypoint.sh" ]
+    working_dir: /app
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DEVTOOLS_RESTART_ENABLED: true
+    volumes :
+      - ./etl:/app
+      - maven-cache:/root/.m2
+
+  producer:
+    image: maven:3.9.9-eclipse-temurin-21
+    entrypoint: [ "/bin/sh", "-c", "/app/dev-entrypoint.sh" ]
+    working_dir: /app
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DEVTOOLS_RESTART_ENABLED: true
+    volumes:
+      - ./producer:/app
+
+  worker:
+    image: maven:3.9.9-eclipse-temurin-21
+    entrypoint: [ "/bin/sh", "-c", "/app/dev-entrypoint.sh" ]
+    working_dir: /app
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DEVTOOLS_RESTART_ENABLED: true
+    volumes:
+      - ./worker:/app
+
+  postgres:
+    volumes:
+      - ./postgres/scripts:/scripts
+    networks:
+      - public
+    ports:
+      - "5432:5432"
+
+volumes:
+  maven-cache:
