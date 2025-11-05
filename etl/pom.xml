@@ -27,8 +27,10 @@
         <url/>
     </scm>
     <properties>
+        <exec.cleanupDaemonThreads>false</exec.cleanupDaemonThreads>
         <java.version>17</java.version>
     </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
