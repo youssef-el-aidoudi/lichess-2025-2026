@@ -72,6 +72,11 @@ services:
       - "5432:5432"
 
   minio:
+    networks:
+     - public
+    ports:
+      - "9000:9000"
+      - "9001:9001"
     labels:
       #pour l'API (copie des gros fichiers via api et non pas l'UI)
       - traefik.http.routers.minio-api.entrypoints=websecure
