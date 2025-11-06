@@ -3,8 +3,13 @@ package com.chessmate;
 import java.io.*;
 import java.sql.*;
 import java.util.Hashtable;
+
+import com.github.luben.zstd.ZstdInputStream;
+
 import java.util.Dictionary;
 import io.github.cdimascio.dotenv.Dotenv;
+import io.minio.GetObjectArgs;
+import io.minio.MinioClient;
 
 public class ChessMateETL {
     /**
@@ -33,6 +38,29 @@ public class ChessMateETL {
                 .load();
 
         //connexion à la base
+
+       try (MinioClient minioClient = MinioClient.builder()
+            .endpoint("http://localhost:9000")
+            .credentials(dotenv.get("MINIO_ROOT_USER"),dotenv.get("MINIO_ROOT_PASSWORD"))
+            .build()) {
+
+            System.out.println("Téléchargement du fichier compressé depuis MinIO...");
+            InputStream inputStream = minioClient.getObject(
+                GetObjectArgs.builder()
+                    .bucket("chessmate")
+                    .object("datasetSep.pgn.zst")
+                    .build()
+            );
+
+            System.out.println("Décompression et traitement en streaming...");
+            ZstdInputStream zstdStream = new ZstdInputStream(inputStream);
+            BufferedReader reader = new BufferedReader(
+                new InputStreamReader(zstdStream), 
+                8192 * 4  // Buffer de 32KB pour optimiser la lecture
+            );
+
+
+
         Connection connection = DriverManager.getConnection(
                 "jdbc:postgresql://localhost:5432/" + dotenv.get("POSTGRES_DB"),
                 dotenv.get("POSTGRES_USER"),
@@ -86,18 +114,7 @@ public class ChessMateETL {
             "Id_Joueur_Blanc, Id_Joueur_Noir, id_ouverture, id_cadence, id_tournoi, pgn) " +
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-        //lecture du fichier pgn
-        BufferedReader reader = null;
-        String filePath = "../data/lichess_db_broadcast_2025-09.pgn";
-        try {
-            System.out.println("Lecture du fichier...");
-            reader = new BufferedReader(new FileReader(filePath));
-            System.out.println("OK : fichier trouvé !");
-        } catch ( IOException  e) {
-            System.err.println("Erreur lors de l'accès ou de la lecture du fichier : " + filePath);
-            e.printStackTrace();
-            return; // arrête le programme si une erreur IO survient
-        }
+
 
         //déclaration variables utiles pour la boucle principale
         String ligne;
@@ -183,9 +200,9 @@ public class ChessMateETL {
                         insererPartie(psPartie, gameActuelle, idBlanc, idNoir, idOuverture, idCadence, idTournoi, idSuiteCoups);
 
                         totalGames++; //nombre total de parties insérées
-                        cptGamesTmp++; //nombre temporaire de parties inserées (jusqu'a 100)
+                        cptGamesTmp++; //nombre temporaire de parties inserées (jusqu'a 2000)
 
-                        if (cptGamesTmp >= 2000) { //commit tous les 100 parties
+                        if (cptGamesTmp >= 2000) { //commit tous les 2000 parties
                             connection.commit();
                             cptGamesTmp = 0;
                             System.out.println("parties insérées : " + totalGames + " (ignorées : " + skippedGames + ")");
@@ -209,7 +226,14 @@ public class ChessMateETL {
         reader.close();
         System.out.println("terminé ! total : " + totalGames + " parties insérées, " + skippedGames + " ignorées");
         connection.close();
+        inputStream.close();
+        zstdStream.close();
+        } 
+        catch (Exception e) {
+            e.printStackTrace();
+        }
     }
+    
 
 
 
