@@ -136,10 +136,11 @@ services:
       - traefik.http.routers.backend.middlewares=securityheaders
 
   etl:
+    profiles: [ "jobs" ] # le service ne sera pas lancé par défaut
     build:
       context: ./etl
       dockerfile: Dockerfile
-    restart: unless-stopped
+    restart: no
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
