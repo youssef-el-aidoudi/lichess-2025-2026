@@ -173,7 +173,7 @@ public class ChessMateETL {
                     if (okMoves && okFilter && !okCadence) skippedCadence++;
                     if (okMoves && okFilter && okCadence && !okOuverture) skippedOuverture++;
 
-                    if (printed < 28524) {
+                    if (printed < 50) {
                         System.out.println("[SKIP] reason="
                                 + (!okMoves ? "EMPTY_MOVES" : !okFilter ? "FILTER" : !okCadence ? "CADENCE_NULL" : "OUVERTURE_NULL")
                                 + "  white=" + gameActuelle.white
