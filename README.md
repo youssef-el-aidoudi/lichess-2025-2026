@@ -178,9 +178,40 @@ MINIO_SECRET_KEY=PASTE_SECRET_KEY_HERE
 git config core.autocrlf input
 git rm --cached -r .
 git reset --hard
-## 8) URLS en dev
+
+---
+
+## 8) URLs en dev
 https://minio.docker.localhost
 https://api.docker.localhost (backend)
 https://traefik.docker.localhost (url traefik en dev)
 
-Besoin d'autres ?? Signaler le à votre devops préféré.
+---
+
+## 9) Lancer l'ETL/BD
+* Pour lancer le projet, lancez Docker puis:
+   ```bash
+  docker compose down -v -rmi all
+  ```
+* Mettez vous dans le dossier "etl" puis:
+   ```bash
+  cd ./etl
+  mvn clean package -DskipTests
+  ```
+* Continuez avec le build de Docker:
+    ```bash
+  docker compose build
+  docker compose up -d
+  ```
+* Puis connexion à postgres:
+   ```
+  psql -h localhost -p 5432 -U chessmate -d chessmate (ou nom bd, username selon votre .env)
+  mot de passe (dans .env)
+  ```
+* Pour la compilation et exécution:
+   ```bash
+  mvn clean compile
+  mvn exec:java -Dexec.mainClass="com.chessmate.ChessMateETL"
+  ```
+
+Besoin d'autres ?? Signaler le à votre devops préféré et/ou votre meilleur chef de projet :)
