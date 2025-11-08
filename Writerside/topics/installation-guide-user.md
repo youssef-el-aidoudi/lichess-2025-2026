@@ -2,9 +2,9 @@
 switcher-label: OS
 ---
 
-# Guide d’installation de ChessMate sous Debian 12
+# Guide d’installation de ChessMate sous Linux
 
-Les instructions d'installation de la plateforme web ChessMate pour l'hébergement sous Debian 12.
+Les instructions d'installation de la plateforme web ChessMate pour l'hébergement sous Linux.
 
 ---
 

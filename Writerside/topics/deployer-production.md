@@ -1,0 +1,183 @@
+# Déploiement de ChessMate en production (ou préproduction) sur une VM Debian
+
+## Aperçu
+
+Ce guide explique **comment déployer** ChessMate sur une VM Debian en **production** (ou préproduction), tout en
+respectant les contraintes suivantes :
+
+- Un **utilisateur unique** `chessmate` fait tourner les conteneurs Docker.
+- Cet **utilisateur** ne doit **pas** être accessible directement en SSH (pour des raisons de sécurité).
+- Les développeurs ou administrateurs se connectent en SSH sous un **autre utilisateur**, puis utilisent leurs droits (
+  ou `sudo`) pour gérer le projet.
+- Le déploiement peut être **automatisé** via **GitLab Runner** (CI/CD), avec reverse proxy (Traefik) pour le HTTPS.
+
+---
+
+## Pré-requis
+
+### Mettre à jour le système
+
+Avant toute installation, mettez à jour votre système pour garantir l'installation des dernières versions de paquets et
+correctifs de sécurité :
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+### Installer Docker et Docker Compose
+
+[](installer-docker-et-docker-compose.md)
+
+### 1.3 (Facultatif) Stocker les données Docker sur un disque dédié
+
+Si vous avez un disque dédié aux données (exemple : `/mnt/data`), vous pouvez configurer Docker pour utiliser ce disque
+directement après son installation (avant tout démarrage de conteneurs) :
+
+```bash
+sudo mkdir -p /mnt/data/docker
+sudo ln -s /mnt/data/docker /var/lib/docker
+sudo systemctl restart docker
+```
+
+Cela garantit que toutes les données Docker (images, volumes, conteneurs) soient stockées sur `/mnt/data` dès le départ.
+
+---
+
+## Création de l'utilisateur `chessmate`
+
+1. **Créez l’utilisateur** `chessmate` avec un shell restreint :
+
+    ```bash
+    sudo adduser --system --home /home/sens2viz --shell /usr/sbin/nologin --ingroup docker chessmate
+    ```
+
+   > L’option `--ingroup docker` suppose que le groupe `docker` existe déjà (créé par l’installation de Docker). Ainsi,
+   `sens2viz` pourra lancer des conteneurs Docker sans droits root.
+
+---
+
+## Préparation de l’arborescence du projet
+
+1. **Attribuez les permissions** :
+
+    ```bash
+    sudo chown -R chessmate:docker /home/chessmate
+    ```
+
+---
+
+## Génération de l'Access Token GitLab pour la production
+
+Avant de générer le token, **connectez-vous en tant qu'utilisateur `chessmate`** pour assurer que les configurations Git
+sont appliquées correctement.
+
+### Se connecter à l'utilisateur `chessmate`
+
+1. **Ouvrez une session shell en tant que `chessmate`** :
+
+    ```bash
+    sudo -u chessmate -s /bin/bash
+    ```
+
+   > L'utilisateur `chessmate` est configuré avec un shell restreint (`/usr/sbin/nologin`). La commande ci-dessus permet
+   d'obtenir temporairement un shell interactif pour effectuer les configurations nécessaires.
+
+2. **Placer vous dans le répertoire /home/sens2viz**:
+   ```bash
+   cd /home/chessmate
+   ```
+
+### Accéder à Gitlabvigan
+
+1. **Ouvrez un navigateur** et connectez-vous à [Gitlabvigan](https://gitlabvigan.iem/).
+
+### Générez un token d'accès personnel
+
+1. **Cliquez sur votre avatar** en haut à droite, puis sur *Preferences*.
+2. **Accédez à** *Access Tokens*.
+3. **Nommez votre token** (par exemple, `chessmate-prod`).
+4. **Sélectionnez l'expiration souhaitée**.
+5. **Cochez la permission suivante** : `read_repository`.
+6. **Cliquez sur** *Créer un token* et **copiez immédiatement** la clé affichée.
+
+### Cloner le dépôt en utilisant un token d’accès personnel (PAT)
+
+1. **Clonez le dépôt GitLab** sans inclure le token dans l’URL :
+
+   ```bash
+   git clone https://gitlabvigan.iem/m1projettutore2025-2026-groupe4/lichess-2025-2026.git /home/chessmate/chessmate
+   ```
+
+2. Lorsque Git vous demandera un **nom d’utilisateur**, entrez simplement votre identifiant GitLab.
+   Lorsqu’il vous demandera un **mot de passe**, entrez votre **token d’accès personnel** (PAT) à la place.
+
+---
+
+### Configurer Git pour mémoriser le token en toute sécurité
+
+Pour éviter de devoir saisir le token à chaque opération Git (comme `git pull`), vous pouvez configurer Git pour mémoriser les identifiants en mémoire temporairement :
+
+   ```bash
+   git config --global credential.helper cache
+   ```
+
+> Par défaut, les identifiants sont mémorisés pendant 15 minutes. Vous pouvez prolonger ce délai (en secondes) :
+
+```bash
+git config --global credential.helper 'cache --timeout=3600'
+```
+
+Ensuite, effectuez une commande nécessitant une authentification (par exemple un `pull`) :
+
+```bash
+git -C /home/chessmate/chessmate pull origin main
+```
+
+Une fois votre nom d’utilisateur et le token saisis, Git les conservera temporairement en mémoire pour les prochaines opérations.
+
+### Remarque
+
+Il est **déconseillé** de stocker le token en clair via `credential.helper store`, car cela l’enregistre sans chiffrement dans `~/.git-credentials`.
+Pour une sécurité optimale, utilisez plutôt :
+
+* `cache` (temporaire, en mémoire)
+* ou les outils de gestion de mots de passe du système d’exploitation (Gnome Keyring, macOS Keychain, etc.).
+
+### Se déconnecter de l'utiliser Sens2Viz
+
+Pour continuer la configuration, nous n'avons plus besoin d'être connecté en tant que ChessMate.
+
+```bash
+exit
+```
+
+### Générer les certificats de développement (Traefik)
+
+Se placer dans le répertoire `traefik`:
+
+```bash
+cd traefik
+```
+
+Générer la clé privée RSA:
+
+```bash
+openssl genrsa -out private.key 2048
+```
+
+Générer le certificat auto-signé (remplacez `docker.localhost` par votre domaine si nécessaire):
+
+```bash
+openssl req -new -x509 -key private.key -out cert.pem -days 365 -subj "/CN=docker.localhost"
+```
+
+> **Remarque :** Les navigateurs signaleront un avertissement (connexion non sécurisée) car le certificat n’est pas
+> signé par une autorité de confiance. Pour un usage **développement**, cela reste suffisant.
+
+---
+
+## Voir aussi
+
+- [Documentation Docker officielle](https://docs.docker.com/get-started/)
+- [Bonnes pratiques Docker Compose](https://docs.docker.com/compose/best-practices/)
+- [Sécurisation des conteneurs Docker](https://docs.docker.com/engine/security/)
