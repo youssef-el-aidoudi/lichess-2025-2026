@@ -17,4 +17,10 @@ public interface TournoiRepository extends JpaRepository<Tournoi, Long>{
     
     @Query("SELECT t FROM tournoi WHERE t.creeA = :date")
     List<Tournoi> findAllTournoisByCreeA(@Param("date") LocalDateTime dt);
+    
+    @Query("SELECT t FROM tournoi WHERE t.dateDebut = :date")
+    List<Tournoi> findAllTournoisByDateDebut(@Param("date") LocalDateTime dt);
+    
+    @Query("SELECT t FROM tournoi WHERE t.modifierA = :date")
+    List<Tournoi> findAllTournoisByModifierA(@Param("date") LocalDateTime dt);
 }

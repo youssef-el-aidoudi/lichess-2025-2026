@@ -28,12 +28,12 @@ public class HelloController {
         this.userrep = user;
     }
 
-    @GetMapping("/insert")
+   /*@GetMapping("/insert")
     public Utilisateur insert()
     {
         Utilisateur u = new Utilisateur("sory", "Dela", "sorydela@gmail.com");
         return userrep.save(u);
-    }
+    }*/
 
     @GetMapping("/all")
     public List<Utilisateur> all()
