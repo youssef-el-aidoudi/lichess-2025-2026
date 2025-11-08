@@ -9,8 +9,8 @@
     <toc-element toc-title="Installation et Configuration">
         <toc-element topic="installer-docker-et-docker-compose.md"/>
         <toc-element topic="installation-guide-user.md"/>
+        <toc-element topic="deployer-production.md"/>
     </toc-element>
-    <toc-element topic="deployer-production.md"/>
 
 
 </instance-profile>
