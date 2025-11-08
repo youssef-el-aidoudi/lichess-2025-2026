@@ -3,64 +3,127 @@ package com.chessmate.backend.entiter;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.ManyToAny;
+
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 
 @Entity
 public class Partie {
     //attributs
-    @Id @GeneratedValue(strategy= GenerationType.AUTO)
+    @Id @GeneratedValue(strategy= GenerationType.IDENTITY)
     //identifiant généner automatiquement dans la bd
     private long id;
 
-    private String resultat;
+    private String title;
+    private Short resultat;
+    
+    @Column(columnDefinition = "TEXT")
     private String pgn;
-    private LocalDateTime dateHeure;
-    private int eloBlanc;
-    private int eloNoir;
-    private int score_blanc_diff;
-    private int score_noir_diff;
+
+    private LocalDateTime dateHeureUTC;
+    private Short eloBlanc;
+    private Short eloNoir;
+    private Short scoreBlancDiff;
+    private Short scoreNoirDiff;
     private String titreBlanc;
     private String titreNoir;
     private String typeResultat;
     private int round;
-    private String code;
+    
+    @Column(columnDefinition = "TEXT")
+    private String broadcastUrl;
+   
+    @Column(columnDefinition = "TEXT")
+    private String gameUrl;
+    
+    private String variant;
+
+    @ManyToOne
+    @JoinColumn(name="id_suite_coups_stats", nullable=false)
+    private SuiteCoupsStats suiteCoupsStats;
+
+    @ManyToOne
+    @JoinColumn(name="id_ouverture", nullable=false)
+    private Ouverture ouverture;
+
+    @ManyToOne
+    @JoinColumn(name="id_cadence", nullable=false)
+    private Cadence cadence;
+
+    @ManyToOne
+    @JoinColumn(name="id_joueur_blanc", nullable=false)
+    private Joueur joueurBlanc;
+
+    @ManyToOne
+    @JoinColumn(name="id_joueur_noir", nullable=false)
+    private Joueur joueurNoir;
+
+    @ManyToOne
+    @JoinColumn(name="id_tournoi", nullable=false)
+    private Tournoi tournoi;
 
     public Partie() {}
 
-    public Partie(String result, String pgn, LocalDateTime dt, int elo_b, int elo_n, 
-                int sc_b_diff, int sc_n_diff, String titre_n, String titre_b, String type_result, 
-                int round, String code)
-    {
-        this.resultat = result;
-        this.pgn = pgn;
-        this.dateHeure = dt;
-        this.eloBlanc = elo_b;
-        this.eloNoir = elo_n;
-        this.score_blanc_diff = sc_b_diff;
-        this.score_noir_diff = sc_n_diff;
-        this.titreBlanc = titre_b;
-        this.titreNoir = titre_n;
-        this.typeResultat = type_result;
-        this.round = round;
-        this.code = code;
-    }
-
     //getteurs
-    public String getResultat() { return this.resultat; }
+    public Short getResultat() { return this.resultat; }
     public String getPgnPartie() { return this.pgn; }
-    public int getScore_Blanc_Diff() { return this.score_blanc_diff; }
-    public int getScore_Noir_Diff() { return this.score_noir_diff; }
+    public Short getScore_Blanc_Diff() { return this.scoreBlancDiff; }
+    public Short getScore_Noir_Diff() { return this.scoreNoirDiff; }
     public String getTitre_blanc() { return this.titreBlanc; }
     public String getTitre_noir() { return this.titreNoir; }
     public String getType_Resultat() { return this.typeResultat; }
-    public String getCodePartie() { return this.code; }
     public int getRound() { return this.round; }
-    public int getElo_Blanc() { return this.eloBlanc; }
-    public int getElo_Noir() { return this.eloNoir; }
-    public LocalDateTime getDateHeurePartie() { return this.dateHeure; }
+    public Short getElo_Blanc() { return this.eloBlanc; }
+    public Short getElo_Noir() { return this.eloNoir; }
+    public LocalDateTime getDateHeurePartie() { return this.dateHeureUTC; }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public String getBroadcastUrl() {
+        return broadcastUrl;
+    }
+
+    public String getGameUrl() {
+        return gameUrl;
+    }
+
+    public String getVariant() {
+        return variant;
+    }
+
+    public Cadence getCadence() {
+        return cadence;
+    }
+
+    public Joueur getJoueurBlanc() {
+        return joueurBlanc;
+    }
+
+    public Joueur getJoueurNoir() {
+        return joueurNoir;
+    }
+
+    public Tournoi getTournoi() {
+        return tournoi;
+    }
+
+    public Ouverture getOuverture() {
+        return ouverture;
+    }
+
+    public SuiteCoupsStats getSuiteCoupsStats() {
+        return suiteCoupsStats;
+    }
 
 
 }
