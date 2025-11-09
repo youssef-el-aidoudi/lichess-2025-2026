@@ -178,10 +178,16 @@ Le fichier `.env` centralise les variables de configuration du projet (ports, UR
 
 ### Construire les images et lancer les conteneurs
 
-Après avoir rempli le `.env`, construire et lancer :
+Après avoir rempli le `.env`, build les conteneurs :
 
 ```bash
-docker compose up --build
+docker compose build
+```
+
+Puis lancer le docker compose :
+
+```bash
+docker compose -f compose.yml up -d
 ```
 
 ---
