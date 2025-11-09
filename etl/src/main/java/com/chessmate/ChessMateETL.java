@@ -30,12 +30,12 @@ public class ChessMateETL {
     public static void main(String[] args) throws Exception {
         // Chargement des variables d'environnement du projet
         Dotenv dotenv = Dotenv.configure()
-                .directory("..")
+                .directory(".")
                 .load();
 
         //connexion à la base
         Connection connection = DriverManager.getConnection(
-                "jdbc:postgresql://localhost:5432/" + dotenv.get("POSTGRES_DB"),
+                "jdbc:postgresql://postgres:5432/" + dotenv.get("POSTGRES_DB"),
                 dotenv.get("POSTGRES_USER"),
                 dotenv.get("POSTGRES_PASSWORD")
         );
