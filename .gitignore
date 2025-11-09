@@ -25,5 +25,5 @@ data/*
 # .git
 
 # Fichiers liés au certificat local
-/traefik/cert.pem
-/traefik/private.key
+traefik/cert.pem
+traefik/private.key

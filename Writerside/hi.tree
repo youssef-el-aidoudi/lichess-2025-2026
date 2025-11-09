@@ -3,8 +3,14 @@
         SYSTEM "https://resources.jetbrains.com/writerside/1.0/product-profile.dtd">
 
 <instance-profile id="hi"
-                 name="hi"
-                 start-page="starter-topic.md">
+                  name="ChessMate Documentation"
+                  start-page="installer-docker-et-docker-compose.md">
 
-    <toc-element topic="starter-topic.md"/>
+    <toc-element toc-title="Installation et Configuration">
+        <toc-element topic="installer-docker-et-docker-compose.md"/>
+        <toc-element topic="installation-guide-user.md"/>
+        <toc-element topic="deployer-production.md"/>
+    </toc-element>
+
+
 </instance-profile>

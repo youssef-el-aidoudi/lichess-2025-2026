@@ -135,10 +135,13 @@ services:
       - traefik.http.routers.backend.middlewares=securityheaders
 
   etl:
+    # Pas lancé au démarrage.
+    # docker compose --profile jobs run etl
+    profiles: [ "jobs" ] # le service ne sera pas lancé par défaut
     build:
       context: ./etl
       dockerfile: Dockerfile
-    restart: unless-stopped
+    restart: no
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
@@ -146,6 +149,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    volumes:
+      - ./data:/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -153,13 +158,7 @@ services:
       - internal
       - public
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.etl.entrypoints=websecure
-      - traefik.http.routers.etl.tls=true
-      - traefik.http.services.etl.loadbalancer.server.port=8080
-      - traefik.docker.network=chessmate_public
-      - traefik.http.routers.etl.rule=Host(`${ETL_HOST}`)
-      - traefik.http.routers.etl.middlewares=securityheaders
+      - traefik.enable=false
 
   producer:
     build:
