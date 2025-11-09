@@ -136,13 +136,13 @@ Se placer dans le répertoire `traefik`:
 cd traefik
 ```
 
-Générer la clé privée RSA:
+Générer la clé privée RSA :
 
 ```bash
 openssl genrsa -out private.key 2048
 ```
 
-Générer le certificat auto-signé (remplacez `docker.localhost` par votre domaine si nécessaire):
+Générer le certificat auto-signé (remplacez `docker.localhost` par votre domaine si nécessaire) :
 
 ```bash
 openssl req -new -x509 -key private.key -out cert.pem -days 365 -subj "/CN=docker.localhost"
@@ -150,6 +150,12 @@ openssl req -new -x509 -key private.key -out cert.pem -days 365 -subj "/CN=docke
 
 > **Remarque :** Les navigateurs signaleront un avertissement (connexion non sécurisée) car le certificat n’est pas
 > signé par une autorité de confiance. Pour un usage **développement**, cela reste suffisant.
+
+Revenir à la racine du projet :
+
+```bash
+cd ..
+```
 
 ---
 
