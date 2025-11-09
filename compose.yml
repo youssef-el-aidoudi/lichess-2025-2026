@@ -157,14 +157,7 @@ services:
       - internal
       - public
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.etl.entrypoints=websecure
-      - traefik.http.routers.etl.tls=true
-      - traefik.http.services.etl.loadbalancer.server.port=8080
-      - traefik.docker.network=chessmate_public
-      - traefik.http.routers.etl.rule=Host(`${ETL_HOST}`)
-      - traefik.http.routers.etl.middlewares=securityheaders
-
+      - traefik.enable=false
   producer:
     build:
       context: ./producer
