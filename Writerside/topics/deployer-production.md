@@ -246,6 +246,12 @@ unzstd lichess_db_standard_rated_2025-10.pgn.zst && \
 rm lichess_db_standard_rated_2025-10.pgn.zst
 ```
 
+### Lancer l'ETL sur le serveur de production ou préproduction
+
+```bash
+docker compose -f compose.yml --profile jobs run etl
+```
+
 ## Voir aussi
 
 - [Documentation Docker officielle](https://docs.docker.com/get-started/)
