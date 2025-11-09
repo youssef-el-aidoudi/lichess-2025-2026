@@ -88,16 +88,29 @@ public class ChessMateETL {
 
         //lecture du fichier pgn
         BufferedReader reader = null;
-        String filePath = "../data/lichess_db_broadcast_2025-09.pgn";
-        try {
-            System.out.println("Lecture du fichier...");
-            reader = new BufferedReader(new FileReader(filePath));
-            System.out.println("OK : fichier trouvé !");
-        } catch (IOException e) {
-            System.err.println("Erreur lors de l'accès ou de la lecture du fichier : " + filePath);
-            e.printStackTrace();
-            return; // arrête le programme si une erreur IO survient
+//        String filePath = "../data/lichess_db_broadcast_2025-09.pgn";
+        // On traite tous les fichiers qui sont dans le dossier data.
+        java.io.File dir = new java.io.File("../data");
+        java.io.File[] pgnFiles = dir.listFiles((d, name) ->
+                name != null && name.toLowerCase().endsWith(".pgn"));
+        if (pgnFiles == null || pgnFiles.length == 0) {
+            System.err.println("Aucun fichier .pgn trouvé dans " + dir.getAbsolutePath());
+            connection.close();
+            return;
         }
+
+        java.util.Arrays.sort(pgnFiles, java.util.Comparator
+                .comparing(java.io.File::getName));
+
+//        try {
+//            System.out.println("Lecture du fichier...");
+//            reader = new BufferedReader(new FileReader(filePath));
+//            System.out.println("OK : fichier trouvé !");
+//        } catch (IOException e) {
+//            System.err.println("Erreur lors de l'accès ou de la lecture du fichier : " + filePath);
+//            e.printStackTrace();
+//            return; // arrête le programme si une erreur IO survient
+//        }
 
         //déclaration variables utiles pour la boucle principale
         String ligne;
@@ -107,7 +120,7 @@ public class ChessMateETL {
         int totalGames = 0;
         int skippedGames = 0;
         int skippedFilter = 0, skippedCadence = 0, skippedOuverture = 0, skippedEmptyMoves = 0;
-        int printed = 0; // pour loguer les 5 premières raisons
+        int printed = 0; // pour loguer les 5 premières parties
         /**
          * BOUCLE PRINCIPALE
          * Lit un fichier PGN ligne par ligne, parse les informations des parties et insère les données dans la base.
@@ -143,101 +156,119 @@ public class ChessMateETL {
          * - En cas d'exception lors de l'insertion d'une partie, un rollback est effectué pour cette transaction
          *   et un message d'erreur est affiché.
          */
-        while ((ligne = reader.readLine()) != null) {
+        // --- boucle sur chaque fichier .pgn ---
+        for (java.io.File pgnFile : pgnFiles) {
+            try {
+                System.out.println("Lecture du fichier: " + pgnFile.getName());
+                reader = new BufferedReader(new FileReader(pgnFile));
+            } catch (IOException e) {
+                System.err.println("Erreur lors de l'accès ou de la lecture du fichier : " + pgnFile.getAbsolutePath());
+                e.printStackTrace();
+                continue; // on passe au fichier suivant
+            }
 
-            if (ligne.startsWith("[")) { //chaque ligne commence par un "[" et se termine par un "]"
-                parseMetadata(ligne, gameActuelle); //parse les metadatas genre white, black, date etc
+            // on repart sur une nouvelle game pour chaque fichier
+            gameActuelle = new Game();
 
-                //sinon si la ligne commence pas par "[", ça sera la liste des coups joués
-            } else if (!ligne.trim().isEmpty()) {
-                gameActuelle.moves.append(ligne).append("\n"); // stock les coups
+            while ((ligne = reader.readLine()) != null) {
 
-                //vérification si partie terminée->next partie (ligne vide, mais joueur white toujours stocké par ex)
-            } else if (gameActuelle.white != null) {
+                if (ligne.startsWith("[")) { //chaque ligne commence par un "[" et se termine par un "]"
+                    parseMetadata(ligne, gameActuelle); //parse les metadatas genre white, black, date etc
 
-                //recherche & recup idCadence & idOuverture
-                String timeControl = gameActuelle.timeControl;
-                Integer idCadence = timeControl != null ? (cadences.get(timeControl) != null ? cadences.get(timeControl) : getIdCadence(connection, timeControl)) : null;
+                    //sinon si la ligne commence pas par "[", ça sera la liste des coups joués
+                } else if (!ligne.trim().isEmpty()) {
+                    gameActuelle.moves.append(ligne).append("\n"); // stock les coups
 
-                String eco = gameActuelle.eco; // code de l'ouverture jouée dans la partie
-                Integer idOuverture = eco != null ? (ouvertures.get(eco) != null ? ouvertures.get(eco) : getIdOuverture(connection, eco)) : null;
-                boolean okFilter = filter(gameActuelle);
-                boolean okCadence = (idCadence != null);
-                boolean okOuverture = (idOuverture != null);
-                boolean okMoves = gameActuelle.moves != null && gameActuelle.moves.toString().trim().length() > 0;
+                    //vérification si partie terminée->next partie (ligne vide, mais joueur white toujours stocké par ex)
+                } else if (gameActuelle.white != null) {
 
-                if (!(okMoves && okFilter && okCadence && okOuverture)) {
-                    skippedGames++;
-                    if (!okMoves) skippedEmptyMoves++;
-                    if (okMoves && !okFilter) skippedFilter++;
-                    if (okMoves && okFilter && !okCadence) skippedCadence++;
-                    if (okMoves && okFilter && okCadence && !okOuverture) skippedOuverture++;
+                    //recherche & recup idCadence & idOuverture
+                    String timeControl = gameActuelle.timeControl;
+                    Integer idCadence = timeControl != null ? (cadences.get(timeControl) != null ? cadences.get(timeControl) : getIdCadence(connection, timeControl)) : null;
 
-                    if (printed < 50) {
-                        System.out.println("[SKIP] reason="
-                                + (!okMoves ? "EMPTY_MOVES" : !okFilter ? "FILTER" : !okCadence ? "CADENCE_NULL" : "OUVERTURE_NULL")
-                                + "  white=" + gameActuelle.white
-                                + "  black=" + gameActuelle.black
-                                + "  tc=" + gameActuelle.timeControl
-                                + "  eco=" + gameActuelle.eco
-                                + "  movesLen=" + (gameActuelle.moves == null ? 0 : gameActuelle.moves.length()));
-                        printed++;
+                    String eco = gameActuelle.eco; // code de l'ouverture jouée dans la partie
+                    Integer idOuverture = eco != null ? (ouvertures.get(eco) != null ? ouvertures.get(eco) : getIdOuverture(connection, eco)) : null;
+                    boolean okFilter = filter(gameActuelle);
+                    boolean okCadence = (idCadence != null);
+                    boolean okOuverture = (idOuverture != null);
+                    boolean okMoves = gameActuelle.moves != null && gameActuelle.moves.toString().trim().length() > 0;
+
+                    if (!(okMoves && okFilter && okCadence && okOuverture)) {
+                        skippedGames++;
+                        if (!okMoves) skippedEmptyMoves++;
+                        if (okMoves && !okFilter) skippedFilter++;
+                        if (okMoves && okFilter && !okCadence) skippedCadence++;
+                        if (okMoves && okFilter && okCadence && !okOuverture) skippedOuverture++;
+
+                        if (printed < 50) {
+                            System.out.println("[SKIP] reason="
+                                    + (!okMoves ? "EMPTY_MOVES" : !okFilter ? "FILTER" : !okCadence ? "CADENCE_NULL" : "OUVERTURE_NULL")
+                                    + "  white=" + gameActuelle.white
+                                    + "  black=" + gameActuelle.black
+                                    + "  tc=" + gameActuelle.timeControl
+                                    + "  eco=" + gameActuelle.eco
+                                    + "  movesLen=" + (gameActuelle.moves == null ? 0 : gameActuelle.moves.length()));
+                            printed++;
+                        }
+                        gameActuelle = new Game();
+                        continue;
+                    }
+                    //si la partie convient nos filtres
+                    if (filter(gameActuelle) && idCadence != null && idOuverture != null) { //ffiltre a choisir
+                        try {
+                            //insert les joueurs et recup id
+                            int idBlanc = insererJoueur(psJoueur, gameActuelle.white, gameActuelle.whiteElo,
+                                    gameActuelle.whiteTeam, gameActuelle.whiteFideId);
+                            int idNoir = insererJoueur(psJoueur, gameActuelle.black, gameActuelle.blackElo,
+                                    gameActuelle.blackTeam, gameActuelle.blackFideId);
+
+                            //insertion tournoi && recup idTournoi
+                            Integer idTournoi = null;
+                            if (gameActuelle.broadcastName != null) {
+                                idTournoi = insererTournoi(psTournoi, psCheckTournoi, gameActuelle);
+                            }
+
+                            // Récupérer l'ID de Suite_Coups_Stats AVANT l'ouverture
+                            Integer idSuiteCoups = getIdSuiteCoups(connection, gameActuelle.moves.toString());
+
+
+                            //insertion de la partie dans la bd
+                            insererPartie(psPartie, gameActuelle, idBlanc, idNoir, idOuverture, idCadence, idTournoi, idSuiteCoups);
+
+                            totalGames++; //nombre total de parties insérées
+                            cptGamesTmp++; //nombre temporaire de parties inserées (jusqu'a 100)
+
+                            if (cptGamesTmp >= 2000) { //commit tous les 100 parties
+                                connection.commit();
+                                cptGamesTmp = 0;
+                                System.out.println("parties insérées : " + totalGames + " (ignorées : " + skippedGames + ")");
+                            }
+                        } catch (Exception e) {
+                            System.err.println("erreur pour : " + gameActuelle.white + " vs " + gameActuelle.black);
+                            e.printStackTrace();
+                            connection.rollback(); //rollback si pb
+                        }
+                    } else {
+                        skippedGames++;
                     }
                     gameActuelle = new Game();
-                    continue;
                 }
-                //si la partie convient nos filtres
-                if (filter(gameActuelle) && idCadence != null && idOuverture != null) { //ffiltre a choisir
-                    try {
-                        //insert les joueurs et recup id
-                        int idBlanc = insererJoueur(psJoueur, gameActuelle.white, gameActuelle.whiteElo,
-                                gameActuelle.whiteTeam, gameActuelle.whiteFideId);
-                        int idNoir = insererJoueur(psJoueur, gameActuelle.black, gameActuelle.blackElo,
-                                gameActuelle.blackTeam, gameActuelle.blackFideId);
-
-                        //insertion tournoi && recup idTournoi
-                        Integer idTournoi = null;
-                        if (gameActuelle.broadcastName != null) {
-                            idTournoi = insererTournoi(psTournoi, psCheckTournoi, gameActuelle);
-                        }
-
-                        // Récupérer l'ID de Suite_Coups_Stats AVANT l'ouverture
-                        Integer idSuiteCoups = getIdSuiteCoups(connection, gameActuelle.moves.toString());
-
-
-                        //insertion de la partie dans la bd
-                        insererPartie(psPartie, gameActuelle, idBlanc, idNoir, idOuverture, idCadence, idTournoi, idSuiteCoups);
-
-                        totalGames++; //nombre total de parties insérées
-                        cptGamesTmp++; //nombre temporaire de parties inserées (jusqu'a 100)
-
-                        if (cptGamesTmp >= 2000) { //commit tous les 100 parties
-                            connection.commit();
-                            cptGamesTmp = 0;
-                            System.out.println("parties insérées : " + totalGames + " (ignorées : " + skippedGames + ")");
-                        }
-                    } catch (Exception e) {
-                        System.err.println("erreur pour : " + gameActuelle.white + " vs " + gameActuelle.black);
-                        e.printStackTrace();
-                        connection.rollback(); //rollback si pb
-                    }
-                } else {
-                    skippedGames++;
-                }
-                gameActuelle = new Game();
             }
+
+            try {
+                reader.close();
+            } catch (Exception ignore) {
+            }
+            System.out.println("Terminé pour " + pgnFile.getName());
+
+
         }
-
-
         if (cptGamesTmp > 0) { //commit final
             connection.commit();
         }
-
-        reader.close();
         System.out.println("terminé ! total : " + totalGames + " parties insérées, " + skippedGames + " ignorées");
         connection.close();
     }
-
 
     /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
