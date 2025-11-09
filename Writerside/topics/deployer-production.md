@@ -33,11 +33,11 @@ sudo apt update && sudo apt upgrade -y
 1. **Créez l’utilisateur** `chessmate` avec un shell restreint :
 
     ```bash
-    sudo adduser --system --home /home/sens2viz --shell /usr/sbin/nologin --ingroup docker chessmate
+    sudo adduser --system --home /home/chessmate --shell /usr/sbin/nologin --ingroup docker chessmate
     ```
 
    > L’option `--ingroup docker` suppose que le groupe `docker` existe déjà (créé par l’installation de Docker). Ainsi,
-   `sens2viz` pourra lancer des conteneurs Docker sans droits root.
+   `chessmate` pourra lancer des conteneurs Docker sans droits root.
 
 ---
 
@@ -67,7 +67,7 @@ sont appliquées correctement.
    > L'utilisateur `chessmate` est configuré avec un shell restreint (`/usr/sbin/nologin`). La commande ci-dessus permet
    d'obtenir temporairement un shell interactif pour effectuer les configurations nécessaires.
 
-2. **Placer vous dans le répertoire /home/sens2viz**:
+2. **Placer vous dans le répertoire /home/chessmate**:
    ```bash
    cd /home/chessmate
    ```
@@ -128,7 +128,7 @@ Pour une sécurité optimale, utilisez plutôt :
 * `cache` (temporaire, en mémoire)
 * ou les outils de gestion de mots de passe du système d’exploitation (Gnome Keyring, macOS Keychain, etc.).
 
-### Se déconnecter de l'utiliser Sens2Viz
+### Se déconnecter de l'utiliser chessmate
 
 Pour continuer la configuration, nous n'avons plus besoin d'être connecté en tant que ChessMate.
 
