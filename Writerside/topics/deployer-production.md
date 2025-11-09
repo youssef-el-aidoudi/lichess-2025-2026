@@ -234,6 +234,18 @@ MINIO_SECRET_KEY=PASTE_SECRET_KEY_HERE
   `MINIO_BUCKET_*`, etc.).
 * Bonnes pratiques (droits minimaux, rotation des secrets, stockage hors VCS).
 
+### Télécharger les pgn Lichess
+
+Dans le dossier data en attendant que la config pour Minio soit OK (exemple pour le fichier octobre 2025) :
+
+```bash
+mkdir -p /home/chessmate/chessmate/data && \
+cd /home/chessmate/chessmate/data && \
+wget https://database.lichess.org/standard/lichess_db_standard_rated_2025-10.pgn.zst && \
+unzstd lichess_db_standard_rated_2025-10.pgn.zst && \
+rm lichess_db_standard_rated_2025-10.pgn.zst
+```
+
 ## Voir aussi
 
 - [Documentation Docker officielle](https://docs.docker.com/get-started/)
