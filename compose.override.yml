@@ -23,8 +23,9 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
 
   backend:
-    image: maven:3.9.9-eclipse-temurin-21
-    entrypoint: [ "/bin/sh", "-c", "/app/dev-entrypoint.sh" ]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     working_dir: /app
     environment:
       SPRING_PROFILES_ACTIVE: dev
@@ -33,18 +34,18 @@ services:
       - ./backend:/app
 
   etl:
-    image: maven:3.9.9-eclipse-temurin-21
-    entrypoint: [ "/bin/sh", "-c", "/app/dev-entrypoint.sh" ]
+    build:
+      context: ./etl
+      dockerfile: Dockerfile
     working_dir: /app
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
-      SPRING_DEVTOOLS_RESTART_ENABLED: true
     volumes :
       - ./etl:/app
       - maven-cache:/root/.m2
 
   producer:
-    image: maven:3.9.9-eclipse-temurin-21
+    build:
+      context: ./producer
+      dockerfile: Dockerfile
     entrypoint: [ "/bin/sh", "-c", "/app/dev-entrypoint.sh" ]
     working_dir: /app
     environment:
@@ -54,7 +55,9 @@ services:
       - ./producer:/app
 
   worker:
-    image: maven:3.9.9-eclipse-temurin-21
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
     entrypoint: [ "/bin/sh", "-c", "/app/dev-entrypoint.sh" ]
     working_dir: /app
     environment:
