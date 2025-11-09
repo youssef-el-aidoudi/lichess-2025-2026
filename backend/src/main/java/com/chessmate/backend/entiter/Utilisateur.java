@@ -73,6 +73,7 @@ public class Utilisateur {
     public void setEmail(String email){ this.email = email; }
     public void setNom(String nom){ this.nom = nom; }
     public void setPrenom(String prenom){ this.prenom = prenom; }
+    public void setHash(String hash){ this.hash = hash; }
 
     public void setInscrit_A(LocalDateTime inscription_a){ this.inscriptionA = inscription_a; }
     public void setConnexion_A(LocalDateTime connexion_a){ this.connexionA = connexion_a; }
