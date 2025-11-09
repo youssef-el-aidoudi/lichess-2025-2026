@@ -28,21 +28,6 @@ sudo apt update && sudo apt upgrade -y
 
 [](installer-docker-et-docker-compose.md)
 
-### 1.3 (Facultatif) Stocker les données Docker sur un disque dédié
-
-Si vous avez un disque dédié aux données (exemple : `/mnt/data`), vous pouvez configurer Docker pour utiliser ce disque
-directement après son installation (avant tout démarrage de conteneurs) :
-
-```bash
-sudo mkdir -p /mnt/data/docker
-sudo ln -s /mnt/data/docker /var/lib/docker
-sudo systemctl restart docker
-```
-
-Cela garantit que toutes les données Docker (images, volumes, conteneurs) soient stockées sur `/mnt/data` dès le départ.
-
----
-
 ## Création de l'utilisateur `chessmate`
 
 1. **Créez l’utilisateur** `chessmate` avec un shell restreint :
