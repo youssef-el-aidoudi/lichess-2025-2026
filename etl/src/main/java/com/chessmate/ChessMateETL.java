@@ -3,14 +3,9 @@ package com.chessmate;
 import java.io.*;
 import java.sql.*;
 import java.util.Hashtable;
-
-import com.github.luben.zstd.ZstdInputStream;
-
 import java.util.Dictionary;
 
 import io.github.cdimascio.dotenv.Dotenv;
-import io.minio.GetObjectArgs;
-import io.minio.MinioClient;
 
 public class ChessMateETL {
     /**
@@ -39,29 +34,6 @@ public class ChessMateETL {
                 .load();
 
         //connexion à la base
-
-       try (MinioClient minioClient = MinioClient.builder()
-            .endpoint("http://localhost:9000")
-            .credentials(dotenv.get("MINIO_ROOT_USER"),dotenv.get("MINIO_ROOT_PASSWORD"))
-            .build()) {
-
-            System.out.println("Téléchargement du fichier compressé depuis MinIO...");
-            InputStream inputStream = minioClient.getObject(
-                GetObjectArgs.builder()
-                    .bucket("chessmate")
-                    .object("datasetSep.pgn.zst")
-                    .build()
-            );
-
-            System.out.println("Décompression et traitement en streaming...");
-            ZstdInputStream zstdStream = new ZstdInputStream(inputStream);
-            BufferedReader reader = new BufferedReader(
-                new InputStreamReader(zstdStream), 
-                8192 * 4  // Buffer de 32KB pour optimiser la lecture
-            );
-
-
-
         Connection connection = DriverManager.getConnection(
                 "jdbc:postgresql://postgres:5432/" + dotenv.get("POSTGRES_DB"),
                 dotenv.get("POSTGRES_USER"),
@@ -114,9 +86,6 @@ public class ChessMateETL {
                         "Id_Joueur_Blanc, Id_Joueur_Noir, id_ouverture, id_cadence, id_tournoi, pgn) " +
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-<<<<<<< HEAD
-
-=======
         //lecture du fichier pgn
         BufferedReader reader = null;
 //        String filePath = "../data/lichess_db_broadcast_2025-09.pgn";
@@ -129,7 +98,6 @@ public class ChessMateETL {
             connection.close();
             return;
         }
->>>>>>> origin/dev
 
         java.util.Arrays.sort(pgnFiles, java.util.Comparator
                 .comparing(java.io.File::getName));
@@ -188,65 +156,6 @@ public class ChessMateETL {
          * - En cas d'exception lors de l'insertion d'une partie, un rollback est effectué pour cette transaction
          *   et un message d'erreur est affiché.
          */
-<<<<<<< HEAD
-        while ((ligne = reader.readLine()) != null) {
-            if (ligne.startsWith("[")) { //chaque ligne commence par un "[" et se termine par un "]"
-                parseMetadata(ligne, gameActuelle); //parse les metadatas genre white, black, date etc
-
-            //sinon si la ligne commence pas par "[", ça sera la liste des coups joués
-            } else if (!ligne.trim().isEmpty()) {
-                gameActuelle.moves.append(ligne).append("\n"); // stock les coups
-
-            //vérification si partie terminée->next partie (ligne vide, mais joueur white toujours stocké par ex)
-            } else if (gameActuelle.white != null) {
-
-                //recherche & recup idCadence & idOuverture
-                String timeControl = gameActuelle.timeControl;
-                Integer idCadence = timeControl != null ? (cadences.get(timeControl) != null ? cadences.get(timeControl) : getIdCadence(connection, timeControl)) : null;
-
-                String eco = gameActuelle.eco; // code de l'ouverture jouée dans la partie
-                Integer idOuverture = eco != null ? (ouvertures.get(eco) != null ? ouvertures.get(eco) : getIdOuverture(connection, eco)) : null;
-
-                //si la partie convient nos filtres
-                if (filter(gameActuelle) && idCadence != null && idOuverture != null) { //ffiltre a choisir
-                    try {
-                        //insert les joueurs et recup id
-                        int idBlanc = insererJoueur(psJoueur, gameActuelle.white, gameActuelle.whiteElo,
-                                                     gameActuelle.whiteTeam, gameActuelle.whiteFideId);
-                        int idNoir = insererJoueur(psJoueur, gameActuelle.black, gameActuelle.blackElo,
-                                                    gameActuelle.blackTeam, gameActuelle.blackFideId);
-
-                        //insertion tournoi && recup idTournoi
-                        Integer idTournoi = null;
-                        if (gameActuelle.broadcastName != null) {
-                            idTournoi = insererTournoi(psTournoi, psCheckTournoi, gameActuelle);
-                        }
-
-                        // Récupérer l'ID de Suite_Coups_Stats AVANT l'ouverture
-                        Integer idSuiteCoups = getIdSuiteCoups(connection, gameActuelle.moves.toString());
-
-
-                        //insertion de la partie dans la bd
-                        insererPartie(psPartie, gameActuelle, idBlanc, idNoir, idOuverture, idCadence, idTournoi, idSuiteCoups);
-
-                        totalGames++; //nombre total de parties insérées
-                        cptGamesTmp++; //nombre temporaire de parties inserées (jusqu'a 2000)
-
-                        if (cptGamesTmp >= 2000) { //commit tous les 2000 parties
-                            connection.commit();
-                            cptGamesTmp = 0;
-                            System.out.println("parties insérées : " + totalGames + " (ignorées : " + skippedGames + ")");
-                        }
-                    } catch (Exception e) {
-                        System.err.println("erreur pour : " + gameActuelle.white + " vs " + gameActuelle.black);
-                        e.printStackTrace();
-                        connection.rollback(); //rollback si pb
-                    }
-                } else {
-                    skippedGames++;
-                }
-                gameActuelle=new Game();
-=======
         // --- boucle sur chaque fichier .pgn ---
         for (java.io.File pgnFile : pgnFiles) {
             try {
@@ -256,7 +165,6 @@ public class ChessMateETL {
                 System.err.println("Erreur lors de l'accès ou de la lecture du fichier : " + pgnFile.getAbsolutePath());
                 e.printStackTrace();
                 continue; // on passe au fichier suivant
->>>>>>> origin/dev
             }
 
             // on repart sur une nouvelle game pour chaque fichier
@@ -360,14 +268,7 @@ public class ChessMateETL {
         }
         System.out.println("terminé ! total : " + totalGames + " parties insérées, " + skippedGames + " ignorées");
         connection.close();
-        inputStream.close();
-        zstdStream.close();
-        } 
-        catch (Exception e) {
-            e.printStackTrace();
-        }
     }
-    
 
     /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
