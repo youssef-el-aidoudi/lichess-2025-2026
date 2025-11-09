@@ -72,14 +72,10 @@ sont appliquées correctement.
    cd /home/chessmate
    ```
 
-### Accéder à Gitlabvigan
-
-1. **Ouvrez un navigateur** et connectez-vous à [Gitlabvigan](https://gitlabvigan.iem/).
-
 ### Générez un token d'accès personnel
 
-1. **Cliquez sur votre avatar** en haut à droite, puis sur *Preferences*.
-2. **Accédez à** *Access Tokens*.
+1. **Connectez-vous** à [Gitlabvigan](https://gitlabvigan.iem/m1projettutore2025-2026-groupe4/lichess-2025-2026/).
+2. **Cliquez Settings** en bas à droite, puis sur *Access tokens*.
 3. **Nommez votre token** (par exemple, `chessmate-prod`).
 4. **Sélectionnez l'expiration souhaitée**.
 5. **Cochez la permission suivante** : `read_repository`.
@@ -90,6 +86,7 @@ sont appliquées correctement.
 1. **Clonez le dépôt GitLab** sans inclure le token dans l’URL :
 
    ```bash
+   git config --global http.sslVerify false
    git clone https://gitlabvigan.iem/m1projettutore2025-2026-groupe4/lichess-2025-2026.git /home/chessmate/chessmate
    ```
 
