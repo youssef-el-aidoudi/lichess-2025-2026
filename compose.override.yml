@@ -38,7 +38,6 @@ services:
       dockerfile: Dockerfile
     working_dir: /app
     volumes :
-      - ./data:/data
       - ./etl:/app
       - maven-cache:/root/.m2
 

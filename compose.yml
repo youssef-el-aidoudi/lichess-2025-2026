@@ -150,6 +150,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    volumes:
+      - ./data:/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -158,6 +160,7 @@ services:
       - public
     labels:
       - traefik.enable=false
+      -
   producer:
     build:
       context: ./producer
