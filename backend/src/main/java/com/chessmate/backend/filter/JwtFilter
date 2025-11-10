@@ -1,4 +1,4 @@
-package com.chessmate.filter;
+package com.chessmate.backend.filter;
 
 import com.chessmate.backend.configuration.JwtUtils;
 import com.chessmate.backend.service.CustomUserDetailsService;
