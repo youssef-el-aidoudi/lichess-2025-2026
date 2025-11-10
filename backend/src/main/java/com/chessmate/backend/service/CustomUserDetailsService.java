@@ -4,6 +4,7 @@ import java.util.Collections;
 
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
@@ -14,16 +15,20 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class CustomUserDetailsService {
+public class CustomUserDetailsService implements UserDetailsService {
     private final UtilisateurRepository utilisateurRepository;
 
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        Utilisateur utilisateur = (Utilisateur) utilisateurRepository.findByUsername(username);
+    public UserDetails loadUserByUsername(String nom) throws UsernameNotFoundException {
+        Utilisateur utilisateur = utilisateurRepository.findByUsername(nom);
 
         if (utilisateur == null) {
-            throw new UsernameNotFoundException("cet utilisateur n'a pas été trouvé: " + username);
+            throw new UsernameNotFoundException("cet utilisateur n'a pas été trouvé: " + nom);
         }
-        return null;
+        return new org.springframework.security.core.userdetails.User(nom, nom, false, false, false, false, null); 
+            
+        
+               
+    
     }
     
 }

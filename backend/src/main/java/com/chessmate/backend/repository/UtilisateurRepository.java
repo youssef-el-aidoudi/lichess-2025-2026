@@ -23,5 +23,5 @@ public interface UtilisateurRepository extends JpaRepository<Utilisateur, Long>{
     @Query("SELECT u FROM utilisateur u WHERE u.banni_a = :date")
     List<Utilisateur> findByBanniA(@Param("date") LocalDateTime dt);
 
-    Object findByUsername(String nom);
+    Utilisateur findByUsername(String nom);
 }
