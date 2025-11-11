@@ -4,6 +4,8 @@ import java.io.*;
 import java.sql.*;
 import java.util.Hashtable;
 import java.util.Dictionary;
+import java.time.*;
+
 
 import io.github.cdimascio.dotenv.Dotenv;
 
@@ -28,6 +30,8 @@ public class ChessMateETL {
      * @param args arguments de ligne de commande (chemin du fichier PGN, etc.)
      */
     public static void main(String[] args) throws Exception {
+        //début du chronomètre
+        Instant start = Instant.now(); 
         // Chargement des variables d'environnement du projet
         Dotenv dotenv = Dotenv.configure()
                 .directory(".")
@@ -267,9 +271,12 @@ public class ChessMateETL {
             connection.commit();
         }
         System.out.println("terminé ! total : " + totalGames + " parties insérées, " + skippedGames + " ignorées");
+        //fin du chronomètre
+        Instant end = Instant.now();
+        Duration duration = Duration.between(start, end);
+        System.out.println("Temps d'exécution total : " + (duration.toMillis() / 1000.0) + " secondes");
         connection.close();
     }
-
     /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
      * <p>
