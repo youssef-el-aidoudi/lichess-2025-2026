@@ -1,6 +1,5 @@
 package com.chessmate.backend.repository;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -23,5 +22,5 @@ public interface UtilisateurRepository extends JpaRepository<Utilisateur, Long>{
     @Query("SELECT u FROM utilisateur u WHERE u.banni_a = :date")
     List<Utilisateur> findByBanniA(@Param("date") LocalDateTime dt);
 
-    Object findByUsername(String nom);
+    Object findByNom(String nom);
 }

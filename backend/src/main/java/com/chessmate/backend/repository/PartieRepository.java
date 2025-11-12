@@ -8,7 +8,6 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.query.Param;
 
-import com.chessmate.backend.entiter.Joueur;
 import com.chessmate.backend.entiter.Partie;
 
 public interface PartieRepository extends JpaRepository<Partie, Long>{
