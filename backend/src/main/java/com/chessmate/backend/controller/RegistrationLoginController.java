@@ -37,7 +37,7 @@ public class RegistrationLoginController {
 
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@RequestBody Utilisateur utilisateur) {
-        if (utilisateurRepository.findByUsername(utilisateur.getNom()) != null) {
+        if (utilisateurRepository.findByNom(utilisateur.getNom()) != null) {
             return ResponseEntity.badRequest().body("Ce nom existe déja !");
         }
         utilisateur.setHash(passwordEncoder.encode(utilisateur.getHash()));

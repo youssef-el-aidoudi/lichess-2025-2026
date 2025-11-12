@@ -1,7 +1,9 @@
 package com.chessmate.backend.configuration;
 
-import com.chessmate.backend.filter.JwtFilter;
+
 import org.springframework.context.annotation.Bean;
+
+import com.chessmate.backend.filter.JwtFilter;
 import com.chessmate.backend.service.CustomUserDetailsService;
 
 
@@ -44,11 +46,11 @@ public class SecurityConfig {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> 
-                        auth.requestMatchers("/api/auth/**").permitAll()
-                            .anyRequest().authenticated()
-                )
-                .addFilterBefore(new JwtFilter(customUserDetailsService, jwtUtils), UsernamePasswordAuthenticationFilter.class)
-                .build();
+                        auth.requestMatchers("/api/auth/**","/joueurs/**").permitAll()
+                            .anyRequest().authenticated())
+                .addFilterBefore(new JwtFilter(customUserDetailsService,jwtUtils), UsernamePasswordAuthenticationFilter.class).build();
+                
+                
     }
 
     
