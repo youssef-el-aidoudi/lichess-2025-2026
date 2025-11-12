@@ -1,7 +1,5 @@
 package com.chessmate.backend.controller;
 
-import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 import org.springframework.http.HttpStatus;

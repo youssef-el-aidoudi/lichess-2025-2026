@@ -38,7 +38,7 @@ public class Utilisateur {
     private LocalDateTime banniA;
     
     @OneToOne
-    @JoinColumn(name = "id_joueur", unique = true, nullable = false)
+    @JoinColumn(name = "id_joueur", unique = true, nullable = true)
     private Joueur joueur;
 
     @ManyToMany
@@ -82,6 +82,8 @@ public class Utilisateur {
     public Joueur getJoueur() {
         return joueur;
     }
+
+    public void setJoueur(Joueur j){ this.joueur=j; }
 
     public Set<Role> getRoles() {
         return roles;
