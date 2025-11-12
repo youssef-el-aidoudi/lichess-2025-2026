@@ -19,9 +19,17 @@ import lombok.RequiredArgsConstructor;
 public class CustomUserDetailsService implements UserDetailsService {
     private final UtilisateurRepository utilisateurRepository;
 
-    public CustomUserDetailsService(UtilisateurRepository rep)
-    {
-        this.utilisateurRepository = rep;
+    public UserDetails loadUserByUsername(String nom) throws UsernameNotFoundException {
+        Utilisateur utilisateur = utilisateurRepository.findByNom(nom);
+
+        if (utilisateur == null) {
+            throw new UsernameNotFoundException("cet utilisateur n'a pas été trouvé: " + nom);
+        }
+        return new org.springframework.security.core.userdetails.User(utilisateur.getNom(), utilisateur.getHash(), Collections.singletonList(new SimpleGrantedAuthority(utilisateur.getRole()))); 
+            
+        
+               
+    
     }
 
     @Override
