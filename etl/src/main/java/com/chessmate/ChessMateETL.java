@@ -742,45 +742,20 @@ public class ChessMateETL {
         }
     }
 
-
- 
-
     /**
-     * Récupère l'identifiant d'une cadence (temps + incrément) à partir du champ TimeControl d'une partie PGN.
-     * <p>
-     * Cette méthode tente de faire correspondre la valeur TimeControl (ex: "90+30") à une cadence
-     * existante dans la base (table Cadence). Si aucune correspondance n'est trouvée, la méthode renvoie null.
-     * <p>
-     * Exemple :
-     * "90+30"  →  recherche Cadence.libelle = "90+30"
-     *
-     * @param conn        Connexion active à la base de données PostgreSQL
-     * @param timeControl Valeur brute du champ TimeControl extraite du PGN
-     * @return L'identifiant de la cadence correspondante, ou null si aucune trouvée
-     * @throws SQLException En cas d'erreur SQL
+     * Retourne l'identifiant de la cadence correspondant au code de contrôle du temps fourni.
+     * 
+     * Cette méthode normalise la chaîne de contrôle du temps (par exemple "300+2")
+     * puis recherche l'identifiant correspondant dans la map des cadences.
+     * 
+     * @param timeControl la chaîne représentant le contrôle du temps (ex. "300+2")
+     * @return l'identifiant de la cadence correspondante, ou null si non trouvée
      */
-    static Integer getIdCadence(Connection conn, String timeControl) throws SQLException {
-        //parse le format "temps+increment" (ex: "90+30", "10+0")
-        String cleanTimeControl = normalizeCadence(timeControl);
-
-
-        //requete pour trouver la cadence dans la BD
-        PreparedStatement ps = conn.prepareStatement(
-                "SELECT id FROM Cadence WHERE libelle = ?"
-        );
-        ps.setString(1, cleanTimeControl);
-        ResultSet rs = ps.executeQuery();
-
-        if (rs.next()) { //si on trouve la cadence, return id
-            Integer idCadence = rs.getInt("id");
-            cadences.put(timeControl, idCadence);
-            return idCadence;
-        } else {
-            return null;
-        }
-
+    static Integer getIdCadence(String timeControl) {
+        if (timeControl == null) return null;
+        String normalized = normalizeCadence(timeControl);
+        return cadences.get(normalized);
     }
-
 
     /**
      * Nettoie un texte PGN brut pour ne conserver que la séquence de coups pure.
@@ -823,51 +798,7 @@ public class ChessMateETL {
     }
 
 
-    /**
-     * Insère une partie dans la base de données via un {@link PreparedStatement} déjà préparé.
-     * <p>
-     * Cette méthode mappe les champs de l'objet {@link Game} aux colonnes de la table Partie :
-     * - Convertit le résultat textuel ("1-0", "0-1", "1/2-1/2") en entier
-     * - Convertit les dates/horaires PGN en {@link Timestamp}
-     * - Nettoie et tronque les chaînes si nécessaire
-     *
-     * @param ps           Requête SQL préparée d’insertion dans la table Partie
-     * @param game         Objet contenant toutes les informations d’une partie PGN
-     * @param idBlanc      Identifiant du joueur blanc
-     * @param idNoir       Identifiant du joueur noir
-     * @param idOuverture  Identifiant de l’ouverture (ou null si inconnue)
-     * @param idCadence    Identifiant de la cadence (ou null si inconnue)
-     * @param idTournoi    Identifiant du tournoi (ou null si inconnu)
-     * @param idSuiteCoups Identifiant de la séquence de coups
-     * @throws SQLException En cas d’erreur lors de l’insertion SQL
-     */
-    static void insererPartie(PreparedStatement ps, Game game, int idBlanc, int idNoir,
-                              Integer idOuverture, Integer idCadence, Integer idTournoi,
-                              Integer idSuiteCoups) throws SQLException {
-        int resultat = game.result.equals("1-0") ? 2 : game.result.equals("0-1") ? 0 : 1;
-
-        int idx = 1;
-        ps.setString(idx++, truncate(game.event, 255)); //titre
-        ps.setInt(idx++, resultat);
-        ps.setTimestamp(idx++, parseTimestamp(game.utcDate, game.utcTime));
-        ps.setObject(idx++, game.whiteElo);
-        ps.setObject(idx++, game.blackElo);
-        ps.setString(idx++, game.whiteTitle);
-        ps.setString(idx++, game.blackTitle);
-        ps.setString(idx++, game.round);
-        ps.setString(idx++, game.broadcastUrl);
-        ps.setString(idx++, game.gameUrl);
-        ps.setString(idx++, game.variant);
-        ps.setObject(idx++, idSuiteCoups);
-        ps.setInt(idx++, idBlanc);
-        ps.setInt(idx++, idNoir);
-        ps.setObject(idx++, idOuverture);
-        ps.setObject(idx++, idCadence);
-        ps.setObject(idx++, idTournoi);
-        ps.setString(idx++, cleanPgn(game.moves.toString())); // PGN complet pour Partie
-
-        ps.executeUpdate();
-    }
+ 
 
 
     /**
