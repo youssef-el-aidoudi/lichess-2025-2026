@@ -141,7 +141,7 @@ public class ChessMateETL {
                         
                         //insertion par batch
                         if (totalGames % BATCH_SIZE == 0) {
-                            System.out.println("  → Insertion du batch (" + totalGames + " parties) et " + skippedGames + " ignorées...");
+                            System.out.println("  -> Insertion du batch (" + totalGames + " parties) et (" + skippedGames + " parties ) ignorées...");
                             insertBatch(connection, data);
                             data = new ETLData(); //eéinitialiser pour le prochain batch
                             System.gc(); //pour vider la mémoire de l'ancien batch

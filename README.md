@@ -189,29 +189,26 @@ https://traefik.docker.localhost (url traefik en dev)
 ---
 
 ## 9) Lancer l'ETL/BD
-* Pour lancer le projet, lancez Docker puis:
+* Pour lancer l'ETL, lancez Docker Desktop puis:
+
+
+* Mettez vous dans le répertoire du projet et copiez le .env dans le dossier /etl:
    ```bash
-  docker compose down -v -rmi all
+  cp ./env ./etl/.env
   ```
-* Mettez vous dans le dossier "etl" puis:
-   ```bash
-  cd ./etl
-  mvn clean package -DskipTests
-  ```
-* Continuez avec le build de Docker:
+* Build & lancer docker:
     ```bash
   docker compose build
   docker compose up -d
   ```
-* Puis connexion à postgres:
+* Plus qu'à lancer l'ETL via:
    ```
-  psql -h localhost -p 5432 -U chessmate -d chessmate (ou nom bd, username selon votre .env)
-  mot de passe (dans .env)
+  docker compose --profile jobs build etl (des fois obligé de le faire pour les changements de code j'ignore pourquoi)
+  docker compose --profile jobs run --remove-orphans etl (le remove orphans pour alléger la mémoire si lancé plusieurs fois)
   ```
-* Pour la compilation et exécution:
+* Pour accéder à la BD PostgreSQL :
    ```bash
-  mvn clean compile
-  mvn exec:java -Dexec.mainClass="com.chessmate.ChessMateETL"
+  docker compose exec postgres psql -U chessmate -d chessmate
   ```
 
 Besoin d'autres ?? Signaler le à votre devops préféré et/ou votre meilleur chef de projet :)
