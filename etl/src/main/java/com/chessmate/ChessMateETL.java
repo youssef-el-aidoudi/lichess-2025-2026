@@ -175,7 +175,49 @@ public class ChessMateETL {
             connection.close();
         }
 
+    /**
+     * Accumule les informations d'une partie d'échecs dans l'objet ETLData fourni.
+     * 
+     * Cette méthode effectue les actions suivantes :
+     * - Ajoute les joueurs de la partie (blanc et noir) à la map des joueurs s'ils
+     *   n'y sont pas déjà.
+     * - Ajoute le tournoi de la partie à la map des tournois si le nom du tournoi
+     *   est défini et non présent.
+     * - Nettoie la suite de coups de la partie et l'ajoute à la map des suites de
+     *   coups si elle n'y est pas déjà.
+     * - Ajoute la partie elle-même à la liste des parties.
+     *
+     * @param data l'objet ETLData dans lequel accumuler les informations de la partie
+     * @param game la partie d'échecs à accumuler
+     */
+    static void accumulerPartie(ETLData data, Game game) {
+        //accumuler joueurs
+        if (!data.joueurs.containsKey(game.white)) {
+            data.joueurs.put(game.white, new JoueurDTO(
+                game.white, game.whiteElo, game.whiteTeam, game.whiteFideId));
+        }
+        if (!data.joueurs.containsKey(game.black)) {
+            data.joueurs.put(game.black, new JoueurDTO(
+                game.black, game.blackElo, game.blackTeam, game.blackFideId));
+        }
         
+        //accumuler tournoi
+        if (game.broadcastName != null && !data.tournois.containsKey(game.broadcastName)) {
+            data.tournois.put(game.broadcastName, new TournoiDTO(
+                game.broadcastName, game.site, game.broadcastUrl, parseDate(game.utcDate)));
+        }
+        
+        //accumuler suite de coups
+        String pgnNettoye = nettoyerPgnCoups(game.moves.toString());
+        if (!data.suiteCoups.containsKey(pgnNettoye)) {
+            data.suiteCoups.put(pgnNettoye, new SuiteCoupsDTO(game.moves.toString()));
+        }
+        
+        //ajout de la partie à la liste
+        data.games.add(game);
+    }
+
+
     /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
      * <p>
