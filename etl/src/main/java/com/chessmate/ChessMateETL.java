@@ -248,6 +248,86 @@ public class ChessMateETL {
 
 
     /**
+     * Copie les joueurs fournis dans la base de données et retourne une map de leurs identifiants.
+     * 
+     * Cette méthode effectue les étapes suivantes :
+     * - Vérifie si la map de joueurs est vide ; si oui, retourne une map vide.
+     * - Crée une table temporaire pour stocker les joueurs du batch.
+     * - Écrit les joueurs dans un fichier CSV temporaire.
+     * - Utilise la commande COPY de PostgreSQL pour insérer les données dans la table temporaire.
+     * - Insère dans la table principale les joueurs nouveaux uniquement (gestion des doublons par ON CONFLICT DO NOTHING).
+     * - Récupère les identifiants des joueurs insérés ou déjà existants et les retourne sous forme de map pseudonyme → id.
+     *
+     * @param conn la connexion JDBC vers la base de données
+     * @param joueurs la map des joueurs à copier (pseudonyme → JoueurDTO)
+     * @return une map associant chaque pseudonyme à l'identifiant correspondant dans la base
+     * @throws SQLException si une erreur SQL survient lors des insertions ou des requêtes
+     * @throws IOException si une erreur d'entrée/sortie survient lors de la création ou lecture du fichier CSV temporaire
+     */
+    static Map<String, Integer> copyJoueurs(Connection conn, Map<String, JoueurDTO> joueurs) 
+            throws SQLException, IOException {
+        if (joueurs.isEmpty()) return new HashMap<>();
+        
+        //Créer une table temporaire (pour nettoyer d'abord avant d'insérer)
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS temp_joueur");
+            stmt.execute("CREATE TEMP TABLE temp_joueur (LIKE Joueur INCLUDING DEFAULTS)");
+        }
+        
+        //COPY vers la table temporaire
+        File tempFile = File.createTempFile("joueurs", ".csv");
+        tempFile.deleteOnExit();
+        
+        try (PrintWriter writer = new PrintWriter(new FileWriter(tempFile))) {
+            for (JoueurDTO j : joueurs.values()) {
+                writer.println(escapeCsv(j.pseudonyme) + "," +
+                            (j.elo != null ? j.elo : "\\N") + "," +
+                            escapeCsv(j.equipe) + "," +
+                            escapeCsv(j.fideId));
+            }
+        }
+        
+        org.postgresql.copy.CopyManager copyManager = 
+            new org.postgresql.copy.CopyManager((org.postgresql.core.BaseConnection) conn);
+        
+        //du csv ->table temporaire
+        String sql = "COPY temp_joueur (pseudonyme, elo, equipe, fide_id) " +
+                    "FROM STDIN WITH (FORMAT CSV, NULL '\\N')";
+        
+        try (FileReader reader = new FileReader(tempFile)) {
+            copyManager.copyIn(sql, reader);
+        }
+        
+        //insérer uniquement les nouveaux joueurs (pseudo unique)
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate(
+                "INSERT INTO Joueur (pseudonyme, elo, equipe, fide_id) " +
+                "SELECT pseudonyme, elo, equipe, fide_id FROM temp_joueur " +
+                "ON CONFLICT (pseudonyme) DO NOTHING"
+            );
+        }
+        
+        //récupérer les IDs des joueurs du batch
+        Map<String, Integer> ids = new HashMap<>();
+        StringBuilder pseudos = new StringBuilder();
+        for (String pseudo : joueurs.keySet()) {
+            if (pseudos.length() > 0) pseudos.append(",");
+            pseudos.append("'").append(pseudo.replace("'", "''")).append("'");
+        }
+        
+        try (Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(
+                "SELECT pseudonyme, id FROM Joueur WHERE pseudonyme IN (" + pseudos + ")")) {
+            while (rs.next()) {
+                ids.put(rs.getString("pseudonyme"), rs.getInt("id"));
+            }
+        }
+        
+        return ids;
+    }
+
+
+    /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
      * <p>
      * Exemple de ligne PGN : [White "MagnusCarlsen"]
