@@ -10,24 +10,29 @@ import java.time.*;
 import io.github.cdimascio.dotenv.Dotenv;
 
 public class ChessMateETL {
-    /**
-     * Dictionnaire des cadences déjà récupérées : Dictionary<TimeControl, IdCadence)
-     */
-    private static Dictionary<String, Integer> cadences = new Hashtable<>();
-    /**
-     * Dictionnaire des ouvertures déjà récupérées : Dictionary<ECO, IdOuverture)
-     */
-    private static Dictionary<String, Integer> ouvertures = new Hashtable<>();
+    /*
+        hashmap pour stocker les ouvertures et cadences au début
+    */
+    static Map<String, Integer> cadences = new HashMap<>();
+    static Map<String, Integer> ouvertures = new HashMap<>();
+
 
     /**
-     * Point d’entrée principal du programme ETL ChessMate.
-     * <p>
-     * Connection à la BD postgreSQL
-     * Lit un fichier PGN, extrait les métadonnées des parties,
-     * et insère les informations correspondantes (joueurs, tournois, parties, positions)
-     * dans une base de données PostgreSQL.
+     * Point d'entrée principal du programme ETL ChessMate.
+     * 
+     * Cette méthode orchestre tout le processus d'importation des fichiers PGN :
+     * - Connexion à la base PostgreSQL à partir des variables du fichier .env
+     * - Préchargement des caches d'ouvertures et de cadences
+     * - Lecture et parsing des fichiers PGN dans le dossier ../data
+     * - Application de filtres de cohérence (ELO, résultat, etc.)
+     * - Accumulation des parties valides en mémoire
+     * - Insertion en base par lots à l'aide des commandes COPY
+     * 
+     * Affiche un résumé final avec le nombre total de parties insérées,
+     * celles ignorées et la durée totale d'exécution.
      *
-     * @param args arguments de ligne de commande (chemin du fichier PGN, etc.)
+     * @param args non utilisé
+     * @throws Exception si une erreur survient lors du chargement, du parsing ou de l'insertion
      */
     public static void main(String[] args) throws Exception {
         //début du chronomètre
@@ -46,53 +51,17 @@ public class ChessMateETL {
 
         connection.setAutoCommit(false); // on commit nous même, pas de commit auto
 
-        /**
-         * PreparedStatement pour insérer ou mettre à jour un joueur.
-         * Insère un joueur avec pseudonyme, elo, équipe et fide_id.
-         * Si le pseudonyme existe déjà, met à jour elo, équipe et fide_id.
-         * Retourne l'id du joueur inséré ou existant.
-         */
-        PreparedStatement psJoueur = connection.prepareStatement(
-                "INSERT INTO Joueur (pseudonyme, elo, equipe, fide_id) VALUES (?, ?, ?, ?) " +
-                        "ON CONFLICT (pseudonyme) DO UPDATE SET " +
-                        "elo = EXCLUDED.elo, equipe = EXCLUDED.equipe, fide_id = EXCLUDED.fide_id " +
-                        "RETURNING id");
+        //remplissage des hashmap ouverture et cadence
+        remplissageCache(connection);
 
-        /**
-         * PreparedStatement pour insérer un tournoi si celui-ci n'existe pas.
-         * Insère libellé, site, broadcast_url, date_debut, Id_Organisateur et id_cadence.
-         * Si le libellé existe déjà, ne fait rien (ON CONFLICT DO NOTHING).
-         * Retourne l'id du tournoi inséré.
-         */
-        PreparedStatement psTournoi = connection.prepareStatement(
-                "INSERT INTO Tournoi (libelle, site, broadcast_url, date_debut, Id_Organisateur, id_cadence) " +
-                        "VALUES (?, ?, ?, ?, 1, 1) " +
-                        "ON CONFLICT (libelle) DO NOTHING RETURNING id");
+        //initialisation de la taille des batch (insertion par batch_size)
+        final int BATCH_SIZE = 100000;
 
-
-        /**
-         * PreparedStatement pour vérifier l'existence d'un tournoi via son libellé.
-         * Sélectionne l'id du tournoi correspondant au libellé donné.
-         */
-        PreparedStatement psCheckTournoi = connection.prepareStatement(
-                "SELECT id FROM Tournoi WHERE libelle = ?");
-
-
-        /**
-         * PreparedStatement pour insérer une partie d'échecs.
-         * Insère title, résultat, date et heure, elo des joueurs, titres, round,
-         * URLs, variante, id de suite de coups, id des joueurs, id de l'ouverture,
-         * id de cadence, id du tournoi et PGN.
-         */
-        PreparedStatement psPartie = connection.prepareStatement(
-                "INSERT INTO Partie (title, resultat, date_heure_utc, elo_blanc, elo_noir, " +
-                        "titre_blanc, titre_noir, round, broadcast_url, game_url, variant, id_suite_coups_stats, " +
-                        "Id_Joueur_Blanc, Id_Joueur_Noir, id_ouverture, id_cadence, id_tournoi, pgn) " +
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        //pour stockage des parties avant insertion
+        ETLData data = new ETLData();
 
         //lecture du fichier pgn
         BufferedReader reader = null;
-//        String filePath = "../data/lichess_db_broadcast_2025-09.pgn";
         // On traite tous les fichiers qui sont dans le dossier data.
         java.io.File dir = new java.io.File("../data");
         java.io.File[] pgnFiles = dir.listFiles((d, name) ->
@@ -106,25 +75,10 @@ public class ChessMateETL {
         java.util.Arrays.sort(pgnFiles, java.util.Comparator
                 .comparing(java.io.File::getName));
 
-//        try {
-//            System.out.println("Lecture du fichier...");
-//            reader = new BufferedReader(new FileReader(filePath));
-//            System.out.println("OK : fichier trouvé !");
-//        } catch (IOException e) {
-//            System.err.println("Erreur lors de l'accès ou de la lecture du fichier : " + filePath);
-//            e.printStackTrace();
-//            return; // arrête le programme si une erreur IO survient
-//        }
 
         //déclaration variables utiles pour la boucle principale
-        String ligne;
-        Game gameActuelle = new Game(); //initialisation de la game
-        ;
-        int cptGamesTmp = 0;
         int totalGames = 0;
         int skippedGames = 0;
-        int skippedFilter = 0, skippedCadence = 0, skippedOuverture = 0, skippedEmptyMoves = 0;
-        int printed = 0; // pour loguer les 5 premières parties
         /**
          * BOUCLE PRINCIPALE
          * Lit un fichier PGN ligne par ligne, parse les informations des parties et insère les données dans la base.
