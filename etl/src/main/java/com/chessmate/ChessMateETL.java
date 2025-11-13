@@ -499,6 +499,91 @@ public class ChessMateETL {
 
 
     /**
+     * Copie les parties fournies dans la base de données en utilisant les identifiants 
+     * des joueurs, tournois et suites de coups préalablement insérés.
+     * 
+     * Cette méthode réalise les étapes suivantes :
+     * - Vérifie si la liste de parties est vide ; si oui, retourne immédiatement.
+     * - Crée un fichier CSV temporaire contenant les données des parties à insérer.
+     * - Pour chaque partie, récupère les identifiants des joueurs, du tournoi et de la suite de coups.
+     * - Convertit les informations comme le résultat, la date/heure et gère les valeurs nulles.
+     * - Utilise la commande COPY de PostgreSQL pour insérer rapidement toutes les parties.
+     *
+     * @param conn la connexion JDBC vers la base de données
+     * @param parties la liste des parties à copier
+     * @param joueurIds la map pseudonyme → id des joueurs déjà insérés
+     * @param tournoiIds la map libelle → id des tournois déjà insérés
+     * @param suiteCoupsIds la map PGN → id des suites de coups déjà insérées
+     * @throws SQLException si une erreur SQL survient lors de l'insertion
+     * @throws IOException si une erreur d'entrée/sortie survient lors de la création ou lecture du fichier CSV temporaire
+     */
+    static void copyParties(Connection conn, List<Game> parties,
+                        Map<String, Integer> joueurIds,
+                        Map<String, Integer> tournoiIds,
+                        Map<String, Integer> suiteCoupsIds) 
+            throws SQLException, IOException {
+        if (parties.isEmpty()) return;
+        
+        File tempFile = File.createTempFile("parties", ".csv");
+        tempFile.deleteOnExit();
+        
+        try (PrintWriter writer = new PrintWriter(new FileWriter(tempFile))) {
+            for (Game g : parties) {
+                Integer idBlanc = joueurIds.get(g.white);
+                Integer idNoir = joueurIds.get(g.black);
+                Integer idTournoi = g.broadcastName != null ? tournoiIds.get(g.broadcastName) : null;
+                
+                String pgnNettoye = nettoyerPgnCoups(g.moves.toString());
+                Integer idSuiteCoups = suiteCoupsIds.get(pgnNettoye);
+                Integer idOuverture = getIdOuverture(g.eco);
+                Integer idCadence = getIdCadence(g.timeControl);
+                
+                // Ignorer si données manquantes
+                if (idBlanc == null || idNoir == null || idSuiteCoups == null) continue;
+                
+                // Convertir le résultat
+                int resultat = g.result.equals("1-0") ? 2 : g.result.equals("0-1") ? 0 : 1;
+                
+                writer.println(
+                    escapeCsv(truncate(g.event, 255)) + "," +
+                    resultat + "," +
+                    (parseTimestamp(g.utcDate, g.utcTime) != null ? 
+                        parseTimestamp(g.utcDate, g.utcTime).toString() : "\\N") + "," +
+                    (g.whiteElo != null ? g.whiteElo : "\\N") + "," +
+                    (g.blackElo != null ? g.blackElo : "\\N") + "," +
+                    escapeCsv(g.whiteTitle) + "," +
+                    escapeCsv(g.blackTitle) + "," +
+                    escapeCsv(g.round) + "," +
+                    escapeCsv(g.broadcastUrl) + "," +
+                    escapeCsv(g.gameUrl) + "," +
+                    escapeCsv(g.variant) + "," +
+                    idSuiteCoups + "," +
+                    idBlanc + "," +
+                    idNoir + "," +
+                    (idOuverture != null ? idOuverture : "\\N") + "," +
+                    (idCadence != null ? idCadence : "\\N") + "," +
+                    (idTournoi != null ? idTournoi : "\\N") + "," +
+                    escapeCsv(cleanPgn(g.moves.toString()))
+                );
+            }
+        }
+        
+        org.postgresql.copy.CopyManager copyManager = 
+            new org.postgresql.copy.CopyManager((org.postgresql.core.BaseConnection) conn);
+        
+        String sql = "COPY Partie (title, resultat, date_heure_utc, elo_blanc, elo_noir, " +
+                    "titre_blanc, titre_noir, round, broadcast_url, game_url, variant, " +
+                    "id_suite_coups_stats, Id_Joueur_Blanc, Id_Joueur_Noir, id_ouverture, " +
+                    "id_cadence, id_tournoi, pgn) " +
+                    "FROM STDIN WITH (FORMAT CSV, NULL '\\N')";
+        
+        try (FileReader reader = new FileReader(tempFile)) {
+            copyManager.copyIn(sql, reader);
+        }
+    }
+
+
+    /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
      * <p>
      * Exemple de ligne PGN : [White "MagnusCarlsen"]
