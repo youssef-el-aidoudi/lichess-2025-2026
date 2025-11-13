@@ -584,6 +584,26 @@ public class ChessMateETL {
 
 
     /**
+     * Échappe une valeur pour l'écriture dans un fichier CSV compatible PostgreSQL.
+     * 
+     * Cette méthode effectue les actions suivantes :
+     * - Si la valeur est null, retourne la chaîne spéciale "\N" pour représenter NULL.
+     * - Si la valeur contient une virgule, un guillemet ou un saut de ligne, elle est entourée
+     *   de guillemets doubles et les guillemets internes sont doublés.
+     * - Sinon, retourne la valeur telle quelle.
+     *
+     * @param value la chaîne à échapper pour le CSV
+     * @return la chaîne échappée prête à être insérée dans un fichier CSV
+     */
+    static String escapeCsv(String value) {
+        if (value == null) return "\\N";
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
+    }
+
+    /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
      * <p>
      * Exemple de ligne PGN : [White "MagnusCarlsen"]
