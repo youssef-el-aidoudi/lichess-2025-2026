@@ -219,6 +219,35 @@ public class ChessMateETL {
 
 
     /**
+     * Insère en base de données un batch de parties à partir des données ETL fournies.
+     * 
+     * Cette méthode effectue les étapes suivantes :
+     * - Vérifie si la liste de parties est vide ; si oui, elle retourne immédiatement.
+     * - Copie les joueurs dans la base et récupère leurs identifiants générés.
+     * - Copie les tournois dans la base et récupère leurs identifiants générés.
+     * - Copie les suites de coups dans la base et récupère leurs identifiants générés.
+     * - Copie les parties en utilisant les identifiants des joueurs, tournois et suites de coups.
+     * - Effectue un commit pour valider toutes les insertions du batch.
+     *
+     * @param conn la connexion JDBC vers la base de données
+     * @param data l'objet ETLData contenant les parties, joueurs, tournois et suites de coups à insérer
+     * @throws SQLException si une erreur SQL survient lors des insertions ou du commit
+     * @throws IOException si une erreur d'entrée/sortie survient lors du traitement des données
+     */
+    static void insertBatch(Connection conn, ETLData data) throws SQLException, IOException {
+        if (data.games.isEmpty()) return;
+        
+        Map<String, Integer> joueurIds = copyJoueurs(conn, data.joueurs);
+        Map<String, Integer> tournoiIds = copyTournois(conn, data.tournois);
+        Map<String, Integer> suiteCoupsIds = copySuiteCoups(conn, data.suiteCoups);
+        
+        copyParties(conn, data.games, joueurIds, tournoiIds, suiteCoupsIds);
+        
+        conn.commit(); // Commit après chaque batch
+    }
+
+
+    /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
      * <p>
      * Exemple de ligne PGN : [White "MagnusCarlsen"]
