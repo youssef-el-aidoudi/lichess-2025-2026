@@ -757,6 +757,23 @@ public class ChessMateETL {
         return cadences.get(normalized);
     }
 
+
+    /**
+     * Retourne l'identifiant correspondant à un code ECO donné.
+     * 
+     * Si le code ECO est nul, la méthode renvoie null.
+     * Sinon, elle cherche l'identifiant associé dans la table des ouvertures.
+     *
+     * @param eco le code ECO de l'ouverture (ex. : "C65" pour la défense berlinoise)
+     * @return l'identifiant de l'ouverture, ou null si non trouvé
+     */
+        static Integer getIdOuverture(String eco) {
+        if (eco == null) return null;
+        return ouvertures.get(eco);
+    }
+
+
+
     /**
      * Nettoie un texte PGN brut pour ne conserver que la séquence de coups pure.
      * <p>
@@ -893,31 +910,6 @@ public class ChessMateETL {
         return rawCadence; // ex: "90minutes + 30 seconds" → "90+30"
     }
 
-    /**
-     * Récupère l'identifiant de l'ouverture associée à une partie d'échecs.
-     * <p>
-     * Cette méthode cherche dans la table "Ouverture" l'entrée correspondant
-     * au code ECO de la partie (champ `game.eco`). Si une ouverture correspondante
-     * est trouvée, elle retourne son identifiant (id). Sinon, elle retourne `null`.
-     *
-     * @param connection la connexion active à la base de données
-     * @param game       l'objet Game contenant les métadonnées de la partie, notamment le code ECO
-     * @return l'identifiant de l'ouverture si trouvée, sinon `null`
-     * @throws SQLException en cas d'erreur SQL lors de l'exécution de la requête
-     */
-    static Integer getIdOuverture(Connection connection, String eco) throws SQLException {
-        String query = "SELECT id FROM Ouverture WHERE code = ? ORDER BY id ASC LIMIT 1"; // TODO plus tard : améliorer la détection d'ouverture en comparant les premiers coups pour découvrir les variantes jouées plutôt que l'ouverture basique
-        PreparedStatement ps = connection.prepareStatement(query);
-        ps.setString(1, eco);
-        try (ResultSet rs = ps.executeQuery()) {
-            if (rs.next()) {
-                Integer ouvertureId = rs.getInt("id");
-                ouvertures.put(eco, ouvertureId);
-                return ouvertureId;
-            } else {
-                return null;
-            }
-        }
-    }
+
 }
 
