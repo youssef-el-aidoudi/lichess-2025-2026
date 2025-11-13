@@ -773,6 +773,41 @@ public class ChessMateETL {
     }
 
 
+    /**
+     * Précharge les caches en mémoire à partir de la base de données.
+     * 
+     * Cette méthode remplit deux tables de correspondance :
+     * - le cache des cadences, associant chaque libellé de cadence à son identifiant ;
+     * - le cache des ouvertures, associant chaque combinaison code|libellé à son identifiant.
+     *
+     * Elle effectue des requêtes SQL simples sur les tables Cadence et Ouverture,
+     * puis affiche le nombre d'éléments chargés dans la console.
+     *
+     * @param conn la connexion à la base de données utilisée pour lire les données
+     * @throws SQLException si une erreur survient lors de l'exécution des requêtes SQL
+     */
+    static void remplissageCache(Connection conn) throws SQLException {
+        System.out.println("Préchargement des caches...");
+        
+        //hash des cadences
+        try (Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT id, libelle FROM Cadence")) {
+            while (rs.next()) {
+                cadences.put(rs.getString("libelle"), rs.getInt("id"));
+            }
+        }
+        System.out.println("  ✓ " + cadences.size() + " cadences chargées");
+        
+        //hash des ouvertures
+        try (Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT id, code, libelle FROM Ouverture")) {
+            while (rs.next()) {
+                ouvertures.put(rs.getString("code") + "|" + rs.getString("libelle"), rs.getInt("id"));
+            }
+        }
+        System.out.println("  ✓ " + ouvertures.size() + " ouvertures chargées");
+    }
+
 
     /**
      * Nettoie un texte PGN brut pour ne conserver que la séquence de coups pure.
