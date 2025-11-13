@@ -328,6 +328,84 @@ public class ChessMateETL {
 
 
     /**
+     * Copie les tournois fournis dans la base de données et retourne une map de leurs identifiants.
+     * 
+     * Cette méthode réalise les étapes suivantes :
+     * - Vérifie si la map de tournois est vide ; si oui, retourne une map vide.
+     * - Crée une table temporaire pour stocker les tournois du batch.
+     * - Écrit les tournois dans un fichier CSV temporaire.
+     * - Utilise la commande COPY de PostgreSQL pour insérer les données dans la table temporaire.
+     * - Insère dans la table principale les tournois nouveaux uniquement 
+     *   (gestion des doublons via ON CONFLICT DO NOTHING).
+     * - Récupère les identifiants des tournois insérés ou déjà existants et les retourne sous forme de map libelle → id.
+     *
+     * @param conn la connexion JDBC vers la base de données
+     * @param tournois la map des tournois à copier (libelle → TournoiDTO)
+     * @return une map associant chaque libellé de tournoi à l'identifiant correspondant dans la base
+     * @throws SQLException si une erreur SQL survient lors des insertions ou des requêtes
+     * @throws IOException si une erreur d'entrée/sortie survient lors de la création ou lecture du fichier CSV temporaire
+     */
+    static Map<String, Integer> copyTournois(Connection conn, Map<String, TournoiDTO> tournois) 
+            throws SQLException, IOException {
+        if (tournois.isEmpty()) return new HashMap<>();
+        //meme principe que copyJoueurs
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS temp_tournoi");
+            stmt.execute("CREATE TEMP TABLE temp_tournoi (LIKE Tournoi INCLUDING DEFAULTS)");
+        }
+        
+        File tempFile = File.createTempFile("tournois", ".csv");
+        tempFile.deleteOnExit();
+        
+        try (PrintWriter writer = new PrintWriter(new FileWriter(tempFile))) {
+            for (TournoiDTO t : tournois.values()) {
+                writer.println(escapeCsv(t.libelle) + "," +
+                            escapeCsv(t.site) + "," +
+                            escapeCsv(t.broadcastUrl) + "," +
+                            (t.dateDebut != null ? t.dateDebut.toString() : "\\N") + "," +
+                            "1," +
+                            "1");
+            }
+        }
+        
+        org.postgresql.copy.CopyManager copyManager = 
+            new org.postgresql.copy.CopyManager((org.postgresql.core.BaseConnection) conn);
+        
+        String sql = "COPY temp_tournoi (libelle, site, broadcast_url, date_debut, Id_Organisateur, id_cadence) " +
+                    "FROM STDIN WITH (FORMAT CSV, NULL '\\N')";
+        
+        try (FileReader reader = new FileReader(tempFile)) {
+            copyManager.copyIn(sql, reader);
+        }
+        
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate(
+                "INSERT INTO Tournoi (libelle, site, broadcast_url, date_debut, Id_Organisateur, id_cadence) " +
+                "SELECT libelle, site, broadcast_url, date_debut, Id_Organisateur, id_cadence FROM temp_tournoi " +
+                "ON CONFLICT (libelle) DO NOTHING"
+            );
+        }
+        
+        Map<String, Integer> ids = new HashMap<>();
+        StringBuilder libelles = new StringBuilder();
+        for (String lib : tournois.keySet()) {
+            if (libelles.length() > 0) libelles.append(",");
+            libelles.append("'").append(lib.replace("'", "''")).append("'");
+        }
+        
+        try (Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(
+                "SELECT libelle, id FROM Tournoi WHERE libelle IN (" + libelles + ")")) {
+            while (rs.next()) {
+                ids.put(rs.getString("libelle"), rs.getInt("id"));
+            }
+        }
+        
+        return ids;
+    }
+
+
+    /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
      * <p>
      * Exemple de ligne PGN : [White "MagnusCarlsen"]
