@@ -79,42 +79,28 @@ public class ChessMateETL {
         //déclaration variables utiles pour la boucle principale
         int totalGames = 0;
         int skippedGames = 0;
-        /**
-         * BOUCLE PRINCIPALE
-         * Lit un fichier PGN ligne par ligne, parse les informations des parties et insère les données dans la base.
-         *
-         * Pour chaque ligne du fichier :
-         * - Si la ligne commence par '[', elle contient des métadonnées (nom des joueurs, date, résultat, etc.)
-         *   et est parsée via la méthode parseMetadata.
-         * - Sinon, si la ligne n'est pas vide et ne commence pas par '[', elle contient les coups de la partie
-         *   et est ajoutée à l'objet Game courant.
-         * - Si la ligne est vide et qu'une partie est en cours (white non null), cela signifie la fin de la partie.
-         *   Dans ce cas :
-         *   - On récupère l'ID de la cadence correspondante.
-         *   - On applique un filtre pour décider si la partie doit être insérée.
-         *   - Les joueurs sont insérés ou récupérés dans la base et leurs ID sont récupérés.
-         *   - Le tournoi est inséré si nécessaire et l'ID est récupéré.
-         *   - La suite des coups est récupérée ou créée dans la base.
-         *   - L'ouverture est insérée si disponible et l'ID est récupéré.
-         *   - La partie est enfin insérée dans la table Partie.
-         *   - Un commit est fait tous les 100 parties pour optimiser les performances.
-         * - Les parties qui ne passent pas le filtre sont ignorées.
-         *
-         * À la fin de la lecture :
-         * - Un commit final est effectué pour les parties restantes.
-         * - Le reader est fermé.
-         * - La connexion à la base est fermée.
-         *
-         * Les variables de suivi :
-         * - totalGames : nombre total de parties insérées.
-         * - skippedGames : nombre de parties ignorées.
-         * - cptGamesTmp : compteur temporaire pour commits par lot.
-         *
-         * Gestion des erreurs :
-         * - En cas d'exception lors de l'insertion d'une partie, un rollback est effectué pour cette transaction
-         *   et un message d'erreur est affiché.
-         */
-        // --- boucle sur chaque fichier .pgn ---
+            /**
+             * Parcourt et traite l'ensemble des fichiers PGN du dossier source.
+             * 
+             * Pour chaque fichier trouvé, le contenu est lu ligne par ligne afin
+             * d'identifier successivement :
+             * - les métadonnées des parties (balises entre crochets) ;
+             * - la séquence de coups (lignes sans crochets) ;
+             * - la fin de chaque partie (ligne vide).
+             * 
+             * À chaque fin de partie, la méthode vérifie la validité des données :
+             * présence des joueurs, cadence et ouverture connues, ELO corrects,
+             * séquence de coups non vide, et résultat défini.
+             * 
+             * Les parties valides sont stockées temporairement dans la mémoire
+             * (via l'objet ETLData) jusqu'à atteindre la taille de lot fixée
+             * par BATCH_SIZE. À ce seuil, les données sont insérées dans la
+             * base PostgreSQL à l'aide de la méthode insertBatch.
+             * 
+             * À la fin du parcours, le dernier lot restant est inséré, la
+             * transaction est validée, et un résumé global affiche le nombre
+             * total de parties insérées, celles ignorées et la durée totale.
+             */
         for (java.io.File pgnFile : pgnFiles) {
             try {
                 System.out.println("Lecture du fichier: " + pgnFile.getName());
@@ -126,7 +112,8 @@ public class ChessMateETL {
             }
 
             // on repart sur une nouvelle game pour chaque fichier
-            gameActuelle = new Game();
+            String ligne;
+            Game gameActuelle = new Game();
 
             while ((ligne = reader.readLine()) != null) {
 
@@ -139,98 +126,56 @@ public class ChessMateETL {
 
                     //vérification si partie terminée->next partie (ligne vide, mais joueur white toujours stocké par ex)
                 } else if (gameActuelle.white != null) {
-
-                    //recherche & recup idCadence & idOuverture
-                    String timeControl = gameActuelle.timeControl;
-                    Integer idCadence = timeControl != null ? (cadences.get(timeControl) != null ? cadences.get(timeControl) : getIdCadence(connection, timeControl)) : null;
-
-                    String eco = gameActuelle.eco; // code de l'ouverture jouée dans la partie
-                    Integer idOuverture = eco != null ? (ouvertures.get(eco) != null ? ouvertures.get(eco) : getIdOuverture(connection, eco)) : null;
+                    Integer idCadence = getIdCadence(gameActuelle.timeControl);
+                    Integer idOuverture = getIdOuverture(gameActuelle.eco);
+                    
+                    //filtres - vérif si pgn non vide, et la game passe nos filtres (elo ..)
+                    boolean okMoves = gameActuelle.moves != null && 
+                                      gameActuelle.moves.toString().trim().length() > 0;
                     boolean okFilter = filter(gameActuelle);
-                    boolean okCadence = (idCadence != null);
-                    boolean okOuverture = (idOuverture != null);
-                    boolean okMoves = gameActuelle.moves != null && gameActuelle.moves.toString().trim().length() > 0;
-
-                    if (!(okMoves && okFilter && okCadence && okOuverture)) {
-                        skippedGames++;
-                        if (!okMoves) skippedEmptyMoves++;
-                        if (okMoves && !okFilter) skippedFilter++;
-                        if (okMoves && okFilter && !okCadence) skippedCadence++;
-                        if (okMoves && okFilter && okCadence && !okOuverture) skippedOuverture++;
-
-                        if (printed < 50) {
-                            System.out.println("[SKIP] reason="
-                                    + (!okMoves ? "EMPTY_MOVES" : !okFilter ? "FILTER" : !okCadence ? "CADENCE_NULL" : "OUVERTURE_NULL")
-                                    + "  white=" + gameActuelle.white
-                                    + "  black=" + gameActuelle.black
-                                    + "  tc=" + gameActuelle.timeControl
-                                    + "  eco=" + gameActuelle.eco
-                                    + "  movesLen=" + (gameActuelle.moves == null ? 0 : gameActuelle.moves.length()));
-                            printed++;
+                    
+                    //si partie correcte, l'ajouter à la liste de parties à copier
+                    if (okMoves && okFilter && idCadence != null && idOuverture != null) {
+                        accumulerPartie(data, gameActuelle);
+                        totalGames++;
+                        
+                        //insertion par batch
+                        if (totalGames % BATCH_SIZE == 0) {
+                            System.out.println("  → Insertion du batch (" + totalGames + " parties) et " + skippedGames + " ignorées...");
+                            insertBatch(connection, data);
+                            data = new ETLData(); //eéinitialiser pour le prochain batch
+                            System.gc(); //pour vider la mémoire de l'ancien batch
                         }
-                        gameActuelle = new Game();
-                        continue;
-                    }
-                    //si la partie convient nos filtres
-                    if (filter(gameActuelle) && idCadence != null && idOuverture != null) { //ffiltre a choisir
-                        try {
-                            //insert les joueurs et recup id
-                            int idBlanc = insererJoueur(psJoueur, gameActuelle.white, gameActuelle.whiteElo,
-                                    gameActuelle.whiteTeam, gameActuelle.whiteFideId);
-                            int idNoir = insererJoueur(psJoueur, gameActuelle.black, gameActuelle.blackElo,
-                                    gameActuelle.blackTeam, gameActuelle.blackFideId);
-
-                            //insertion tournoi && recup idTournoi
-                            Integer idTournoi = null;
-                            if (gameActuelle.broadcastName != null) {
-                                idTournoi = insererTournoi(psTournoi, psCheckTournoi, gameActuelle);
-                            }
-
-                            // Récupérer l'ID de Suite_Coups_Stats AVANT l'ouverture
-                            Integer idSuiteCoups = getIdSuiteCoups(connection, gameActuelle.moves.toString());
-
-
-                            //insertion de la partie dans la bd
-                            insererPartie(psPartie, gameActuelle, idBlanc, idNoir, idOuverture, idCadence, idTournoi, idSuiteCoups);
-
-                            totalGames++; //nombre total de parties insérées
-                            cptGamesTmp++; //nombre temporaire de parties inserées (jusqu'a 100)
-
-                            if (cptGamesTmp >= 2000) { //commit tous les 100 parties
-                                connection.commit();
-                                cptGamesTmp = 0;
-                                System.out.println("parties insérées : " + totalGames + " (ignorées : " + skippedGames + ")");
-                            }
-                        } catch (Exception e) {
-                            System.err.println("erreur pour : " + gameActuelle.white + " vs " + gameActuelle.black);
-                            e.printStackTrace();
-                            connection.rollback(); //rollback si pb
-                        }
+                        
+                    
                     } else {
                         skippedGames++;
                     }
+                    //réinitialisation de gameActuelle pour une nouvelle partie
                     gameActuelle = new Game();
                 }
             }
-
-            try {
-                reader.close();
-            } catch (Exception ignore) {
             }
-            System.out.println("Terminé pour " + pgnFile.getName());
-
-
-        }
-        if (cptGamesTmp > 0) { //commit final
+    
+            //insert le dernier batch (parties restantes)
+            if (!data.games.isEmpty()) {
+                System.out.println("  → Insertion du batch (" + totalGames + " parties) et " + skippedGames + " ignorées...");
+                insertBatch(connection, data);
+            }
+            
             connection.commit();
+            
+            //fin du chronomètre
+            Instant end = Instant.now();
+            Duration duration = Duration.between(start, end);
+            System.out.println("\nTerminé : " + totalGames + " parties insérées, " 
+                            + skippedGames + " ignorées");
+            System.out.println("Durée : " + (duration.toMillis() / 1000.0) + " secondes");
+            
+            connection.close();
         }
-        System.out.println("terminé ! total : " + totalGames + " parties insérées, " + skippedGames + " ignorées");
-        //fin du chronomètre
-        Instant end = Instant.now();
-        Duration duration = Duration.between(start, end);
-        System.out.println("Temps d'exécution total : " + (duration.toMillis() / 1000.0) + " secondes");
-        connection.close();
-    }
+
+        
     /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
      * <p>
