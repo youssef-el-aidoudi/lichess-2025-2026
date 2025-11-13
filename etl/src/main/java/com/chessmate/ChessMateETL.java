@@ -2,10 +2,10 @@ package com.chessmate;
 
 import java.io.*;
 import java.sql.*;
-import java.util.Hashtable;
-import java.util.Dictionary;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.time.*;
-
 
 import io.github.cdimascio.dotenv.Dotenv;
 
@@ -127,7 +127,7 @@ public class ChessMateETL {
                     //vérification si partie terminée->next partie (ligne vide, mais joueur white toujours stocké par ex)
                 } else if (gameActuelle.white != null) {
                     Integer idCadence = getIdCadence(gameActuelle.timeControl);
-                    Integer idOuverture = getIdOuverture(gameActuelle.eco);
+                    Integer idOuverture = getIdOuverture(gameActuelle.eco, gameActuelle.opening);
                     
                     //filtres - vérif si pgn non vide, et la game passe nos filtres (elo ..)
                     boolean okMoves = gameActuelle.moves != null && 
@@ -535,7 +535,7 @@ public class ChessMateETL {
                 
                 String pgnNettoye = nettoyerPgnCoups(g.moves.toString());
                 Integer idSuiteCoups = suiteCoupsIds.get(pgnNettoye);
-                Integer idOuverture = getIdOuverture(g.eco);
+                Integer idOuverture = getIdOuverture(g.eco, g.opening);
                 Integer idCadence = getIdCadence(g.timeControl);
                 
                 // Ignorer si données manquantes
@@ -759,17 +759,34 @@ public class ChessMateETL {
 
 
     /**
-     * Retourne l'identifiant correspondant à un code ECO donné.
-     * 
-     * Si le code ECO est nul, la méthode renvoie null.
-     * Sinon, elle cherche l'identifiant associé dans la table des ouvertures.
+     * Retourne l'identifiant d'une ouverture à partir de son code ECO et éventuellement de son libellé.
      *
-     * @param eco le code ECO de l'ouverture (ex. : "C65" pour la défense berlinoise)
-     * @return l'identifiant de l'ouverture, ou null si non trouvé
+     * Cette méthode tente d'abord de trouver une correspondance exacte entre le code ECO et le libellé
+     * au format "code|libelle" dans le cache des ouvertures. Si aucune correspondance exacte n'est trouvée,
+     * elle renvoie le premier identifiant correspondant au code ECO seul.
+     *
+     * @param eco le code ECO de l'ouverture (par exemple "C65")
+     * @param opening le libellé de l'ouverture (par exemple "Ruy Lopez, Berlin Defense")
+     * @return l'identifiant de l'ouverture si trouvée, sinon null
      */
-        static Integer getIdOuverture(String eco) {
+    static Integer getIdOuverture(String eco, String opening) {
         if (eco == null) return null;
-        return ouvertures.get(eco);
+        
+        //tentative 1 : Chercher avec code|libelle exact
+        if (opening != null && !opening.isEmpty()) {
+            String key = eco + "|" + opening;
+            Integer id = ouvertures.get(key);
+            if (id != null) return id;
+        }
+        
+        //tentative 2 : Chercher juste le premier du code ECO
+        for (Map.Entry<String, Integer> entry : ouvertures.entrySet()) {
+            if (entry.getKey().startsWith(eco + "|")) {
+                return entry.getValue();
+            }
+        }
+        
+        return null;
     }
 
 
@@ -796,7 +813,7 @@ public class ChessMateETL {
                 cadences.put(rs.getString("libelle"), rs.getInt("id"));
             }
         }
-        System.out.println("  ✓ " + cadences.size() + " cadences chargées");
+        System.out.println(cadences.size() + " cadences chargées");
         
         //hash des ouvertures
         try (Statement stmt = conn.createStatement();
@@ -805,7 +822,7 @@ public class ChessMateETL {
                 ouvertures.put(rs.getString("code") + "|" + rs.getString("libelle"), rs.getInt("id"));
             }
         }
-        System.out.println("  ✓ " + ouvertures.size() + " ouvertures chargées");
+        System.out.println(ouvertures.size() + " ouvertures chargées");
     }
 
 
