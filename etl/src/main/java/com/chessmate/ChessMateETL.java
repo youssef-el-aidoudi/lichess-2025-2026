@@ -406,6 +406,99 @@ public class ChessMateETL {
 
 
     /**
+     * Copie les suites de coups fournies dans la base de données et retourne une map de leurs identifiants.
+     * 
+     * Cette méthode effectue les étapes suivantes :
+     * - Vérifie si la map de suites est vide ; si oui, retourne une map vide.
+     * - Crée une table temporaire pour stocker les suites du batch.
+     * - Écrit les suites dans un fichier CSV temporaire.
+     * - Utilise la commande COPY de PostgreSQL pour insérer les données dans la table temporaire.
+     * - Insère dans la table principale les suites nouvelles uniquement 
+     *   (gestion des doublons via ON CONFLICT DO NOTHING).
+     * - Crée un fichier CSV temporaire et une table temporaire pour rechercher les IDs des suites insérées.
+     * - Récupère les identifiants des suites insérées ou déjà existantes et les retourne sous forme de map pgn → id.
+     *
+     * @param conn la connexion JDBC vers la base de données
+     * @param suites la map des suites de coups à copier (pgn → SuiteCoupsDTO)
+     * @return une map associant chaque PGN à l'identifiant correspondant dans la base
+     * @throws SQLException si une erreur SQL survient lors des insertions ou des requêtes
+     * @throws IOException si une erreur d'entrée/sortie survient lors de la création ou lecture des fichiers CSV temporaires
+     */
+    static Map<String, Integer> copySuiteCoups(Connection conn, Map<String, SuiteCoupsDTO> suites) 
+            throws SQLException, IOException {
+        if (suites.isEmpty()) return new HashMap<>();
+        
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS temp_suite_coups");
+            stmt.execute("CREATE TEMP TABLE temp_suite_coups (LIKE Suite_Coups_Stats INCLUDING DEFAULTS)");
+        }
+        
+        File tempFile = File.createTempFile("suitecoups", ".csv");
+        tempFile.deleteOnExit();
+        
+        try (PrintWriter writer = new PrintWriter(new FileWriter(tempFile))) {
+            for (SuiteCoupsDTO s : suites.values()) {
+                writer.println(escapeCsv(s.pgn) + ",\\N");
+            }
+        }
+        
+        org.postgresql.copy.CopyManager copyManager = 
+            new org.postgresql.copy.CopyManager((org.postgresql.core.BaseConnection) conn);
+        
+        String sql = "COPY temp_suite_coups (pgn, id_suite_coups_stats_precedente) " +
+                    "FROM STDIN WITH (FORMAT CSV, NULL '\\N')";
+        
+        try (FileReader reader = new FileReader(tempFile)) {
+            copyManager.copyIn(sql, reader);
+        }
+        
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate(
+                "INSERT INTO Suite_Coups_Stats (pgn, id_suite_coups_stats_precedente) " +
+                "SELECT pgn, id_suite_coups_stats_precedente FROM temp_suite_coups " +
+                "ON CONFLICT (pgn) DO NOTHING"
+            );
+        }
+        
+        // Récupérer les IDs via un fichier temporaire pour éviter les requêtes trop longues
+        Map<String, Integer> ids = new HashMap<>();
+        try (Statement stmt = conn.createStatement()) {
+            // Créer une table temporaire avec les PGNs recherchés
+            stmt.execute("CREATE TEMP TABLE temp_pgn_lookup (pgn TEXT)");
+            
+            File lookupFile = File.createTempFile("pgn_lookup", ".csv");
+            lookupFile.deleteOnExit();
+            
+            try (PrintWriter writer = new PrintWriter(new FileWriter(lookupFile))) {
+                for (String pgn : suites.keySet()) {
+                    writer.println(escapeCsv(pgn));
+                }
+            }
+            
+            org.postgresql.copy.CopyManager copyManager2 = 
+                new org.postgresql.copy.CopyManager((org.postgresql.core.BaseConnection) conn);
+            
+            try (FileReader reader = new FileReader(lookupFile)) {
+                copyManager2.copyIn("COPY temp_pgn_lookup (pgn) FROM STDIN WITH (FORMAT CSV)", reader);
+            }
+            
+            // JOIN pour récupérer les IDs
+            try (ResultSet rs = stmt.executeQuery(
+                "SELECT s.pgn, s.id FROM Suite_Coups_Stats s " +
+                "INNER JOIN temp_pgn_lookup t ON s.pgn = t.pgn")) {
+                while (rs.next()) {
+                    ids.put(rs.getString("pgn"), rs.getInt("id"));
+                }
+            }
+            
+            stmt.execute("DROP TABLE temp_pgn_lookup");
+        }
+        
+        return ids;
+    }
+
+
+    /**
      * Analyse une ligne de métadonnées d'un fichier PGN et met à jour les champs correspondants de l'objet {@link Game}.
      * <p>
      * Exemple de ligne PGN : [White "MagnusCarlsen"]
