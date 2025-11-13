@@ -65,7 +65,8 @@ CREATE TABLE Suite_Coups_Stats
     probabilite_coup       VARCHAR(50),
     id_suite_coups_stats_precedente INT,
     PRIMARY KEY (id),
-    FOREIGN KEY (id_suite_coups_stats_precedente) REFERENCES Suite_Coups_Stats (id)
+    FOREIGN KEY (id_suite_coups_stats_precedente) REFERENCES Suite_Coups_Stats (id),
+    UNIQUE (pgn)
 );
 
 CREATE TABLE Tournoi
