@@ -875,7 +875,7 @@ public class ChessMateETL {
      * <p>
      * Si le format est invalide ou absent, la méthode renvoie null.
      *
-     * @param dateStr chaîne de date PGN
+     * @param s chaîne de date PGN
      * @return java.sql.Date correspondante, ou null en cas d’erreur de parsing
      */
     static Date parseDate(String s) {
@@ -915,7 +915,7 @@ public class ChessMateETL {
      * (par exemple, les noms de tournois ou les URLs très longues).
      *
      * @param s   chaîne d’entrée
-     * @param max longueur maximale autorisée
+     * @param maxLength longueur maximale autorisée
      * @return chaîne tronquée à la longueur max, ou null si l’entrée était null
      */
     static String truncate(String s, int maxLength) {
@@ -952,7 +952,7 @@ public class ChessMateETL {
      * dans la base de données, afin de rendre les valeurs cohérentes
      * avec les formats stockés dans la table Cadence.
      *
-     * @param raw Chaîne brute issue du PGN (champ TimeControl)
+     * @param rawCadence Chaîne brute issue du PGN (champ TimeControl)
      * @return Chaîne normalisée au format "temps+incrément",
      * ou null si l'entrée est nulle.
      */
