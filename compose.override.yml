@@ -74,5 +74,22 @@ services:
     ports:
       - "5432:5432"
 
+  minio:
+    networks:
+     - public
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    labels:
+      #pour l'API (copie des gros fichiers via api et non pas l'UI)
+      - traefik.http.routers.minio-api.entrypoints=websecure
+      - traefik.http.routers.minio-api.tls=true
+      - traefik.http.routers.minio-api.rule=Host(`minio-api.docker.localhost`)
+      - traefik.http.routers.minio-api.service=minio-api
+      - traefik.http.services.minio-api.loadbalancer.server.port=9000
+      - traefik.http.routers.minio-api.middlewares=securityheaders
+      - traefik.docker.network=chessmate_proxy
+
+
 volumes:
   maven-cache:
