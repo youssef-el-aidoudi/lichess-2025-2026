@@ -207,12 +207,12 @@ public class ChessMateETL {
                 game.broadcastName, game.site, game.broadcastUrl, parseDate(game.utcDate)));
         }
         
-        //accumuler suite de coups
-        String pgnNettoye = nettoyerPgnCoups(game.moves.toString());
-        if (!data.suiteCoups.containsKey(pgnNettoye)) {
-            data.suiteCoups.put(pgnNettoye, new SuiteCoupsDTO(game.moves.toString()));
-        }
-        
+        //accumuler suite de coups - DESACTIVE CAR TROP LOURD EN PROD POUR LE MOMENT.
+//        String pgnNettoye = nettoyerPgnCoups(game.moves.toString());
+//        if (!data.suiteCoups.containsKey(pgnNettoye)) {
+//            data.suiteCoups.put(pgnNettoye, new SuiteCoupsDTO(game.moves.toString()));
+//        }
+//
         //ajout de la partie à la liste
         data.games.add(game);
     }
