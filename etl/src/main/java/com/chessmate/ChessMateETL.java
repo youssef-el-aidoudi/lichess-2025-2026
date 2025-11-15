@@ -240,7 +240,8 @@ public class ChessMateETL {
         Map<String, Integer> joueurIds = copyJoueurs(conn, data.joueurs);
         Map<String, Integer> tournoiIds = copyTournois(conn, data.tournois);
 //        Map<String, Integer> suiteCoupsIds = copySuiteCoups(conn, data.suiteCoups);
-        
+        Map<String, Integer> suiteCoupsIds = new HashMap<>(); // <- vide
+
         copyParties(conn, data.games, joueurIds, tournoiIds, suiteCoupsIds);
         
         conn.commit(); // Commit après chaque batch
