@@ -19,13 +19,13 @@ import lombok.RequiredArgsConstructor;
 public class CustomUserDetailsService implements UserDetailsService {
     private final UtilisateurRepository utilisateurRepository;
 
-    public UserDetails loadUserByUsername(String nom) throws UsernameNotFoundException {
-        Utilisateur utilisateur = utilisateurRepository.findByNom(nom);
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        Utilisateur utilisateur = utilisateurRepository.findByEmail(email);
 
         if (utilisateur == null) {
-            throw new UsernameNotFoundException("cet utilisateur n'a pas été trouvé: " + nom);
+            throw new UsernameNotFoundException("cet addresse mail n'a pas été trouvé: " + email);
         }
-        return new org.springframework.security.core.userdetails.User(utilisateur.getNom(), utilisateur.getHash(), Collections.singletonList(new SimpleGrantedAuthority(utilisateur.getRole()))); 
+        return new org.springframework.security.core.userdetails.User(utilisateur.getEmail(), utilisateur.getHash(), Collections.singletonList(new SimpleGrantedAuthority(utilisateur.getRole()))); 
             
         
                
