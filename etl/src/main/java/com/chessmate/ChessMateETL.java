@@ -239,7 +239,7 @@ public class ChessMateETL {
         
         Map<String, Integer> joueurIds = copyJoueurs(conn, data.joueurs);
         Map<String, Integer> tournoiIds = copyTournois(conn, data.tournois);
-        Map<String, Integer> suiteCoupsIds = copySuiteCoups(conn, data.suiteCoups);
+//        Map<String, Integer> suiteCoupsIds = copySuiteCoups(conn, data.suiteCoups);
         
         copyParties(conn, data.games, joueurIds, tournoiIds, suiteCoupsIds);
         
@@ -534,13 +534,14 @@ public class ChessMateETL {
                 Integer idTournoi = g.broadcastName != null ? tournoiIds.get(g.broadcastName) : null;
                 
                 String pgnNettoye = nettoyerPgnCoups(g.moves.toString());
-                Integer idSuiteCoups = suiteCoupsIds.get(pgnNettoye);
+//                Integer idSuiteCoups = suiteCoupsIds.get(pgnNettoye);
                 Integer idOuverture = getIdOuverture(g.eco, g.opening);
                 Integer idCadence = getIdCadence(g.timeControl);
                 
                 // Ignorer si données manquantes
-                if (idBlanc == null || idNoir == null || idSuiteCoups == null) continue;
-                
+//                if (idBlanc == null || idNoir == null || idSuiteCoups == null) continue;
+                if (idBlanc == null || idNoir == null) continue;
+
                 // Convertir le résultat
                 int resultat = g.result.equals("1-0") ? 2 : g.result.equals("0-1") ? 0 : 1;
                 
