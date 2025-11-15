@@ -207,12 +207,12 @@ public class ChessMateETL {
                 game.broadcastName, game.site, game.broadcastUrl, parseDate(game.utcDate)));
         }
         
-        //accumuler suite de coups - DESACTIVE CAR TROP LOURD EN PROD POUR LE MOMENT.
-//        String pgnNettoye = nettoyerPgnCoups(game.moves.toString());
-//        if (!data.suiteCoups.containsKey(pgnNettoye)) {
-//            data.suiteCoups.put(pgnNettoye, new SuiteCoupsDTO(game.moves.toString()));
-//        }
-//
+        //accumuler suite de coups
+        String pgnNettoye = nettoyerPgnCoups(game.moves.toString());
+        if (!data.suiteCoups.containsKey(pgnNettoye)) {
+            data.suiteCoups.put(pgnNettoye, new SuiteCoupsDTO(game.moves.toString()));
+        }
+
         //ajout de la partie à la liste
         data.games.add(game);
     }
@@ -239,8 +239,7 @@ public class ChessMateETL {
         
         Map<String, Integer> joueurIds = copyJoueurs(conn, data.joueurs);
         Map<String, Integer> tournoiIds = copyTournois(conn, data.tournois);
-//        Map<String, Integer> suiteCoupsIds = copySuiteCoups(conn, data.suiteCoups);
-        Map<String, Integer> suiteCoupsIds = new HashMap<>(); // <- vide
+        Map<String, Integer> suiteCoupsIds = copySuiteCoups(conn, data.suiteCoups);
 
         copyParties(conn, data.games, joueurIds, tournoiIds, suiteCoupsIds);
         
@@ -535,14 +534,12 @@ public class ChessMateETL {
                 Integer idTournoi = g.broadcastName != null ? tournoiIds.get(g.broadcastName) : null;
                 
                 String pgnNettoye = nettoyerPgnCoups(g.moves.toString());
-//                Integer idSuiteCoups = suiteCoupsIds.get(pgnNettoye);
-                Integer idSuiteCoups = 0;
+                Integer idSuiteCoups = suiteCoupsIds.get(pgnNettoye);
                 Integer idOuverture = getIdOuverture(g.eco, g.opening);
                 Integer idCadence = getIdCadence(g.timeControl);
                 
                 // Ignorer si données manquantes
-//                if (idBlanc == null || idNoir == null || idSuiteCoups == null) continue;
-                if (idBlanc == null || idNoir == null) continue;
+                if (idBlanc == null || idNoir == null || idSuiteCoups == null) continue;
 
                 // Convertir le résultat
                 int resultat = g.result.equals("1-0") ? 2 : g.result.equals("0-1") ? 0 : 1;
