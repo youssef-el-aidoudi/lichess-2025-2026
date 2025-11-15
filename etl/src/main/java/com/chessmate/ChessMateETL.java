@@ -536,6 +536,7 @@ public class ChessMateETL {
                 
                 String pgnNettoye = nettoyerPgnCoups(g.moves.toString());
 //                Integer idSuiteCoups = suiteCoupsIds.get(pgnNettoye);
+                Integer idSuiteCoups = 0;
                 Integer idOuverture = getIdOuverture(g.eco, g.opening);
                 Integer idCadence = getIdCadence(g.timeControl);
                 
