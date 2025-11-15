@@ -37,8 +37,8 @@ public class RegistrationLoginController {
 
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@RequestBody Utilisateur utilisateur) {
-        if (utilisateurRepository.findByNom(utilisateur.getNom()) != null) {
-            return ResponseEntity.badRequest().body("Ce nom existe déja !");
+        if (utilisateurRepository.findByEmail(utilisateur.getEmail()) != null) {
+            return ResponseEntity.badRequest().body("Cette adresse email existe déja !");
         }
         utilisateur.setHash(passwordEncoder.encode(utilisateur.getHash()));
         return ResponseEntity.ok(utilisateurRepository.save(utilisateur));
@@ -48,18 +48,18 @@ public class RegistrationLoginController {
     public ResponseEntity<?> login(@RequestBody Utilisateur utilisateur) {
         try {
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(utilisateur.getNom(), utilisateur.getHash())    
+                new UsernamePasswordAuthenticationToken(utilisateur.getEmail(), utilisateur.getHash())    
         );
         if (authentication.isAuthenticated()) {
             Map<String, Object> authData = new HashMap<>();
-            authData.put("token", jwtUtils.generateToken(utilisateur.getNom()));
+            authData.put("token", jwtUtils.generateToken(utilisateur.getEmail()));
             authData.put("type", "Bearer");
             return ResponseEntity.ok(authData);
         }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("email ou mot de passe invalide !");
     } catch (AuthenticationException e) {
         log.error(e.getMessage());
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("email ou mot de passe invalide !");
     }
 
     }

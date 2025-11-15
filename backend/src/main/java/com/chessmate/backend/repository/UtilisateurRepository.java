@@ -12,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 import com.chessmate.backend.entiter.Utilisateur;
 
 public interface UtilisateurRepository extends JpaRepository<Utilisateur, Long>{
-    Optional<Utilisateur> findByEmail(String email);
+    Utilisateur findByEmail(String email);
 
     @Query("SELECT u FROM utilisateur u WHERE u.inscription_a = :date")
     List<Utilisateur> findByInscriptionA(@Param("date") LocalDateTime dt);
