@@ -70,7 +70,72 @@ CREATE TABLE Suite_Coups_Stats
     PRIMARY KEY (id),
     FOREIGN KEY (id_suite_coups_stats_precedente) REFERENCES Suite_Coups_Stats (id),
     UNIQUE (pgn_hash)
-);
+) PARTITION BY HASH (pgn_hash);
+
+-- Je n'ai pas trouvé comment faire les partitions automatiquement.
+CREATE TABLE suite_coups_stats_p0
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 0);
+
+CREATE TABLE suite_coups_stats_p1
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 1);
+
+CREATE TABLE suite_coups_stats_p2
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 2);
+
+CREATE TABLE suite_coups_stats_p3
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 3);
+
+CREATE TABLE suite_coups_stats_p4
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 4);
+
+CREATE TABLE suite_coups_stats_p5
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 5);
+
+CREATE TABLE suite_coups_stats_p6
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 6);
+
+CREATE TABLE suite_coups_stats_p7
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 7);
+
+CREATE TABLE suite_coups_stats_p8
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 8);
+
+CREATE TABLE suite_coups_stats_p9
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 9);
+
+CREATE TABLE suite_coups_stats_p10
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 10);
+
+CREATE TABLE suite_coups_stats_p11
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 11);
+
+CREATE TABLE suite_coups_stats_p12
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 12);
+
+CREATE TABLE suite_coups_stats_p13
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 13);
+
+CREATE TABLE suite_coups_stats_p14
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 14);
+
+CREATE TABLE suite_coups_stats_p15
+    PARTITION OF suite_coups_stats
+    FOR VALUES WITH (MODULUS 16, REMAINDER 15);
 
 CREATE TABLE Tournoi
 (
