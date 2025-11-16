@@ -70,7 +70,7 @@ CREATE TABLE Suite_Coups_Stats
     PRIMARY KEY (id),
     FOREIGN KEY (id_suite_coups_stats_precedente) REFERENCES Suite_Coups_Stats (id),
     UNIQUE (pgn_hash)
-) PARTITION BY HASH (pgn_hash);
+) PARTITION BY HASH (pgn);
 
 -- Je n'ai pas trouvé comment faire les partitions automatiquement.
 CREATE TABLE suite_coups_stats_p0
