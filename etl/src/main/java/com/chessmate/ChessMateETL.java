@@ -550,7 +550,7 @@ public class ChessMateETL {
                 Integer idNoir = joueurIds.get(g.black);
                 Integer idTournoi = g.broadcastName != null ? tournoiIds.get(g.broadcastName) : null;
 
-                String pgnNettoye = nettoyerPgnCoups(g.moves.toString());
+                String pgnNettoye = g.moves.toString();
                 Integer idSuiteCoups = suiteCoupsIds.get(pgnNettoye);
                 Integer idOuverture = getIdOuverture(g.eco, g.opening);
                 Integer idCadence = getIdCadence(g.timeControl);
