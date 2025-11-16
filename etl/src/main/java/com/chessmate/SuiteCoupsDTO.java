@@ -7,4 +7,5 @@ public class SuiteCoupsDTO {
     SuiteCoupsDTO(String pgn) {
         this.pgn = ChessMateETL.nettoyerPgnCoups(pgn);
     }
+
 }
