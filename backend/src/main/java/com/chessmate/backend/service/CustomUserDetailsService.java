@@ -31,10 +31,17 @@ public class CustomUserDetailsService implements UserDetailsService {
         if (user.isEmpty()) {
             throw new UsernameNotFoundException("User not found: " + email);
         }
+        
+        /*return new org.springframework.security.core.userdetails.User(
+        user.get().getEmail(), 
+        user.get().getHash(), 
+        Collections.singletonList(new SimpleGrantedAuthority(user.get().getRole()))); 
+        */   
+        
         return org.springframework.security.core.userdetails.User.builder()
             .username(user.get().getEmail())
             .password(user.get().getHash()) 
-            .authorities("USER")
+            .authorities(Collections.singletonList(new SimpleGrantedAuthority(user.get().getRole())))
             .accountExpired(false)
             .accountLocked(false)
             .credentialsExpired(false)
