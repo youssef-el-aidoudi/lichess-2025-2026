@@ -1,11 +1,10 @@
 package com.chessmate.backend.configuration;
 
-import com.chessmate.backend.filter.JwtFilter;
+
 import org.springframework.context.annotation.Bean;
+
+import com.chessmate.backend.filter.JwtFilter;
 import com.chessmate.backend.service.CustomUserDetailsService;
-
-
-
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;

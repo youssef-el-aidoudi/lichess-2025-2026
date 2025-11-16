@@ -15,13 +15,20 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
+import lombok.Data;
 
 @Entity
+@Table(name = "Utilisateurs")
+@Data
 public class Utilisateur {
     //attributs
     @Id @GeneratedValue(strategy= GenerationType.IDENTITY)
     //identifiant généner automatiquement dans la bd
     private long id;
+    private String nom;
+    private String prenom;
+    private String role;
     
     @Column(nullable=false, unique=true)
     private String email;
@@ -29,8 +36,6 @@ public class Utilisateur {
     @Column(nullable=false)
     private String hash;
     
-    private String nom;
-    private String prenom;
 
     @Column(name = "inscription_a", nullable=false)
     private LocalDateTime inscriptionA;
@@ -67,6 +72,7 @@ public class Utilisateur {
     public String getNom(){ return this.nom; }
     public String getPrenom(){ return this.prenom; }
     public String getHash() { return this.hash; }
+    public String getRole() { return this.role; }
 
     public LocalDateTime getInscrit_A(){ return this.inscriptionA; }
     public LocalDateTime getConnexion_A(){ return this.connexionA; }
@@ -77,6 +83,7 @@ public class Utilisateur {
     public void setNom(String nom){ this.nom = nom; }
     public void setPrenom(String prenom){ this.prenom = prenom; }
     public void setHash(String hash){ this.hash = hash; }
+    public void setRole(String role) { this.role = role; }
 
     public void setInscrit_A(LocalDateTime inscription_a){ this.inscriptionA = inscription_a; }
     public void setConnexion_A(LocalDateTime connexion_a){ this.connexionA = connexion_a; }
