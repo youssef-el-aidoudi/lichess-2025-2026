@@ -55,11 +55,13 @@ CREATE TABLE Profil
     PRIMARY KEY (id)
 );
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE Suite_Coups_Stats
 (
     id                     SERIAL,
     pgn                    TEXT NOT NULL,
-    pgn_hash               CHAR(64) NOT NULL,
+    pgn_hash               CHAR(64) GENERATED ALWAYS AS (encode(digest(pgn, 'sha256'), 'hex')) STORED,
     nb_victoires           INT DEFAULT 0,
     nb_defaites            INT DEFAULT 0,
     nb_nulles              INT DEFAULT 0,
@@ -67,7 +69,7 @@ CREATE TABLE Suite_Coups_Stats
     id_suite_coups_stats_precedente INT,
     PRIMARY KEY (id),
     FOREIGN KEY (id_suite_coups_stats_precedente) REFERENCES Suite_Coups_Stats (id),
-    UNIQUE (pgn_hash, pgn)  -- Même si pgn_hash devrait suffire on aime bien mettre la source de vérité (pgn) avec.
+    UNIQUE (pgn_hash)
 );
 
 CREATE TABLE Tournoi
