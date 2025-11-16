@@ -456,7 +456,7 @@ public class ChessMateETL {
             stmt.executeUpdate(
                 "INSERT INTO Suite_Coups_Stats (pgn, id_suite_coups_stats_precedente) " +
                 "SELECT pgn, id_suite_coups_stats_precedente FROM temp_suite_coups " +
-                "ON CONFLICT (pgn) DO NOTHING"
+                "ON CONFLICT (pgn_hash) DO NOTHING"
             );
         }
 
