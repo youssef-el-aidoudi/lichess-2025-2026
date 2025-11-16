@@ -469,31 +469,21 @@ public class ChessMateETL {
             copyManager.copyIn(sql, reader);
         }
 
-        try (Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate(
-                    "INSERT INTO Suite_Coups_Stats (pgn, id_suite_coups_stats_precedente) " +
-                            "SELECT pgn, id_suite_coups_stats_precedente FROM temp_suite_coups " +
-                            "ON CONFLICT (pgn_hash) DO NOTHING"
-            );
-        }
-
-        // Récupérer les IDs pour tous les pgn du batch en passant par le hash
+        // INSERT + ON CONFLICT + RETURNING pour éviter le SELECT
         Map<String, Integer> ids = new HashMap<>();
 
-        String selectSql =
-                "SELECT s.pgn, s.id " +
-                        "FROM Suite_Coups_Stats s " +
-                        "JOIN (" +
-                        "   SELECT DISTINCT encode(digest(pgn, 'sha256'), 'hex') AS pgn_hash, pgn " +
-                        "   FROM temp_suite_coups" +
-                        ") t ON s.pgn_hash = t.pgn_hash";
+        String sqlMerge =
+                "INSERT INTO Suite_Coups_Stats (pgn, id_suite_coups_stats_precedente) " +
+                        "SELECT pgn, id_suite_coups_stats_precedente " +
+                        "FROM temp_suite_coups " +
+                        "ON CONFLICT (pgn_hash) DO UPDATE SET " +
+                        "    pgn = EXCLUDED.pgn " +   // obligatoire pour RETURNING
+                        "RETURNING pgn, id";
 
         try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(selectSql)) {
+             ResultSet rs = stmt.executeQuery(sqlMerge)) {
             while (rs.next()) {
-                String pgn = rs.getString("pgn");
-                int id = rs.getInt("id");
-                ids.put(pgn, id);
+                ids.put(rs.getString("pgn"), rs.getInt("id"));
             }
         }
 
