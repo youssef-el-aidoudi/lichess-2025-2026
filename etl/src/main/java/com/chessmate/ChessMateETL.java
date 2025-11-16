@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.time.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.nio.charset.StandardCharsets;
 
 import io.github.cdimascio.dotenv.Dotenv;
 
@@ -963,6 +966,25 @@ public class ChessMateETL {
         return rawCadence; // ex: "90minutes + 30 seconds" → "90+30"
     }
 
-
+    /**
+     * Calcule le hash SHA-256 d'une chaîne et le renvoie en hexadécimal (64 caractères).
+     *
+     * @param input chaîne d'entrée (par ex. PGN nettoyé)
+     * @return hash SHA-256 en hex (64 caractères), ou null si input est null
+     */
+    static String sha256Hex(String input) {
+        if (input == null) return null;
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(hashBytes.length * 2);
+            for (byte b : hashBytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();  // 64 caractères
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
+    }
 }
 
