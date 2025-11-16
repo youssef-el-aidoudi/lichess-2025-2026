@@ -59,6 +59,7 @@ CREATE TABLE Suite_Coups_Stats
 (
     id                     SERIAL,
     pgn                    TEXT NOT NULL,
+    pgn_hash               CHAR(64) NOT NULL,
     nb_victoires           INT DEFAULT 0,
     nb_defaites            INT DEFAULT 0,
     nb_nulles              INT DEFAULT 0,
@@ -66,7 +67,7 @@ CREATE TABLE Suite_Coups_Stats
     id_suite_coups_stats_precedente INT,
     PRIMARY KEY (id),
     FOREIGN KEY (id_suite_coups_stats_precedente) REFERENCES Suite_Coups_Stats (id),
-    UNIQUE (pgn)
+    UNIQUE (pgn_hash, pgn)  -- Même si pgn_hash devrait suffire on aime bien mettre la source de vérité (pgn) avec.
 );
 
 CREATE TABLE Tournoi
