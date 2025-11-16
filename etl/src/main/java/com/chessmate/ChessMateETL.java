@@ -477,38 +477,24 @@ public class ChessMateETL {
             );
         }
 
-        // Récupérer les IDs via un fichier temporaire pour éviter les requêtes trop longues
+        // Récupérer les IDs pour tous les pgn du batch en passant par le hash
         Map<String, Integer> ids = new HashMap<>();
-        try (Statement stmt = conn.createStatement()) {
-            // Créer une table temporaire avec les PGNs recherchés
-            stmt.execute("CREATE TEMP TABLE temp_pgn_lookup (pgn TEXT)");
 
-            File lookupFile = File.createTempFile("pgn_lookup", ".csv");
-            lookupFile.deleteOnExit();
+        String selectSql =
+                "SELECT s.pgn, s.id " +
+                        "FROM Suite_Coups_Stats s " +
+                        "JOIN (" +
+                        "   SELECT DISTINCT encode(digest(pgn, 'sha256'), 'hex') AS pgn_hash, pgn " +
+                        "   FROM temp_suite_coups" +
+                        ") t ON s.pgn_hash = t.pgn_hash";
 
-            try (PrintWriter writer = new PrintWriter(new FileWriter(lookupFile))) {
-                for (String pgn : suites.keySet()) {
-                    writer.println(escapeCsv(pgn));
-                }
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(selectSql)) {
+            while (rs.next()) {
+                String pgn = rs.getString("pgn");
+                int id = rs.getInt("id");
+                ids.put(pgn, id);
             }
-
-            org.postgresql.copy.CopyManager copyManager2 =
-                    new org.postgresql.copy.CopyManager((org.postgresql.core.BaseConnection) conn);
-
-            try (FileReader reader = new FileReader(lookupFile)) {
-                copyManager2.copyIn("COPY temp_pgn_lookup (pgn) FROM STDIN WITH (FORMAT CSV)", reader);
-            }
-
-            // JOIN pour récupérer les IDs
-            try (ResultSet rs = stmt.executeQuery(
-                    "SELECT s.pgn, s.id FROM Suite_Coups_Stats s " +
-                            "INNER JOIN temp_pgn_lookup t ON s.pgn = t.pgn")) {
-                while (rs.next()) {
-                    ids.put(rs.getString("pgn"), rs.getInt("id"));
-                }
-            }
-
-            stmt.execute("DROP TABLE temp_pgn_lookup");
         }
 
         return ids;
