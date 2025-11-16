@@ -215,7 +215,7 @@ public class ChessMateETL {
         String pgnNettoye = dto.pgn;
 
         if (!data.suiteCoups.containsKey(pgnNettoye)) {
-            data.suiteCoups.put(dto);
+            data.suiteCoups.put(pgnNettoye, dto);
         }
 
         // on stocke la clé PGN nettoyée dans Game pour éviter de renettoyer dans CopyPartie
