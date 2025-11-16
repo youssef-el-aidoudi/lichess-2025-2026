@@ -144,7 +144,9 @@ public class ChessMateETL {
                             System.out.println("  -> Insertion du batch (" + totalGames + " parties) et (" + skippedGames + " parties ) ignorées...");
                             insertBatch(connection, data);
                             data = new ETLData(); //eéinitialiser pour le prochain batch
-                            System.gc(); //pour vider la mémoire de l'ancien batch
+                            // Je laisse le garbage collector faire sa vie pour voir.
+//                            System.gc(); //pour vider la mémoire de l'ancien batch
+
                         }
 
 
@@ -237,13 +239,22 @@ public class ChessMateETL {
     static void insertBatch(Connection conn, ETLData data) throws SQLException, IOException {
         if (data.games.isEmpty()) return;
 
+        Instant t0 = Instant.now();
         Map<String, Integer> joueurIds = copyJoueurs(conn, data.joueurs);
+        Instant t1 = Instant.now();
         Map<String, Integer> tournoiIds = copyTournois(conn, data.tournois);
+        Instant t2 = Instant.now();
         Map<String, Integer> suiteCoupsIds = copySuiteCoups(conn, data.suiteCoups);
-
+        Instant t3 = Instant.now();
         copyParties(conn, data.games, joueurIds, tournoiIds, suiteCoupsIds);
+        Instant t4 = Instant.now();
 
-        conn.commit(); // Commit après chaque batch
+        conn.commit();
+
+        System.out.println("Temps copyJoueurs  : " + Duration.between(t0, t1).toMillis() + " ms");
+        System.out.println("Temps copyTournois : " + Duration.between(t1, t2).toMillis() + " ms");
+        System.out.println("Temps copySuites   : " + Duration.between(t2, t3).toMillis() + " ms");
+        System.out.println("Temps copyParties  : " + Duration.between(t3, t4).toMillis() + " ms");
     }
 
 
