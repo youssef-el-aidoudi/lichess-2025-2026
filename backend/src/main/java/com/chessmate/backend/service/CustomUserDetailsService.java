@@ -1,6 +1,7 @@
 package com.chessmate.backend.service;
 
 import java.util.Collections;
+import java.util.Optional;
 
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -14,21 +15,31 @@ import com.chessmate.backend.repository.UtilisateurRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
+//@RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
     private final UtilisateurRepository utilisateurRepository;
 
-    public UserDetails loadUserByUsername(String nom) throws UsernameNotFoundException {
-        Utilisateur utilisateur = utilisateurRepository.findByUsername(nom);
-
-        if (utilisateur == null) {
-            throw new UsernameNotFoundException("cet utilisateur n'a pas été trouvé: " + nom);
-        }
-        return new org.springframework.security.core.userdetails.User(nom, nom, false, false, false, false, null); 
-            
-        
-               
-    
+    public CustomUserDetailsService(UtilisateurRepository rep)
+    {
+        this.utilisateurRepository = rep;
     }
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        Optional<Utilisateur> user = utilisateurRepository.findByEmail(email);
+
+        if (user.isEmpty()) {
+            throw new UsernameNotFoundException("User not found: " + email);
+        }
+        return org.springframework.security.core.userdetails.User.builder()
+            .username(user.get().getEmail())
+            .password(user.get().getHash()) 
+            .authorities("USER")
+            .accountExpired(false)
+            .accountLocked(false)
+            .credentialsExpired(false)
+            .disabled(false)
+            .build();
+        } 
     
 }
