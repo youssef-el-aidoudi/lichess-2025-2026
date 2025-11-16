@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -39,6 +41,7 @@ public class Utilisateur {
     
     @OneToOne
     @JoinColumn(name = "id_joueur", unique = true, nullable = true)
+    @JsonManagedReference
     private Joueur joueur;
 
     @ManyToMany
