@@ -151,7 +151,6 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
     volumes:
       - ./data:/data
-      - ./logs/etl:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
