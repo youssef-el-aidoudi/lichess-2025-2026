@@ -19,7 +19,7 @@ CREATE TABLE Utilisateur
     hash          VARCHAR(255) NOT NULL,
     nom           VARCHAR(50),
     prenom        VARCHAR(50),
-    inscription_a TIMESTAMP     NOT NULL,
+    inscription_a TIMESTAMP    NOT NULL,
     connexion_a   TIMESTAMP,
     banni_a       TIMESTAMP,
     id_joueur     INT          NOT NULL,
@@ -32,10 +32,10 @@ CREATE TABLE Utilisateur
 CREATE TYPE CATEGORIE_CADENCE AS ENUM('Bullet','Blitz','Rapide','Classique');
 CREATE TABLE Cadence
 (
-    id        SERIAL,
-    libelle   VARCHAR(50) NOT NULL,
-    temps     SMALLINT,
-    increment SMALLINT,
+    id          SERIAL,
+    libelle     VARCHAR(50)       NOT NULL,
+    temps       SMALLINT,
+    increment   SMALLINT,
     type_partie CATEGORIE_CADENCE NOT NULL,
     PRIMARY KEY (id),
     UNIQUE (libelle)
@@ -55,22 +55,48 @@ CREATE TABLE Profil
     PRIMARY KEY (id)
 );
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE
+EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE Suite_Coups_Stats
 (
-    id                     SERIAL,
-    pgn                    TEXT NOT NULL,
-    pgn_hash               CHAR(64) GENERATED ALWAYS AS (encode(digest(pgn, 'sha256'), 'hex')) STORED,
-    nb_victoires           INT DEFAULT 0,
-    nb_defaites            INT DEFAULT 0,
-    nb_nulles              INT DEFAULT 0,
-    probabilite_coup       VARCHAR(50),
+    id                              SERIAL,
+    pgn                             TEXT NOT NULL,
+    pgn_hash                        CHAR(64) GENERATED ALWAYS AS (encode(digest(pgn, 'sha256'), 'hex')) STORED,
+    nb_victoires                    INT DEFAULT 0,
+    nb_defaites                     INT DEFAULT 0,
+    nb_nulles                       INT DEFAULT 0,
+    probabilite_coup                VARCHAR(50),
     id_suite_coups_stats_precedente INT,
     PRIMARY KEY (id),
     FOREIGN KEY (id_suite_coups_stats_precedente) REFERENCES Suite_Coups_Stats (id),
     UNIQUE (pgn_hash)
 );
+
+CREATE TABLE Suite_Coups_Stats
+(
+    id                              SERIAL,
+    pgn                             TEXT NOT NULL,
+    pgn_hash                        CHAR(64) GENERATED ALWAYS AS (encode(digest(pgn, 'sha256'), 'hex')) STORED,
+    nb_victoires                    INT DEFAULT 0,
+    nb_defaites                     INT DEFAULT 0,
+    nb_nulles                       INT DEFAULT 0,
+    probabilite_coup                VARCHAR(50),
+    id_suite_coups_stats_precedente INT,
+    PRIMARY KEY (id),
+    FOREIGN KEY (id_suite_coups_stats_precedente) REFERENCES Suite_Coups_Stats (id),
+    UNIQUE (pgn_hash)
+);
+
+CREATE TABLE Position_Stats {
+    hash BIGINT PRIMARY KEY,
+    fen TEXT NOT NULL, -- utile en cas de collision
+    nb_total BIGINT NOT NULL,
+    nb_white_wins BIGINT NOT NULL,
+    nb_black_wins BIGINT NOT NULL,
+    nb_draws BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+};
 
 CREATE TABLE Tournoi
 (
@@ -92,9 +118,9 @@ CREATE TABLE Tournoi
 
 CREATE TABLE Ouverture
 (
-    id          SERIAL,
-    code        VARCHAR(50)  NOT NULL,
-    libelle     VARCHAR(150) NOT NULL,
+    id                   SERIAL,
+    code                 VARCHAR(50)  NOT NULL,
+    libelle              VARCHAR(150) NOT NULL,
     id_suite_coups_stats INT,
     PRIMARY KEY (id),
     FOREIGN KEY (id_suite_coups_stats) REFERENCES Suite_Coups_Stats (id)
@@ -102,28 +128,28 @@ CREATE TABLE Ouverture
 
 CREATE TABLE Partie
 (
-    title            VARCHAR(255),
-    id               SERIAL,
-    resultat         SMALLINT,
-    pgn              TEXT,
-    date_heure_utc   TIMESTAMP,
-    elo_blanc        SMALLINT,
-    elo_noir         SMALLINT,
-    score_blanc_diff SMALLINT,
-    score_noir_diff  SMALLINT,
-    titre_blanc      VARCHAR(5),
-    titre_noir       VARCHAR(5),
-    type_resultat    VARCHAR(50),
-    round            VARCHAR(20),
-    broadcast_url    TEXT,
-    game_url         TEXT,
-    variant          VARCHAR(50),
+    title                VARCHAR(255),
+    id                   SERIAL,
+    resultat             SMALLINT,
+    pgn                  TEXT,
+    date_heure_utc       TIMESTAMP,
+    elo_blanc            SMALLINT,
+    elo_noir             SMALLINT,
+    score_blanc_diff     SMALLINT,
+    score_noir_diff      SMALLINT,
+    titre_blanc          VARCHAR(5),
+    titre_noir           VARCHAR(5),
+    type_resultat        VARCHAR(50),
+    round                VARCHAR(20),
+    broadcast_url        TEXT,
+    game_url             TEXT,
+    variant              VARCHAR(50),
     id_suite_coups_stats INT NOT NULL,
-    id_ouverture     INT,
-    id_cadence       INT,
-    Id_Joueur_Blanc  INT NOT NULL,
-    Id_Joueur_Noir   INT NOT NULL,
-    id_tournoi       INT,
+    id_ouverture         INT,
+    id_cadence           INT,
+    Id_Joueur_Blanc      INT NOT NULL,
+    Id_Joueur_Noir       INT NOT NULL,
+    id_tournoi           INT,
     PRIMARY KEY (id),
     FOREIGN KEY (id_suite_coups_stats) REFERENCES Suite_Coups_Stats (id),
     FOREIGN KEY (id_ouverture) REFERENCES Ouverture (id),
