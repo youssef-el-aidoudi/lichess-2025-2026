@@ -73,21 +73,6 @@ CREATE TABLE Suite_Coups_Stats
     UNIQUE (pgn_hash)
 );
 
-CREATE TABLE Suite_Coups_Stats
-(
-    id                              SERIAL,
-    pgn                             TEXT NOT NULL,
-    pgn_hash                        CHAR(64) GENERATED ALWAYS AS (encode(digest(pgn, 'sha256'), 'hex')) STORED,
-    nb_victoires                    INT DEFAULT 0,
-    nb_defaites                     INT DEFAULT 0,
-    nb_nulles                       INT DEFAULT 0,
-    probabilite_coup                VARCHAR(50),
-    id_suite_coups_stats_precedente INT,
-    PRIMARY KEY (id),
-    FOREIGN KEY (id_suite_coups_stats_precedente) REFERENCES Suite_Coups_Stats (id),
-    UNIQUE (pgn_hash)
-);
-
 CREATE TABLE Position_Stats {
     hash BIGINT PRIMARY KEY,
     fen TEXT NOT NULL, -- utile en cas de collision
