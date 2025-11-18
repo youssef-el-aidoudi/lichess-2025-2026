@@ -1,4 +1,4 @@
-CREATE TABLE Joueur
+CREATE TABLE IF NOT EXISTS Joueur
 (
     id           SERIAL,
     pseudonyme   VARCHAR(50) NOT NULL,
@@ -12,14 +12,14 @@ CREATE TABLE Joueur
     UNIQUE (pseudonyme)
 );
 
-CREATE TABLE Utilisateur
+CREATE TABLE IF NOT EXISTS Utilisateur
 (
     id            SERIAL,
     email         VARCHAR(150) NOT NULL,
     hash          VARCHAR(255) NOT NULL,
     nom           VARCHAR(50),
     prenom        VARCHAR(50),
-    inscription_a TIMESTAMP    NOT NULL,
+    inscription_a TIMESTAMP     NOT NULL,
     connexion_a   TIMESTAMP,
     banni_a       TIMESTAMP,
     id_joueur     INT          NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE Utilisateur
 );
 
 CREATE TYPE CATEGORIE_CADENCE AS ENUM('Bullet','Blitz','Rapide','Classique');
-CREATE TABLE Cadence
+CREATE TABLE IF NOT EXISTS Cadence
 (
     id          SERIAL,
     libelle     VARCHAR(50)       NOT NULL,
@@ -41,24 +41,23 @@ CREATE TABLE Cadence
     UNIQUE (libelle)
 );
 
-CREATE TABLE Role
+CREATE TABLE IF NOT EXISTS Role
 (
     id      SERIAL,
     libelle VARCHAR(50),
     PRIMARY KEY (id)
 );
 
-CREATE TABLE Profil
+CREATE TABLE IF NOT EXISTS Profil
 (
     id      SERIAL,
     libelle VARCHAR(50),
     PRIMARY KEY (id)
 );
 
-CREATE
-EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE Suite_Coups_Stats
+CREATE TABLE IF NOT EXISTS Suite_Coups_Stats
 (
     id                              SERIAL,
     pgn                             TEXT NOT NULL,
@@ -83,7 +82,7 @@ CREATE TABLE Position_Stats (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE Tournoi
+CREATE TABLE IF NOT EXISTS Tournoi
 (
     id              SERIAL,
     libelle         VARCHAR(255),
@@ -101,7 +100,7 @@ CREATE TABLE Tournoi
     FOREIGN KEY (id_cadence) REFERENCES Cadence (id)
 );
 
-CREATE TABLE Ouverture
+CREATE TABLE IF NOT EXISTS Ouverture
 (
     id                   SERIAL,
     code                 VARCHAR(50)  NOT NULL,
@@ -111,7 +110,7 @@ CREATE TABLE Ouverture
     FOREIGN KEY (id_suite_coups_stats) REFERENCES Suite_Coups_Stats (id)
 );
 
-CREATE TABLE Partie
+CREATE TABLE IF NOT EXISTS Partie
 (
     title                VARCHAR(255),
     id                   SERIAL,
@@ -146,7 +145,7 @@ CREATE TABLE Partie
     FOREIGN KEY (id_tournoi) REFERENCES Tournoi (id)
 );
 
-CREATE TABLE participer
+CREATE TABLE IF NOT EXISTS participer
 (
     id_joueur   INT,
     id_tournoi  INT,
@@ -156,7 +155,7 @@ CREATE TABLE participer
     FOREIGN KEY (id_tournoi) REFERENCES Tournoi (id)
 );
 
-CREATE TABLE Utilisateur_Role
+CREATE TABLE IF NOT EXISTS Utilisateur_Role
 (
     id_utilisateur INT,
     id_role        INT,
@@ -165,7 +164,7 @@ CREATE TABLE Utilisateur_Role
     FOREIGN KEY (id_role) REFERENCES Role (id)
 );
 
-CREATE TABLE Utilisateur_Profil
+CREATE TABLE IF NOT EXISTS Utilisateur_Profil
 (
     id_utilisateur INT,
     id_profil      INT,
@@ -174,7 +173,7 @@ CREATE TABLE Utilisateur_Profil
     FOREIGN KEY (id_profil) REFERENCES Profil (id)
 );
 
-CREATE TABLE Profil_Role
+CREATE TABLE IF NOT EXISTS Profil_Role
 (
     id_role   INT,
     id_profil INT,
