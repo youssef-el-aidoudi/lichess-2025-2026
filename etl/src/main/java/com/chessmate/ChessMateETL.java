@@ -805,8 +805,29 @@ public class ChessMateETL {
      */
     static String cleanPgn(String rawPGN) {
         if (rawPGN == null) return null;
-        return rawPGN.replaceAll("\\s+", " ").trim();
+        StringBuilder sb = new StringBuilder(rawPGN.length());
+        boolean inSpace = false;
+
+        for (int i = 0; i < rawPGN.length(); i++) {
+            char c = rawPGN.charAt(i);
+            if (Character.isWhitespace(c)) {
+                if (!inSpace) {
+                    sb.append(' ');
+                    inSpace = true;
+                }
+            } else {
+                sb.append(c);
+                inSpace = false;
+            }
+        }
+
+        // trim
+        int start = 0, end = sb.length();
+        while (start < end && sb.charAt(start) == ' ') start++;
+        while (end > start && sb.charAt(end - 1) == ' ') end--;
+        return sb.substring(start, end);
     }
+
 
 
     /**
