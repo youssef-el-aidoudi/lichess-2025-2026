@@ -35,13 +35,6 @@ public class ChessMateETL {
     public static void main(String[] args) throws Exception {
         //début du chronomètre
         Instant start = Instant.now();
-<<<<<<< HEAD
-        // Chargement des variables d'environnement du projet
-        Dotenv dotenv = Dotenv.configure()
-                .directory(".")
-                .load();
-=======
->>>>>>> 17b09e0 (fix - ETL : retrait de la copie du .env au profit des variables d'environnement du conteneur)
 
         //connexion à la base
         Connection connection = DriverManager.getConnection(
