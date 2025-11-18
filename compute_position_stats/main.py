@@ -13,7 +13,7 @@ DB_HOST = os.getenv("DB_HOST", "postgres")
 DB_PORT = int(os.getenv("DB_PORT", 5432))
 DB_NAME = os.getenv("DB_NAME", "chessmate")
 DB_USER = os.getenv("DB_USER", "chessmate")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "ae24lc98")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "chessmate")
 
 PARTIE_TABLE = "Partie"
 POSITION_TABLE = "Position_Stats"
