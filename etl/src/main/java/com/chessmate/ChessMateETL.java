@@ -7,8 +7,6 @@ import java.util.Map;
 import java.util.HashMap;
 import java.time.*;
 
-import io.github.cdimascio.dotenv.Dotenv;
-
 public class ChessMateETL {
     /*
         hashmap pour stocker les ouvertures et cadences au début
@@ -37,16 +35,19 @@ public class ChessMateETL {
     public static void main(String[] args) throws Exception {
         //début du chronomètre
         Instant start = Instant.now();
+<<<<<<< HEAD
         // Chargement des variables d'environnement du projet
         Dotenv dotenv = Dotenv.configure()
                 .directory(".")
                 .load();
+=======
+>>>>>>> 17b09e0 (fix - ETL : retrait de la copie du .env au profit des variables d'environnement du conteneur)
 
         //connexion à la base
         Connection connection = DriverManager.getConnection(
-                "jdbc:postgresql://postgres:5432/" + dotenv.get("POSTGRES_DB"),
-                dotenv.get("POSTGRES_USER"),
-                dotenv.get("POSTGRES_PASSWORD")
+                System.getenv("SPRING_DATASOURCE_URL"),
+                System.getenv("SPRING_DATASOURCE_USERNAME"),
+                System.getenv("SPRING_DATASOURCE_PASSWORD")
         );
 
         connection.setAutoCommit(false); // on commit nous même, pas de commit auto
