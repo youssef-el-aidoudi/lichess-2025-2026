@@ -115,7 +115,7 @@ CREATE TABLE Partie
     broadcast_url    TEXT,
     game_url         TEXT,
     variant          VARCHAR(50),
-    id_suite_coups_stats INT NOT NULL,
+    id_suite_coups_stats INT,
     id_ouverture     INT,
     id_cadence       INT,
     Id_Joueur_Blanc  INT NOT NULL,
