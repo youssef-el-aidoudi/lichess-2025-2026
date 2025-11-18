@@ -45,7 +45,7 @@ def fen_hash(fen: str) -> int:
 def outcome_from_resultat(resultat: int):
     """
     Convertit le champ 'resultat' (int) en (w, b, d) à ajouter par position.
-    Convention supposée (ta logique Java) :
+    Convention supposée :
       2 → 1-0 (victoire blanc)
       0 → 0-1 (victoire noir)
       1 → autre (nulle)
