@@ -90,6 +90,22 @@ services:
       - traefik.http.routers.minio-api.middlewares=securityheaders
       - traefik.docker.network=chessmate_proxy
 
+  benchmark_position_stats:
+    networks:
+      - internal
+      - public
+    profiles: [ "jobs" ] # le service ne sera pas lancé par défaut
+    image: python:3.14.0
+    working_dir: /app
+    volumes:
+      - ./benchmark_position_stats:/app
+    command: >
+      sh -c "
+        pip install --no-cache-dir psycopg2-binary &&
+        python main.py
+      "
+    depends_on:
+      - postgres
 
 volumes:
   maven-cache:
