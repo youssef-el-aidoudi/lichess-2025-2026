@@ -232,17 +232,14 @@ public class ChessMateETL {
         Instant t1 = Instant.now();
         Map<String, Integer> tournoiIds = copyTournois(conn, data.tournois);
         Instant t2 = Instant.now();
-        Map<String, Integer> suiteCoupsIds = copySuiteCoups(conn, data.suiteCoups);
-        Instant t3 = Instant.now();
         copyParties(conn, data.games, joueurIds, tournoiIds);
-        Instant t4 = Instant.now();
+        Instant t3 = Instant.now();
 
         conn.commit();  // Commit après chaque batch
 
         System.out.println("Temps copyJoueurs  : " + Duration.between(t0, t1).toMillis() + " ms");
         System.out.println("Temps copyTournois : " + Duration.between(t1, t2).toMillis() + " ms");
-        System.out.println("Temps copySuites   : " + Duration.between(t2, t3).toMillis() + " ms");
-        System.out.println("Temps copyParties  : " + Duration.between(t3, t4).toMillis() + " ms");
+        System.out.println("Temps copyParties  : " + Duration.between(t2, t3).toMillis() + " ms");
     }
 
 
