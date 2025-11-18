@@ -11,7 +11,4 @@ public class ETLData {
     
     //liste <Partie>
     List<Game> games = new ArrayList<>();
-    
-    //map<pgn, SuiteCoups>
-    Map<String, SuiteCoupsDTO> suiteCoups = new LinkedHashMap<>();
 }
