@@ -19,7 +19,7 @@ public class ChessMateETL {
 
     /**
      * Point d'entrée principal du programme ETL ChessMate.
-     * <p>
+     * 
      * Cette méthode orchestre tout le processus d'importation des fichiers PGN :
      * - Connexion à la base PostgreSQL à partir des variables du fichier .env
      * - Préchargement des caches d'ouvertures et de cadences
@@ -27,7 +27,7 @@ public class ChessMateETL {
      * - Application de filtres de cohérence (ELO, résultat, etc.)
      * - Accumulation des parties valides en mémoire
      * - Insertion en base par lots à l'aide des commandes COPY
-     * <p>
+     * 
      * Affiche un résumé final avec le nombre total de parties insérées,
      * celles ignorées et la durée totale d'exécution.
      *
@@ -141,7 +141,7 @@ public class ChessMateETL {
 
                         //insertion par batch
                         if (totalGames % BATCH_SIZE == 0) {
-                            System.out.println("  -> Insertion du batch (" + totalGames + " parties) et (" + skippedGames + " parties ) ignorées...");
+                            System.out.println("  -> Insertion du batch (" + totalGames + " parties) et (" + skippedGames + " parties) ignorées...");
                             insertBatch(connection, data);
                             data = new ETLData(); //eéinitialiser pour le prochain batch
                             // Je laisse le garbage collector faire sa vie pour voir.
@@ -179,7 +179,7 @@ public class ChessMateETL {
 
     /**
      * Accumule les informations d'une partie d'échecs dans l'objet ETLData fourni.
-     * <p>
+     * 
      * Cette méthode effectue les actions suivantes :
      * - Ajoute les joueurs de la partie (blanc et noir) à la map des joueurs s'ils
      * n'y sont pas déjà.
@@ -209,26 +209,9 @@ public class ChessMateETL {
                     game.broadcastName, game.site, game.broadcastUrl, parseDate(game.utcDate)));
         }
 
-        //accumuler suite de coups
-        String rawPgn = game.moves.toString();
-        SuiteCoupsDTO dto = new SuiteCoupsDTO(rawPgn);  // nettoyer une seule fois
-        String pgnNettoye = dto.pgn;
-
-        if (!data.suiteCoups.containsKey(pgnNettoye)) {
-            data.suiteCoups.put(pgnNettoye, dto);
-        }
-
-        // on stocke la clé PGN nettoyée dans Game pour éviter de renettoyer dans CopyPartie
-        game.pgnNettoye = pgnNettoye;
-
-        //ajout de la partie à la liste
-        data.games.add(game);
-    }
-
-
     /**
      * Insère en base de données un batch de parties à partir des données ETL fournies.
-     * <p>
+     * 
      * Cette méthode effectue les étapes suivantes :
      * - Vérifie si la liste de parties est vide ; si oui, elle retourne immédiatement.
      * - Copie les joueurs dans la base et récupère leurs identifiants générés.
@@ -252,10 +235,10 @@ public class ChessMateETL {
         Instant t2 = Instant.now();
         Map<String, Integer> suiteCoupsIds = copySuiteCoups(conn, data.suiteCoups);
         Instant t3 = Instant.now();
-        copyParties(conn, data.games, joueurIds, tournoiIds, suiteCoupsIds);
+        copyParties(conn, data.games, joueurIds, tournoiIds);
         Instant t4 = Instant.now();
 
-        conn.commit();
+        conn.commit();  // Commit après chaque batch
 
         System.out.println("Temps copyJoueurs  : " + Duration.between(t0, t1).toMillis() + " ms");
         System.out.println("Temps copyTournois : " + Duration.between(t1, t2).toMillis() + " ms");
@@ -266,7 +249,7 @@ public class ChessMateETL {
 
     /**
      * Copie les joueurs fournis dans la base de données et retourne une map de leurs identifiants.
-     * <p>
+     * 
      * Cette méthode effectue les étapes suivantes :
      * - Vérifie si la map de joueurs est vide ; si oui, retourne une map vide.
      * - Crée une table temporaire pour stocker les joueurs du batch.
@@ -346,7 +329,7 @@ public class ChessMateETL {
 
     /**
      * Copie les tournois fournis dans la base de données et retourne une map de leurs identifiants.
-     * <p>
+     *
      * Cette méthode réalise les étapes suivantes :
      * - Vérifie si la map de tournois est vide ; si oui, retourne une map vide.
      * - Crée une table temporaire pour stocker les tournois du batch.
@@ -421,80 +404,10 @@ public class ChessMateETL {
         return ids;
     }
 
-
-    /**
-     * Copie les suites de coups fournies dans la base de données et retourne une map de leurs identifiants.
-     * <p>
-     * Cette méthode effectue les étapes suivantes :
-     * - Vérifie si la map de suites est vide ; si oui, retourne une map vide.
-     * - Crée une table temporaire pour stocker les suites du batch.
-     * - Écrit les suites dans un fichier CSV temporaire.
-     * - Utilise la commande COPY de PostgreSQL pour insérer les données dans la table temporaire.
-     * - Insère dans la table principale les suites nouvelles uniquement
-     * (gestion des doublons via ON CONFLICT DO NOTHING).
-     * - Crée un fichier CSV temporaire et une table temporaire pour rechercher les IDs des suites insérées.
-     * - Récupère les identifiants des suites insérées ou déjà existantes et les retourne sous forme de map pgn → id.
-     *
-     * @param conn   la connexion JDBC vers la base de données
-     * @param suites la map des suites de coups à copier (pgn → SuiteCoupsDTO)
-     * @return une map associant chaque PGN à l'identifiant correspondant dans la base
-     * @throws SQLException si une erreur SQL survient lors des insertions ou des requêtes
-     * @throws IOException  si une erreur d'entrée/sortie survient lors de la création ou lecture des fichiers CSV temporaires
-     */
-    static Map<String, Integer> copySuiteCoups(Connection conn, Map<String, SuiteCoupsDTO> suites)
-            throws SQLException, IOException {
-        if (suites.isEmpty()) return new HashMap<>();
-
-        try (Statement stmt = conn.createStatement()) {
-            stmt.execute("DROP TABLE IF EXISTS temp_suite_coups");
-            stmt.execute("CREATE TEMP TABLE temp_suite_coups (LIKE Suite_Coups_Stats INCLUDING DEFAULTS)");
-        }
-
-        File tempFile = File.createTempFile("suitecoups", ".csv");
-        tempFile.deleteOnExit();
-
-        try (PrintWriter writer = new PrintWriter(new FileWriter(tempFile))) {
-            for (SuiteCoupsDTO s : suites.values()) {
-                writer.println(escapeCsv(s.pgn) + ",\\N");
-            }
-        }
-
-        org.postgresql.copy.CopyManager copyManager =
-                new org.postgresql.copy.CopyManager((org.postgresql.core.BaseConnection) conn);
-
-        String sql = "COPY temp_suite_coups (pgn, id_suite_coups_stats_precedente) " +
-                "FROM STDIN WITH (FORMAT CSV, NULL '\\N')";
-
-        try (FileReader reader = new FileReader(tempFile)) {
-            copyManager.copyIn(sql, reader);
-        }
-
-        // INSERT + ON CONFLICT + RETURNING pour éviter le SELECT
-        Map<String, Integer> ids = new HashMap<>();
-
-        String sqlMerge =
-                "INSERT INTO Suite_Coups_Stats (pgn, id_suite_coups_stats_precedente) " +
-                        "SELECT pgn, id_suite_coups_stats_precedente " +
-                        "FROM temp_suite_coups " +
-                        "ON CONFLICT (pgn_hash) DO UPDATE SET " +
-                        "    pgn = EXCLUDED.pgn " +   // obligatoire pour RETURNING
-                        "RETURNING pgn, id";
-
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sqlMerge)) {
-            while (rs.next()) {
-                ids.put(rs.getString("pgn"), rs.getInt("id"));
-            }
-        }
-
-        return ids;
-    }
-
-
     /**
      * Copie les parties fournies dans la base de données en utilisant les identifiants
      * des joueurs, tournois et suites de coups préalablement insérés.
-     * <p>
+     * 
      * Cette méthode réalise les étapes suivantes :
      * - Vérifie si la liste de parties est vide ; si oui, retourne immédiatement.
      * - Crée un fichier CSV temporaire contenant les données des parties à insérer.
@@ -502,20 +415,17 @@ public class ChessMateETL {
      * - Convertit les informations comme le résultat, la date/heure et gère les valeurs nulles.
      * - Utilise la commande COPY de PostgreSQL pour insérer rapidement toutes les parties.
      *
-     * @param conn          la connexion JDBC vers la base de données
-     * @param parties       la liste des parties à copier
-     * @param joueurIds     la map pseudonyme → id des joueurs déjà insérés
-     * @param tournoiIds    la map libelle → id des tournois déjà insérés
-     * @param suiteCoupsIds la map PGN → id des suites de coups déjà insérées
+     * @param conn la connexion JDBC vers la base de données
+     * @param parties la liste des parties à copier
+     * @param joueurIds la map pseudonyme → id des joueurs déjà insérés
+     * @param tournoiIds la map libelle → id des tournois déjà insérés
      * @throws SQLException si une erreur SQL survient lors de l'insertion
-     * @throws IOException  si une erreur d'entrée/sortie survient lors de la création ou lecture du fichier CSV temporaire
+     * @throws IOException si une erreur d'entrée/sortie survient lors de la création ou lecture du fichier CSV temporaire
      */
     static void copyParties(Connection conn, List<Game> parties,
-                            Map<String, Integer> joueurIds,
-                            Map<String, Integer> tournoiIds,
-                            Map<String, Integer> suiteCoupsIds)
+                        Map<String, Integer> joueurIds,
+                        Map<String, Integer> tournoiIds)
             throws SQLException, IOException {
-
         if (parties.isEmpty()) return;
 
         Instant t0 = Instant.now();
@@ -530,37 +440,37 @@ public class ChessMateETL {
             for (Game g : parties) {
                 Integer idBlanc = joueurIds.get(g.white);
                 Integer idNoir = joueurIds.get(g.black);
+
+                // Ignorer si données manquantes
+                if (idBlanc == null || idNoir == null) continue;
+
                 Integer idTournoi = g.broadcastName != null ? tournoiIds.get(g.broadcastName) : null;
 
-                Integer idSuiteCoups = suiteCoupsIds.get(g.pgnNettoye);
                 Integer idOuverture = getIdOuverture(g.eco, g.opening);
                 Integer idCadence = getIdCadence(g.timeControl);
-
-                if (idBlanc == null || idNoir == null || idSuiteCoups == null) continue;
 
                 int resultat = g.result.equals("1-0") ? 2 :
                         g.result.equals("0-1") ? 0 : 1;
 
                 writer.println(
-                        escapeCsv(truncate(g.event, 255)) + "," +
-                                resultat + "," +
-                                (parseTimestamp(g.utcDate, g.utcTime) != null ?
-                                        parseTimestamp(g.utcDate, g.utcTime).toString() : "\\N") + "," +
-                                (g.whiteElo != null ? g.whiteElo : "\\N") + "," +
-                                (g.blackElo != null ? g.blackElo : "\\N") + "," +
-                                escapeCsv(g.whiteTitle) + "," +
-                                escapeCsv(g.blackTitle) + "," +
-                                escapeCsv(g.round) + "," +
-                                escapeCsv(g.broadcastUrl) + "," +
-                                escapeCsv(g.gameUrl) + "," +
-                                escapeCsv(g.variant) + "," +
-                                idSuiteCoups + "," +
-                                idBlanc + "," +
-                                idNoir + "," +
-                                (idOuverture != null ? idOuverture : "\\N") + "," +
-                                (idCadence != null ? idCadence : "\\N") + "," +
-                                (idTournoi != null ? idTournoi : "\\N") + "," +
-                                escapeCsv(cleanPgn(g.moves.toString()))
+                    escapeCsv(truncate(g.event, 255)) + "," +
+                    resultat + "," +
+                    (parseTimestamp(g.utcDate, g.utcTime) != null ? 
+                        parseTimestamp(g.utcDate, g.utcTime).toString() : "\\N") + "," +
+                    (g.whiteElo != null ? g.whiteElo : "\\N") + "," +
+                    (g.blackElo != null ? g.blackElo : "\\N") + "," +
+                    escapeCsv(g.whiteTitle) + "," +
+                    escapeCsv(g.blackTitle) + "," +
+                    escapeCsv(g.round) + "," +
+                    escapeCsv(g.broadcastUrl) + "," +
+                    escapeCsv(g.gameUrl) + "," +
+                    escapeCsv(g.variant) + "," +
+                    idBlanc + "," +
+                    idNoir + "," +
+                    (idOuverture != null ? idOuverture : "\\N") + "," +
+                    (idCadence != null ? idCadence : "\\N") + "," +
+                    (idTournoi != null ? idTournoi : "\\N") + "," +
+                    escapeCsv(cleanPgn(g.moves.toString()))
                 );
             }
         }
@@ -577,11 +487,11 @@ public class ChessMateETL {
                 new org.postgresql.copy.CopyManager((org.postgresql.core.BaseConnection) conn);
 
         String sql = "COPY Partie (title, resultat, date_heure_utc, elo_blanc, elo_noir, " +
-                "titre_blanc, titre_noir, round, broadcast_url, game_url, variant, " +
-                "id_suite_coups_stats, Id_Joueur_Blanc, Id_Joueur_Noir, id_ouverture, " +
-                "id_cadence, id_tournoi, pgn) " +
-                "FROM STDIN WITH (FORMAT CSV, NULL '\\N')";
-
+                    "titre_blanc, titre_noir, round, broadcast_url, game_url, variant, " +
+                    "Id_Joueur_Blanc, Id_Joueur_Noir, id_ouverture, " +
+                    "id_cadence, id_tournoi, pgn) " +
+                    "FROM STDIN WITH (FORMAT CSV, NULL '\\N')";
+        
         try (FileReader reader = new FileReader(tempFile)) {
             copyManager.copyIn(sql, reader);
         }
@@ -599,7 +509,7 @@ public class ChessMateETL {
 
     /**
      * Échappe une valeur pour l'écriture dans un fichier CSV compatible PostgreSQL.
-     * <p>
+     * 
      * Cette méthode effectue les actions suivantes :
      * - Si la valeur est null, retourne la chaîne spéciale "\N" pour représenter NULL.
      * - Si la valeur contient une virgule, un guillemet ou un saut de ligne, elle est entourée
@@ -758,7 +668,7 @@ public class ChessMateETL {
 
     /**
      * Retourne l'identifiant de la cadence correspondant au code de contrôle du temps fourni.
-     * <p>
+     * 
      * Cette méthode normalise la chaîne de contrôle du temps (par exemple "300+2")
      * puis recherche l'identifiant correspondant dans la map des cadences.
      *
@@ -774,7 +684,7 @@ public class ChessMateETL {
 
     /**
      * Retourne l'identifiant d'une ouverture à partir de son code ECO et éventuellement de son libellé.
-     * <p>
+     *
      * Cette méthode tente d'abord de trouver une correspondance exacte entre le code ECO et le libellé
      * au format "code|libelle" dans le cache des ouvertures. Si aucune correspondance exacte n'est trouvée,
      * elle renvoie le premier identifiant correspondant au code ECO seul.
@@ -806,11 +716,11 @@ public class ChessMateETL {
 
     /**
      * Précharge les caches en mémoire à partir de la base de données.
-     * <p>
+     * 
      * Cette méthode remplit deux tables de correspondance :
      * - le cache des cadences, associant chaque libellé de cadence à son identifiant ;
      * - le cache des ouvertures, associant chaque combinaison code|libellé à son identifiant.
-     * <p>
+     *
      * Elle effectue des requêtes SQL simples sur les tables Cadence et Ouverture,
      * puis affiche le nombre d'éléments chargés dans la console.
      *
@@ -838,48 +748,6 @@ public class ChessMateETL {
         }
         System.out.println(ouvertures.size() + " ouvertures chargées");
     }
-
-
-    /**
-     * Nettoie un texte PGN brut pour ne conserver que la séquence de coups pure.
-     * <p>
-     * Cette méthode retire tout ce qui n’est pas directement lié aux coups :
-     * - Les commentaires entre accolades { ... }
-     * - Les annotations (!, ?, !!, ?!, etc.)
-     * - Les notations de coups noirs ("...")
-     * - Les résultats de partie (1-0, 0-1, 1/2-1/2, *)
-     * - Les espaces superflus
-     * <p>
-     * Exemple :
-     * Entrée : "1. e4 {Coup classique} e5 2. Nf3 Nc6 1-0"
-     * Sortie : "1. e4 e5 2. Nf3 Nc6"
-     *
-     * @param raw Chaîne PGN brute extraite du fichier
-     * @return Le PGN nettoyé, contenant uniquement les coups, ou null si l’entrée est null
-     */
-    static String nettoyerPgnCoups(String raw) {
-        if (raw == null) return null;
-
-        String nettoye = raw;
-
-        //supprimer les annotations de temps ou commentaires { ... }
-        nettoye = nettoye.replaceAll("\\{[^}]*\\}", "");
-
-        //supprimer les évaluations de coups (?!, !!, ?, !, etc.)
-        nettoye = nettoye.replaceAll("[!?]+", "");
-
-        //supprimer les notations de coups noirs avec "..."
-        nettoye = nettoye.replaceAll("\\d+\\.\\.\\.", "");
-
-        //supprimer le résultat final (1-0, 0-1, 1/2-1/2, *)
-        nettoye = nettoye.replaceAll("(1-0|0-1|1/2-1/2|\\*)", "");
-
-        //normaliser les espaces
-        nettoye = nettoye.replaceAll("\\s+", " ").trim();
-
-        return nettoye;
-    }
-
 
     /**
      * Convertit une date au format PGN (ex: "2024.09.18") en objet SQL Date.
