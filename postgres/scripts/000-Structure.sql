@@ -80,7 +80,7 @@ CREATE TABLE Position_Stats (
     nb_victoires_blanc BIGINT NOT NULL,
     nb_victoires_noir BIGINT NOT NULL,
     nb_nulles BIGINT NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE Tournoi
