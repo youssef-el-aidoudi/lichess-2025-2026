@@ -1,11 +1,10 @@
-import time
-import random
 import datetime
+import random
+import time
 from math import ceil
 
 import psycopg2
 from psycopg2.extras import execute_values
-
 
 # =========================
 # CONFIGURATION
@@ -18,9 +17,9 @@ DB_PASSWORD = "ae24lc98"
 
 TABLE_NAME = "Position_Stats"
 
-TOTAL_ROWS = 100_000_000   # nombre total d'insertions à faire
-BATCH_SIZE = 100_000       # taille d'un batch
-LOG_EVERY_BATCH = 1        # log chaque batch (1), ou par ex tous les 10 batches
+TOTAL_ROWS = 100_000_000  # nombre total d'insertions à faire
+BATCH_SIZE = 100_000  # taille d'un batch
+LOG_EVERY_BATCH = 1  # log chaque batch (1), ou par ex tous les 10 batches
 
 
 # =========================
@@ -97,27 +96,29 @@ def benchmark_inserts():
         remaining = TOTAL_ROWS - batch_index * BATCH_SIZE
         current_batch_size = min(BATCH_SIZE, remaining)
 
-        batch_start_time = time.time()
-
         rows = generate_batch(next_hash, current_batch_size)
         next_hash += current_batch_size
 
         # INSERT via execute_values pour limiter le nombre de round-trips
         insert_sql = f"""
             INSERT INTO {TABLE_NAME} 
-                (hash, fen, nb_total, nb_white_wins, nb_black_wins, nb_draws, updated_at)
+                (hash, fen, nb_total, nb_victoires_blanc, nb_victoires_noir, nb_nulles, updated_at)
             VALUES %s
         """
 
+        batch_start_time = time.time()
+
         execute_values(cur, insert_sql, rows)
-        conn.commit()
 
         batch_duration = time.time() - batch_start_time
+
+        conn.commit()
+
         rows_per_sec = current_batch_size / batch_duration if batch_duration > 0 else float('inf')
 
         if (batch_index + 1) % LOG_EVERY_BATCH == 0:
             print(
-                f"Batch {batch_index+1}/{total_batches} : "
+                f"Batch {batch_index + 1}/{total_batches} : "
                 f"{current_batch_size:,} lignes en {batch_duration:.3f}s "
                 f"({rows_per_sec:,.0f} rows/s)"
             )
