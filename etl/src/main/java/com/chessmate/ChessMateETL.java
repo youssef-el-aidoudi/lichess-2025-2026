@@ -416,81 +416,83 @@ public class ChessMateETL {
     static void copyParties(Connection conn, List<Game> parties,
                         Map<String, Integer> joueurIds,
                         Map<String, Integer> tournoiIds)
-        throws SQLException, IOException {
-
+            throws SQLException, IOException {
         if (parties.isEmpty()) return;
 
         Instant t0 = Instant.now();
 
-        // --- Construction du "CSV" en mémoire ---
+        File tempFile = File.createTempFile("parties", ".csv");
+        tempFile.deleteOnExit();
+
+        // --- MESURE : écriture CSV ---
         Instant tCsvStart = Instant.now();
 
-        StringBuilder sb = new StringBuilder(parties.size() * 512); // estimation
+        try (PrintWriter writer = new PrintWriter(new FileWriter(tempFile))) {
+            for (Game g : parties) {
+                Integer idBlanc = joueurIds.get(g.white);
+                Integer idNoir = joueurIds.get(g.black);
 
-        for (Game g : parties) {
-            Integer idBlanc = joueurIds.get(g.white);
-            Integer idNoir  = joueurIds.get(g.black);
-            if (idBlanc == null || idNoir == null) continue;
+                // Ignorer si données manquantes
+                if (idBlanc == null || idNoir == null) continue;
 
-            Integer idTournoi = g.broadcastName != null ? tournoiIds.get(g.broadcastName) : null;
-            Integer idOuverture = getIdOuverture(g.eco, g.opening);
-            Integer idCadence   = getIdCadence(g.timeControl);
+                Integer idTournoi = g.broadcastName != null ? tournoiIds.get(g.broadcastName) : null;
 
-            int resultat = g.result.equals("1-0") ? 2
-                         : g.result.equals("0-1") ? 0
-                         : 1;
+                Integer idOuverture = getIdOuverture(g.eco, g.opening);
+                Integer idCadence = getIdCadence(g.timeControl);
 
-            String dateHeure = null;
-            Timestamp ts = parseTimestamp(g.utcDate, g.utcTime);
-            if (ts != null) {
-                dateHeure = ts.toString();
+                // Convertir le résultat
+                int resultat = g.result.equals("1-0") ? 2 : g.result.equals("0-1") ? 0 : 1;
+
+                writer.println(
+                    escapeCsv(truncate(g.event, 255)) + "," +
+                    resultat + "," +
+                    (parseTimestamp(g.utcDate, g.utcTime) != null ?
+                        parseTimestamp(g.utcDate, g.utcTime).toString() : "\\N") + "," +
+                    (g.whiteElo != null ? g.whiteElo : "\\N") + "," +
+                    (g.blackElo != null ? g.blackElo : "\\N") + "," +
+                    escapeCsv(g.whiteTitle) + "," +
+                    escapeCsv(g.blackTitle) + "," +
+                    escapeCsv(g.round) + "," +
+                    escapeCsv(g.broadcastUrl) + "," +
+                    escapeCsv(g.gameUrl) + "," +
+                    escapeCsv(g.variant) + "," +
+                    idBlanc + "," +
+                    idNoir + "," +
+                    (idOuverture != null ? idOuverture : "\\N") + "," +
+                    (idCadence != null ? idCadence : "\\N") + "," +
+                    (idTournoi != null ? idTournoi : "\\N") + "," +
+                    escapeCsv(cleanPgn(g.moves.toString()))
+                );
             }
-
-            String pgnClean = cleanPgn(g.moves.toString());
-
-            sb.append(escapeCsv(truncate(g.event, 255))).append(',')
-              .append(resultat).append(',')
-              .append(dateHeure != null ? dateHeure : "\\N").append(',')
-              .append(g.whiteElo != null ? g.whiteElo : "\\N").append(',')
-              .append(g.blackElo != null ? g.blackElo : "\\N").append(',')
-              .append(escapeCsv(g.whiteTitle)).append(',')
-              .append(escapeCsv(g.blackTitle)).append(',')
-              .append(escapeCsv(g.round)).append(',')
-              .append(escapeCsv(g.broadcastUrl)).append(',')
-              .append(escapeCsv(g.gameUrl)).append(',')
-              .append(escapeCsv(g.variant)).append(',')
-              .append(idBlanc).append(',')
-              .append(idNoir).append(',')
-              .append(idOuverture != null ? idOuverture : "\\N").append(',')
-              .append(idCadence != null ? idCadence : "\\N").append(',')
-              .append(idTournoi != null ? idTournoi : "\\N").append(',')
-              .append(escapeCsv(pgnClean))
-              .append('\n');
         }
 
         Instant tCsvEnd = Instant.now();
-        System.out.println("Temps écriture CSV parties (in-memory) : " +
+        System.out.println("Temps écriture CSV parties : " +
                 Duration.between(tCsvStart, tCsvEnd).toMillis() + " ms");
 
-        // --- COPY vers PostgreSQL depuis la mémoire ---
+
+        // --- MESURE : COPY ---
         Instant tCopyStart = Instant.now();
 
         org.postgresql.copy.CopyManager copyManager =
                 new org.postgresql.copy.CopyManager((org.postgresql.core.BaseConnection) conn);
 
         String sql = "COPY Partie (title, resultat, date_heure_utc, elo_blanc, elo_noir, " +
-                     "titre_blanc, titre_noir, round, broadcast_url, game_url, variant, " +
-                     "Id_Joueur_Blanc, Id_Joueur_Noir, id_ouverture, " +
-                     "id_cadence, id_tournoi, pgn) " +
-                     "FROM STDIN WITH (FORMAT CSV, NULL '\\N')";
+                    "titre_blanc, titre_noir, round, broadcast_url, game_url, variant, " +
+                    "Id_Joueur_Blanc, Id_Joueur_Noir, id_ouverture, " +
+                    "id_cadence, id_tournoi, pgn) " +
+                    "FROM STDIN WITH (FORMAT CSV, NULL '\\N')";
 
-        try (Reader reader = new StringReader(sb.toString())) {
+        try (FileReader reader = new FileReader(tempFile)) {
             copyManager.copyIn(sql, reader);
         }
 
         Instant tCopyEnd = Instant.now();
         System.out.println("Temps COPY parties : " +
                 Duration.between(tCopyStart, tCopyEnd).toMillis() + " ms");
+
+
+        // --- MESURE totale ---
         System.out.println("Temps total copyParties : " +
                 Duration.between(t0, Instant.now()).toMillis() + " ms");
     }
