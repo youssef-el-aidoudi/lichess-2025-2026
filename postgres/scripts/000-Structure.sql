@@ -73,7 +73,7 @@ CREATE TABLE Suite_Coups_Stats
     UNIQUE (pgn_hash)
 );
 
-CREATE TABLE Position_Stats {
+CREATE TABLE Position_Stats (
     hash BIGINT PRIMARY KEY,
     fen TEXT NOT NULL, -- utile en cas de collision
     nb_total BIGINT NOT NULL,
@@ -81,7 +81,7 @@ CREATE TABLE Position_Stats {
     nb_victoires_noir BIGINT NOT NULL,
     nb_nulles BIGINT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-};
+);
 
 CREATE TABLE Tournoi
 (
