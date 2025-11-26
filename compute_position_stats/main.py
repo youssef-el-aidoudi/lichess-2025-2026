@@ -120,7 +120,7 @@ def iter_positions_from_pgn_moves(pgn_moves: str):
     # Position initiale
     yield board
 
-    tokens = pgn_moves.split()
+    tokens = cleaned.split()
     for token in tokens:
         # Fin de partie
         if token in ("1-0", "0-1", "1/2-1/2", "*"):
@@ -137,6 +137,7 @@ def iter_positions_from_pgn_moves(pgn_moves: str):
         except Exception:
             # Si le PGN est corrompu, on arrête la partie ici
             break
+
 
         yield board
 
