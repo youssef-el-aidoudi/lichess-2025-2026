@@ -175,7 +175,6 @@ def flush_position_stats(conn, stats_dict):
     with conn.cursor() as cur:
         execute_values(cur, sql, rows)
 
-    conn.commit()
     print(f"Flushed {len(rows):,} positions vers {POSITION_TABLE}")
     stats_dict.clear()
 
@@ -342,6 +341,7 @@ def main():
     print(f"Positions totales : {total_positions:,}")
     print(f"Durée totale : {total_time:.1f} s")
 
+    conn.commit()
     conn.close()
 
 
