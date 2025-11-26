@@ -268,7 +268,7 @@ def main():
     conn.autocommit = False
 
     # --- MODE DEBUG : une seule partie, on log tout et on s'arrête ---
-    DEBUG_PARTIE_ID=100
+    DEBUG_PARTIE_ID=None
     if DEBUG_PARTIE_ID is not None:
         try:
             pid = int(DEBUG_PARTIE_ID)
