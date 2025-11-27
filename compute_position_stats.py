@@ -19,7 +19,7 @@ NODES = [
     "qb503660@172.31.18.45"
 ]
 
-WORKERS_PER_NODE = 19
+WORKERS_PER_NODE = 5
 GLOBAL_WORKERS = len(NODES) * WORKERS_PER_NODE
 
 procs = []
@@ -31,11 +31,13 @@ for m, node in enumerate(NODES):
 
     cmd = (
         "cd ~/lichess_compute && "
-        ". .venv/bin/activate && "  # suppose .env déjà config avec les bons packages sur chaque noeud (/home partagé donc sur un seul ça suffit).
+        ". .venv/bin/activate && "
+        "mkdir -p logs && "  # dossier de logs si pas déjà là
         "MODE=worker "
         f"WORKERS={GLOBAL_WORKERS} WORKER_INDEX={global_idx} "
         f"DB_HOST=localhost DB_PORT={remote_port} "
-        "python compute_position_stats.py"
+        # on log dans un fichier par worker, avec stdout+stderr
+        f"python compute_position_stats.py > logs/worker_{global_idx}.log 2>&1"
     )
 
     print(f"Lancement worker {global_idx} sur {node} (remote_port={remote_port})")
