@@ -31,10 +31,11 @@ for m, node in enumerate(NODES):
 
     cmd = (
         "cd ~/lichess_compute && "
+        ". .venv/bin/activate && "  # suppose .env déjà config avec les bons packages sur chaque noeud (/home partagé donc sur un seul ça suffit).
         "MODE=worker "
         f"WORKERS={GLOBAL_WORKERS} WORKER_INDEX={global_idx} "
         f"DB_HOST=localhost DB_PORT={remote_port} "
-        "python3 compute_position_stats.py"
+        "python compute_position_stats.py"
     )
 
     print(f"Lancement worker {global_idx} sur {node} (remote_port={remote_port})")
