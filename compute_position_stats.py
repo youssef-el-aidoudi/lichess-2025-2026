@@ -51,6 +51,9 @@ for m, node in enumerate(NODES):
         ])
     )
 
+print(f"\n{len(procs)} workers lancés, attente de leur fin...\n", flush=True)
+
+
 for i, p in enumerate(procs, start=1):
     p.wait()
     print(f"Worker {i}/{len(procs)} terminé", flush=True)
