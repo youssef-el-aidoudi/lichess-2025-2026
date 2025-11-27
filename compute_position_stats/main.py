@@ -3,7 +3,6 @@ import re
 import time
 import datetime
 import psycopg2
-from psycopg2.extras import execute_values  # laissé pour compat, même si plus utilisé
 import chess
 import hashlib
 import io
@@ -27,6 +26,9 @@ PARTIE_BATCH_SIZE = 10_000
 
 # Nombre maximal de positions accumulées en mémoire avant FLUSH COPY
 POSITION_FLUSH_THRESHOLD = 100_000
+
+WORKERS = int(os.getenv("WORKERS", "1"))
+WORKER_INDEX = int(os.getenv("WORKER_INDEX", "0"))
 
 # ============
 # PGN CLEANING
@@ -383,7 +385,14 @@ def main():
     with conn.cursor(name="parties_cursor") as cur:
         # Cursor côté serveur pour streamer les lignes
         cur.itersize = PARTIE_BATCH_SIZE
-        cur.execute(f"SELECT id, resultat, pgn FROM {PARTIE_TABLE}")
+        if WORKERS == 1:
+            cur.execute(f"SELECT id, resultat, pgn FROM {PARTIE_TABLE}")
+        else:
+            cur.execute(
+                f"SELECT id, resultat, pgn FROM {PARTIE_TABLE} "
+                f"WHERE (id %% %s) = %s",
+                (WORKERS, WORKER_INDEX),
+         )
 
         for row in cur:
             partie_id, resultat, pgn_moves = row
