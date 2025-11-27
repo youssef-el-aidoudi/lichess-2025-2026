@@ -29,6 +29,7 @@ POSITION_FLUSH_THRESHOLD = 100_000
 
 WORKERS = int(os.getenv("WORKERS", "1"))
 WORKER_INDEX = int(os.getenv("WORKER_INDEX", "0"))
+MODE = os.getenv("MODE", "worker")  # "prepare", "worker", "aggregate"
 
 # ============
 # PGN CLEANING
@@ -342,6 +343,67 @@ def debug_parse_single_partie(conn, partie_id: int):
 
     print("=" * 80)
 
+def run_worker(conn):
+    total_parties = 0
+    total_positions = 0
+    global_start = time.time()
+
+    copy_buf, copy_row_count = make_copy_buffer()
+
+    with conn.cursor(name="parties_cursor") as cur:
+        cur.itersize = PARTIE_BATCH_SIZE
+
+        if WORKERS == 1:
+            cur.execute(f"SELECT id, resultat, pgn FROM {PARTIE_TABLE}")
+        else:
+            cur.execute(
+                f"SELECT id, resultat, pgn FROM {PARTIE_TABLE} "
+                f"WHERE (id %% %s) = %s",
+                (WORKERS, WORKER_INDEX),
+            )
+
+        for row in cur:
+            partie_id, resultat, pgn_moves = row
+            total_parties += 1
+
+            w_inc, b_inc, d_inc = outcome_from_resultat(resultat)
+
+            try:
+                for board in iter_positions_from_pgn_moves(pgn_moves):
+                    fen = board.fen()
+                    h = fen_hash(fen)
+
+                    copy_buf.write(
+                        f"{h}\t{fen}\t1\t{w_inc}\t{b_inc}\t{d_inc}\n"
+                    )
+                    copy_row_count += 1
+                    total_positions += 1
+
+                    if copy_row_count >= POSITION_FLUSH_THRESHOLD:
+                        copy_buf, copy_row_count = flush_copy_buffer(
+                            conn, copy_buf, copy_row_count
+                        )
+
+            except Exception as e:
+                print(f"[WARN] Partie id={partie_id} ignorée (erreur parsing PGN) : {e}")
+
+            if total_parties % 1_000 == 0:
+                elapsed = time.time() - global_start
+                print(
+                    f"{total_parties:,} parties traitées, "
+                    f"{total_positions:,} positions vues, "
+                    f"{elapsed:.1f}s écoulées"
+                )
+
+    # Flush final
+    copy_buf, copy_row_count = flush_copy_buffer(conn, copy_buf, copy_row_count)
+
+    total_time = time.time() - global_start
+    print("\n=== Worker terminé ===")
+    print(f"Parties traitées : {total_parties:,}")
+    print(f"Positions totales : {total_positions:,}")
+    print(f"Durée totale : {total_time:.1f} s")
+
 
 # =========================
 # TRAITEMENT PRINCIPAL
@@ -357,7 +419,7 @@ def main():
     )
     conn.autocommit = False
 
-    # --- MODE DEBUG : une seule partie, on log tout et on s'arrête ---
+    # Mode debug local, tu peux le laisser tel quel si tu veux
     DEBUG_PARTIE_ID = None
     if DEBUG_PARTIE_ID is not None:
         try:
@@ -371,79 +433,23 @@ def main():
         conn.close()
         return
 
-    # Init table de staging
-    init_staging_table(conn)
+    if MODE == "prepare":
+        print("[INFO] MODE=prepare : initialisation de la table de staging")
+        init_staging_table(conn)
+        conn.commit()
+        conn.close()
+        return
 
-    total_parties = 0
-    total_positions = 0
+    if MODE == "aggregate":
+        print("[INFO] MODE=aggregate : agrégation staging -> Position_Stats")
+        aggregate_stage_into_position_stats(conn)
+        conn.commit()
+        conn.close()
+        return
 
-    global_start = time.time()
-
-    # Buffer pour COPY
-    copy_buf, copy_row_count = make_copy_buffer()
-
-    with conn.cursor(name="parties_cursor") as cur:
-        # Cursor côté serveur pour streamer les lignes
-        cur.itersize = PARTIE_BATCH_SIZE
-        if WORKERS == 1:
-            cur.execute(f"SELECT id, resultat, pgn FROM {PARTIE_TABLE}")
-        else:
-            cur.execute(
-                f"SELECT id, resultat, pgn FROM {PARTIE_TABLE} "
-                f"WHERE (id %% %s) = %s",
-                (WORKERS, WORKER_INDEX),
-         )
-
-        for row in cur:
-            partie_id, resultat, pgn_moves = row
-            total_parties += 1
-
-            w_inc, b_inc, d_inc = outcome_from_resultat(resultat)
-
-            try:
-                for board in iter_positions_from_pgn_moves(pgn_moves):
-                    fen = board.fen()
-                    h = fen_hash(fen)
-
-                    # On écrit une ligne brute dans le buffer COPY :
-                    # hash, fen, nb_total(=1), w_inc, b_inc, d_inc
-                    # Format texte, colonnes séparées par TAB (fen ne contient pas de TAB)
-                    copy_buf.write(
-                        f"{h}\t{fen}\t1\t{w_inc}\t{b_inc}\t{d_inc}\n"
-                    )
-                    copy_row_count += 1
-
-                    total_positions += 1
-
-                    # Flush périodique vers la table de staging
-                    if copy_row_count >= POSITION_FLUSH_THRESHOLD:
-                        copy_buf, copy_row_count = flush_copy_buffer(conn, copy_buf, copy_row_count)
-
-            except Exception as e:
-                # Si une partie est foireuse, on log et on continue
-                print(f"[WARN] Partie id={partie_id} ignorée (erreur parsing PGN) : {e}")
-
-            # Petit log périodique
-            if total_parties % 1_000 == 0:
-                elapsed = time.time() - global_start
-                print(
-                    f"{total_parties:,} parties traitées, "
-                    f"{total_positions:,} positions vues, "
-                    f"{elapsed:.1f}s écoulées"
-                )
-
-    # Flush final du buffer COPY
-    copy_buf, copy_row_count = flush_copy_buffer(conn, copy_buf, copy_row_count)
-
-    # Agrégation staging -> Position_Stats
-    aggregate_stage_into_position_stats(conn)
-
-    total_time = time.time() - global_start
-    print("\n=== Terminé ===")
-    print(f"Parties traitées : {total_parties:,}")
-    print(f"Positions totales : {total_positions:,}")
-    print(f"Durée totale : {total_time:.1f} s")
-
+    # MODE par défaut : worker
+    print(f"[INFO] MODE=worker : WORKERS={WORKERS}, WORKER_INDEX={WORKER_INDEX}")
+    run_worker(conn)
     conn.commit()
     conn.close()
 
