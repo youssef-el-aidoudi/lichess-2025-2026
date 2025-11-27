@@ -3,8 +3,10 @@ import re
 import time
 import datetime
 import psycopg2
-from psycopg2.extras import execute_values
+from psycopg2.extras import execute_values  # laissé pour compat, même si plus utilisé
 import chess
+import hashlib
+import io
 
 # =========================
 # CONFIGURATION
@@ -18,11 +20,12 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "chessmate")
 
 PARTIE_TABLE = "Partie"
 POSITION_TABLE = "Position_Stats"
+POSITION_STAGE_TABLE = "Position_Stats_Stage"
 
 # Nombre de parties chargées par batch depuis la table Partie
 PARTIE_BATCH_SIZE = 10_000
 
-# Nombre maximal de positions accumulées en mémoire avant UPSERT
+# Nombre maximal de positions accumulées en mémoire avant FLUSH COPY
 POSITION_FLUSH_THRESHOLD = 100_000
 
 # ============
@@ -31,11 +34,12 @@ POSITION_FLUSH_THRESHOLD = 100_000
 
 # On pré-compile les regex pour aller vite
 # 1) commentaires entre accolades : { ... }
-_COMMENT_RE = re.compile(r"\{[^}]*\}")
+_COMMENT_RE = re.compile(r"\{[^}]*}")
 # 2) NAGs style $1, $2, etc.
 _NAG_RE = re.compile(r"\$\d+")
 # 3) Tags type [%eval 0.23], [%clk ...] (au cas où ils ne sont pas dans des {})
-_BRACKET_TAG_RE = re.compile(r"\[%.*?\]")
+_BRACKET_TAG_RE = re.compile(r"\[%.*?]")
+
 
 def clean_pgn_moves(pgn_moves: str) -> str:
     """
@@ -68,7 +72,7 @@ def clean_pgn_moves(pgn_moves: str) -> str:
 # =========================
 # HELPERS
 # =========================
-import hashlib
+
 
 def fen_hash(fen: str) -> int:
     """
@@ -81,6 +85,7 @@ def fen_hash(fen: str) -> int:
     # on force le bit de signe à 0 pour rester dans BIGINT positif
     val &= (1 << 63) - 1
     return val
+
 
 def outcome_from_resultat(resultat: int):
     """
@@ -100,8 +105,6 @@ def outcome_from_resultat(resultat: int):
 
 def iter_positions_from_pgn_moves(pgn_moves: str):
     """
-    Fonction générative à itérer. yield est un return pour une fonction générative.
-
     À partir d'une chaîne PGN contenant uniquement la liste de coups (pas les headers),
     génère tous les FEN atteints dans la partie (y compris la position initiale).
 
@@ -138,45 +141,131 @@ def iter_positions_from_pgn_moves(pgn_moves: str):
             # Si le PGN est corrompu, on arrête la partie ici
             break
 
-
         yield board
 
 
 # =========================
-# UPSERT DANS Position_Stats
+# UPSERT DANS Position_Stats - Ancienne méthode laissé pour le rapport ?
+# =========================
+#
+# def flush_position_stats(conn, stats_dict):
+#     """
+#     Ancienne méthode : flush d'un dictionnaire :
+#       hash -> (fen, nb_total, nb_w, nb_b, nb_d)
+#     dans la table Position_Stats avec UPSERT.
+#
+#     Gardée pour compat, mais non utilisée dans la nouvelle version COPY.
+#     """
+#     if not stats_dict:
+#         return
+#
+#     rows = []
+#     now = datetime.datetime.now(datetime.UTC)
+#     for h, (fen, nb_total, w, b, d) in stats_dict.items():
+#         rows.append((h, fen, nb_total, w, b, d, now))
+#
+#     sql = f"""
+#         INSERT INTO {POSITION_TABLE}
+#             (hash, fen, nb_total, nb_victoires_blanc, nb_victoires_noir, nb_nulles, updated_at)
+#         VALUES %s
+#         ON CONFLICT (hash) DO UPDATE
+#         SET nb_total          = {POSITION_TABLE}.nb_total          + EXCLUDED.nb_total,
+#             nb_victoires_blanc = {POSITION_TABLE}.nb_victoires_blanc + EXCLUDED.nb_victoires_blanc,
+#             nb_victoires_noir  = {POSITION_TABLE}.nb_victoires_noir  + EXCLUDED.nb_victoires_noir,
+#             nb_nulles          = {POSITION_TABLE}.nb_nulles          + EXCLUDED.nb_nulles,
+#             updated_at         = NOW();
+#     """
+#
+#     with conn.cursor() as cur:
+#         execute_values(cur, sql, rows)
+#
+#     print(f"Flushed {len(rows):,} positions vers {POSITION_TABLE}")
+#     stats_dict.clear()
+#
+
+# =========================
+# COPY STAGING + AGRÉGATION
 # =========================
 
-def flush_position_stats(conn, stats_dict):
-    """
-    Flush d'un dictionnaire :
-      hash -> (fen, nb_total, nb_w, nb_b, nb_d)
-    dans la table Position_Stats avec UPSERT.
-    """
-    if not stats_dict:
-        return
-
-    rows = []
-    now = datetime.datetime.now(datetime.UTC)
-    for h, (fen, nb_total, w, b, d) in stats_dict.items():
-        rows.append((h, fen, nb_total, w, b, d, now))
-
-    sql = f"""
-        INSERT INTO {POSITION_TABLE}
-            (hash, fen, nb_total, nb_victoires_blanc, nb_victoires_noir, nb_nulles, updated_at)
-        VALUES %s
-        ON CONFLICT (hash) DO UPDATE
-        SET nb_total          = {POSITION_TABLE}.nb_total          + EXCLUDED.nb_total,
-            nb_victoires_blanc = {POSITION_TABLE}.nb_victoires_blanc + EXCLUDED.nb_victoires_blanc,
-            nb_victoires_noir  = {POSITION_TABLE}.nb_victoires_noir  + EXCLUDED.nb_victoires_noir,
-            nb_nulles          = {POSITION_TABLE}.nb_nulles          + EXCLUDED.nb_nulles,
-            updated_at         = NOW();
-    """
-
+def init_staging_table(conn):
+    """Crée et vide la table de staging pour les positions."""
     with conn.cursor() as cur:
-        execute_values(cur, sql, rows)
+        cur.execute(f"""
+            CREATE TABLE IF NOT EXISTS {POSITION_STAGE_TABLE} (
+             hash BIGINT, -- ON AUTORISE LES DUPLICATIONS DANS LA TABLE DE STAGGING, ON AGGREGERA APRES
+                fen TEXT NOT NULL, -- utile en cas de collision
+                nb_total BIGINT NOT NULL,
+                nb_victoires_blanc BIGINT NOT NULL,
+                nb_victoires_noir BIGINT NOT NULL,
+                nb_nulles BIGINT NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        """)
+        cur.execute(f"TRUNCATE TABLE {POSITION_STAGE_TABLE};")
+    conn.commit()
 
-    print(f"Flushed {len(rows):,} positions vers {POSITION_TABLE}")
-    stats_dict.clear()
+
+def make_copy_buffer():
+    """Crée un buffer texte pour COPY et un compteur de lignes."""
+    buf = io.StringIO()
+    row_count = 0
+    return buf, row_count
+
+
+def flush_copy_buffer(conn, buf, row_count):
+    """
+    Envoie le contenu du buffer vers la table de staging via COPY.
+    Ne fait PAS de commit (on laisse main() gérer la transaction).
+    """
+    if row_count == 0:
+        return make_copy_buffer()
+
+    buf.seek(0)
+    copy_sql = f"""
+        COPY {POSITION_STAGE_TABLE} (hash, fen, nb_total,
+                                     nb_victoires_blanc, nb_victoires_noir, nb_nulles)
+        FROM STDIN
+    """
+    with conn.cursor() as cur:
+        cur.copy_expert(copy_sql, buf)
+
+    print(f"Flushed {row_count:,} positions vers {POSITION_STAGE_TABLE} (COPY)")
+    buf.close()
+    return make_copy_buffer()
+
+
+def aggregate_stage_into_position_stats(conn):
+    """
+    Agrège la table de staging vers Position_Stats avec ON CONFLICT (hash).
+    """
+    with conn.cursor() as cur:
+        cur.execute(f"""
+            INSERT INTO {POSITION_TABLE} AS ps
+                (hash, fen, nb_total,
+                 nb_victoires_blanc, nb_victoires_noir, nb_nulles, updated_at)
+            SELECT
+                hash,
+                MIN(fen) AS fen,
+                SUM(nb_total),
+                SUM(nb_victoires_blanc),
+                SUM(nb_victoires_noir),
+                SUM(nb_nulles),
+                NOW()
+            FROM {POSITION_STAGE_TABLE}
+            GROUP BY hash
+            ON CONFLICT (hash) DO UPDATE
+            SET nb_total           = ps.nb_total           + EXCLUDED.nb_total,
+                nb_victoires_blanc = ps.nb_victoires_blanc + EXCLUDED.nb_victoires_blanc,
+                nb_victoires_noir  = ps.nb_victoires_noir  + EXCLUDED.nb_victoires_noir,
+                nb_nulles          = ps.nb_nulles          + EXCLUDED.nb_nulles,
+                updated_at         = NOW();
+        """)
+    print("Agrégation staging -> Position_Stats terminée.")
+
+
+# =========================
+# DEBUG
+# =========================
 
 def debug_parse_single_partie(conn, partie_id: int):
     """
@@ -267,7 +356,7 @@ def main():
     conn.autocommit = False
 
     # --- MODE DEBUG : une seule partie, on log tout et on s'arrête ---
-    DEBUG_PARTIE_ID=None
+    DEBUG_PARTIE_ID = None
     if DEBUG_PARTIE_ID is not None:
         try:
             pid = int(DEBUG_PARTIE_ID)
@@ -280,13 +369,16 @@ def main():
         conn.close()
         return
 
-    # Dictionnaire : hash → (fen, nb_total, nb_w, nb_b, nb_d)
-    position_stats = {}
+    # Init table de staging
+    init_staging_table(conn)
 
     total_parties = 0
     total_positions = 0
 
     global_start = time.time()
+
+    # Buffer pour COPY
+    copy_buf, copy_row_count = make_copy_buffer()
 
     with conn.cursor(name="parties_cursor") as cur:
         # Cursor côté serveur pour streamer les lignes
@@ -304,24 +396,23 @@ def main():
                     fen = board.fen()
                     h = fen_hash(fen)
 
-                    if h not in position_stats:
-                        position_stats[h] = [fen, 0, 0, 0, 0]
-
-                    entry = position_stats[h]
-                    entry[1] += 1  # nb_total
-                    entry[2] += w_inc  # nb_victoires_blanc
-                    entry[3] += b_inc  # nb_victoires_noir
-                    entry[4] += d_inc  # nb_nulles
+                    # On écrit une ligne brute dans le buffer COPY :
+                    # hash, fen, nb_total(=1), w_inc, b_inc, d_inc
+                    # Format texte, colonnes séparées par TAB (fen ne contient pas de TAB)
+                    copy_buf.write(
+                        f"{h}\t{fen}\t1\t{w_inc}\t{b_inc}\t{d_inc}\n"
+                    )
+                    copy_row_count += 1
 
                     total_positions += 1
+
+                    # Flush périodique vers la table de staging
+                    if copy_row_count >= POSITION_FLUSH_THRESHOLD:
+                        copy_buf, copy_row_count = flush_copy_buffer(conn, copy_buf, copy_row_count)
 
             except Exception as e:
                 # Si une partie est foireuse, on log et on continue
                 print(f"[WARN] Partie id={partie_id} ignorée (erreur parsing PGN) : {e}")
-
-            # Flush périodique des positions
-            if len(position_stats) >= POSITION_FLUSH_THRESHOLD:
-                flush_position_stats(conn, position_stats)
 
             # Petit log périodique
             if total_parties % 1_000 == 0:
@@ -332,8 +423,11 @@ def main():
                     f"{elapsed:.1f}s écoulées"
                 )
 
-    # Flush final
-    flush_position_stats(conn, position_stats)
+    # Flush final du buffer COPY
+    copy_buf, copy_row_count = flush_copy_buffer(conn, copy_buf, copy_row_count)
+
+    # Agrégation staging -> Position_Stats
+    aggregate_stage_into_position_stats(conn)
 
     total_time = time.time() - global_start
     print("\n=== Terminé ===")
