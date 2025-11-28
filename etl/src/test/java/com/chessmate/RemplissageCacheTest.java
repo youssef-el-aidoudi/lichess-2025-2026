@@ -33,7 +33,7 @@ public class RemplissageCacheTest extends BaseIntegrationTest {
     public void testRemplissageCache_TablesVides() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("DELETE FROM Ouverture");
-            stmt.execute("DELETE FROM Cadence");
+            stmt.execute("DELETE FROM cadence");
             connection.commit();
         }
 
