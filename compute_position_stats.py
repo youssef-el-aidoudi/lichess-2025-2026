@@ -25,7 +25,7 @@ NODES = [
     "qb503660@172.31.18.45",
 ]
 
-WORKERS_PER_NODE = 19
+WORKERS_PER_NODE = 2
 GLOBAL_WORKERS = len(NODES) * WORKERS_PER_NODE
 
 # Répertoire sur la préprod où se trouve docker-compose.yml
@@ -36,7 +36,7 @@ DOCKER_SERVICE_NAME = "compute_position_stats"           # profile jobs
 
 # Répertoire du code sur les nœuds de calcul
 REMOTE_PROJECT_DIR = "~/lichess_compute"
-SCRIPT_NAME = "main.py"  # ton script de calcul dans ce répertoire
+SCRIPT_NAME = "compute_position_stats.py"  # nom du script de calcul dans les noeuds
 
 
 # =====================
