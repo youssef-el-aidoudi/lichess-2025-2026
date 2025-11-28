@@ -29,7 +29,7 @@ Les paramètres de connexion à Postgres sont passés via :
 - `DB_USER` (défaut : `chessmate`)
 - `DB_PASSWORD` (défaut : `chessmate`)
 
-Exemple :
+Exemple, à lancer sur un noeud, attention par défaut postgres c'est 100 workers max :
 
 
-   `python3 compute_position_stats.py`
+   `nohup mpiexec -np 90 -hostfile hosts.txt python compute_position_stats.py > mpi.log 2>&1 &`
