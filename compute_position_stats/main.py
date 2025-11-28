@@ -6,6 +6,7 @@ import time
 
 import chess
 import psycopg2
+from mpi4py import MPI
 
 # =========================
 # CONFIGURATION
@@ -26,10 +27,6 @@ PARTIE_BATCH_SIZE = 10_000
 
 # Nombre maximal de positions accumulées en mémoire avant FLUSH COPY
 POSITION_FLUSH_THRESHOLD = 100_000
-
-WORKERS = int(os.getenv("WORKERS", "1"))
-WORKER_INDEX = int(os.getenv("WORKER_INDEX", "0"))
-MODE = os.getenv("MODE", "worker")  # "prepare", "worker", "aggregate"
 
 # ============
 # PGN CLEANING
@@ -133,10 +130,7 @@ def iter_positions_from_pgn_moves(pgn_moves: str):
         if token in ("1-0", "0-1", "1/2-1/2", "*"):
             break
 
-        # Numéros de coup (1., 23... etc.)
-        if token.endswith("."):
-            continue
-        if token == "...":
+        if token.endswith(".") or token == "...":
             continue
 
         try:
@@ -149,45 +143,6 @@ def iter_positions_from_pgn_moves(pgn_moves: str):
 
 
 # =========================
-# UPSERT DANS Position_Stats - Ancienne méthode laissé pour le rapport
-# =========================
-#
-# def flush_position_stats(conn, stats_dict):
-#     """
-#     Ancienne méthode : flush d'un dictionnaire :
-#       hash -> (fen, nb_total, nb_w, nb_b, nb_d)
-#     dans la table Position_Stats avec UPSERT.
-#
-#     Gardée pour compat, mais non utilisée dans la nouvelle version COPY.
-#     """
-#     if not stats_dict:
-#         return
-#
-#     rows = []
-#     now = datetime.datetime.now(datetime.UTC)
-#     for h, (fen, nb_total, w, b, d) in stats_dict.items():
-#         rows.append((h, fen, nb_total, w, b, d, now))
-#
-#     sql = f"""
-#         INSERT INTO {POSITION_TABLE}
-#             (hash, fen, nb_total, nb_victoires_blanc, nb_victoires_noir, nb_nulles, updated_at)
-#         VALUES %s
-#         ON CONFLICT (hash) DO UPDATE
-#         SET nb_total          = {POSITION_TABLE}.nb_total          + EXCLUDED.nb_total,
-#             nb_victoires_blanc = {POSITION_TABLE}.nb_victoires_blanc + EXCLUDED.nb_victoires_blanc,
-#             nb_victoires_noir  = {POSITION_TABLE}.nb_victoires_noir  + EXCLUDED.nb_victoires_noir,
-#             nb_nulles          = {POSITION_TABLE}.nb_nulles          + EXCLUDED.nb_nulles,
-#             updated_at         = NOW();
-#     """
-#
-#     with conn.cursor() as cur:
-#         execute_values(cur, sql, rows)
-#
-#     print(f"Flushed {len(rows):,} positions vers {POSITION_TABLE}")
-#     stats_dict.clear()
-#
-
-# =========================
 # COPY STAGING + AGRÉGATION
 # =========================
 
@@ -196,8 +151,8 @@ def init_staging_table(conn):
     with conn.cursor() as cur:
         cur.execute(f"""
             CREATE TABLE IF NOT EXISTS {POSITION_STAGE_TABLE} (
-             hash BIGINT, -- ON AUTORISE LES DUPLICATIONS DANS LA TABLE DE STAGGING, ON AGGREGERA APRES
-                fen TEXT NOT NULL, -- utile en cas de collision
+                hash BIGINT,
+                fen TEXT NOT NULL,
                 nb_total BIGINT NOT NULL,
                 nb_victoires_blanc BIGINT NOT NULL,
                 nb_victoires_noir BIGINT NOT NULL,
@@ -219,7 +174,7 @@ def make_copy_buffer():
 def flush_copy_buffer(conn, buf, row_count):
     """
     Envoie le contenu du buffer vers la table de staging via COPY.
-    Ne fait PAS de commit (on laisse main() gérer la transaction).
+    Ne fais PAS de commit (on laisse main() gérer la transaction).
     """
     if row_count == 0:
         return make_copy_buffer()
@@ -264,11 +219,12 @@ def aggregate_stage_into_position_stats(conn):
                 nb_nulles          = ps.nb_nulles          + EXCLUDED.nb_nulles,
                 updated_at         = NOW();
         """)
+    conn.commit()
     print("Agrégation staging -> Position_Stats terminée.")
 
 
 # =========================
-# DEBUG
+# DEBUG UNE PARTIE
 # =========================
 
 def debug_parse_single_partie(conn, partie_id: int):
@@ -319,15 +275,11 @@ def debug_parse_single_partie(conn, partie_id: int):
 
         # Fin de partie
         if token in ("1-0", "0-1", "1/2-1/2", "*"):
-            print(f"  -> Token est un résultat de partie, arrêt du parsing.")
+            print("  -> Résultat de partie, arrêt.")
             break
 
-        # Numéros de coups
-        if token.endswith("."):
-            print("  -> Token est un numéro de coup, on skip.")
-            continue
-        if token == "...":
-            print("  -> Token est '...', on skip.")
+        if token.endswith(".") or token == "...":
+            print("  -> Numéro de coup / '...', on skip.")
             continue
 
         try:
@@ -345,23 +297,29 @@ def debug_parse_single_partie(conn, partie_id: int):
     print("=" * 80)
 
 
-def run_worker(conn):
+# =========================
+# WORKER MPI
+# =========================
+
+def run_worker(conn, rank: int, size: int):
     total_parties = 0
     total_positions = 0
     global_start = time.time()
 
     copy_buf, copy_row_count = make_copy_buffer()
 
-    with conn.cursor(name="parties_cursor") as cur:
+    with conn.cursor(name=f"parties_cursor_{rank}") as cur:
         cur.itersize = PARTIE_BATCH_SIZE
 
-        if WORKERS == 1:
+        if size == 1:
+            # un seul process -> tout le monde
             cur.execute(f"SELECT id, resultat, pgn FROM {PARTIE_TABLE}")
         else:
+            # partitionnement par modulo sur id
             cur.execute(
                 f"SELECT id, resultat, pgn FROM {PARTIE_TABLE} "
                 f"WHERE (id %% %s) = %s",
-                (WORKERS, WORKER_INDEX),
+                (size, rank),
             )
 
         for row in cur:
@@ -387,12 +345,12 @@ def run_worker(conn):
                         )
 
             except Exception as e:
-                print(f"[WARN] Partie id={partie_id} ignorée (erreur parsing PGN) : {e}")
+                print(f"[WARN][rank {rank}] Partie id={partie_id} ignorée (PGN) : {e}")
 
             if total_parties % 1_000 == 0:
                 elapsed = time.time() - global_start
                 print(
-                    f"{total_parties:,} parties traitées, "
+                    f"[rank {rank}] {total_parties:,} parties traitées, "
                     f"{total_positions:,} positions vues, "
                     f"{elapsed:.1f}s écoulées"
                 )
@@ -401,17 +359,19 @@ def run_worker(conn):
     copy_buf, copy_row_count = flush_copy_buffer(conn, copy_buf, copy_row_count)
 
     total_time = time.time() - global_start
-    print("\n=== Worker terminé ===")
-    print(f"Parties traitées : {total_parties:,}")
-    print(f"Positions totales : {total_positions:,}")
-    print(f"Durée totale : {total_time:.1f} s")
+    print(
+        f"\n=== Worker rank {rank} terminé ===\n"
+        f"Parties traitées : {total_parties:,}\n"
+        f"Positions totales : {total_positions:,}\n"
+        f"Durée totale : {total_time:.1f} s\n"
+    )
 
 
 # =========================
-# TRAITEMENT PRINCIPAL
+# MAIN MPI
 # =========================
 
-def main():
+def make_conn():
     conn = psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,
@@ -420,40 +380,59 @@ def main():
         password=DB_PASSWORD,
     )
     conn.autocommit = False
+    return conn
 
-    # Mode debug local, tu peux le laisser tel quel si tu veux
+
+def main():
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+
+    # Debug ponctuel : uniquement sur un rank si besoin
     DEBUG_PARTIE_ID = None
-    if DEBUG_PARTIE_ID is not None:
+    if DEBUG_PARTIE_ID is not None and rank == 0:
+        conn = make_conn()
         try:
-            pid = int(DEBUG_PARTIE_ID)
-        except ValueError:
-            print(f"[DEBUG] DEBUG_PARTIE_ID invalide: {DEBUG_PARTIE_ID!r}")
+            debug_parse_single_partie(conn, DEBUG_PARTIE_ID)
+        finally:
             conn.close()
-            return
-
-        debug_parse_single_partie(conn, pid)
-        conn.close()
         return
 
-    if MODE == "prepare":
-        print("[INFO] MODE=prepare : initialisation de la table de staging")
-        init_staging_table(conn)
+    # 1) PREPARE : rank 0 initialise la table de staging
+    if rank == 0:
+        print(f"[rank 0] INITIALISATION DE LA TABLE DE STAGING", flush=True)
+        conn = make_conn()
+        try:
+            init_staging_table(conn)
+        finally:
+            conn.close()
+
+    # Tous les ranks attendent que le prepare soit fini
+    comm.Barrier()
+
+    # 2) WORKERS : chaque rank traite son sous-ensemble de parties
+    conn = make_conn()
+    try:
+        print(f"[rank {rank}] DÉMARRAGE WORKER (size={size})", flush=True)
+        run_worker(conn, rank, size)
         conn.commit()
+    finally:
         conn.close()
-        return
 
-    if MODE == "aggregate":
-        print("[INFO] MODE=aggregate : agrégation staging -> Position_Stats")
-        aggregate_stage_into_position_stats(conn)
-        conn.commit()
-        conn.close()
-        return
+    comm.Barrier()
 
-    # MODE par défaut : worker
-    print(f"[INFO] MODE=worker : WORKERS={WORKERS}, WORKER_INDEX={WORKER_INDEX}")
-    run_worker(conn)
-    conn.commit()
-    conn.close()
+    # 3) AGGREGATE : rank 0 agrège la staging table
+    if rank == 0:
+        print("[rank 0] AGRÉGATION staging -> Position_Stats", flush=True)
+        conn = make_conn()
+        try:
+            aggregate_stage_into_position_stats(conn)
+        finally:
+            conn.close()
+
+    comm.Barrier()
+    if rank == 0:
+        print("[rank 0] Pipeline complet terminé.")
 
 
 if __name__ == "__main__":
