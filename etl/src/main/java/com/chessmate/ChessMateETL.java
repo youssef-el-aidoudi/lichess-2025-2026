@@ -231,10 +231,15 @@ public class ChessMateETL {
         Map<String, Integer> joueurIds = copyJoueurs(conn, data.joueurs);
         Instant t1 = Instant.now();
         Map<String, Integer> tournoiIds = copyTournois(conn, data.tournois);
-
+        Instant t2 = Instant.now();
         copyParties(conn, data.games, joueurIds, tournoiIds);
-        
-        conn.commit(); // Commit après chaque batch
+        Instant t3 = Instant.now();
+
+        conn.commit();  // Commit après chaque batch
+
+        System.out.println("Temps copyJoueurs  : " + Duration.between(t0, t1).toMillis() + " ms");
+        System.out.println("Temps copyTournois : " + Duration.between(t1, t2).toMillis() + " ms");
+        System.out.println("Temps copyParties  : " + Duration.between(t2, t3).toMillis() + " ms");
     }
 
 
@@ -784,7 +789,7 @@ public class ChessMateETL {
      * Utile pour éviter les erreurs SQL sur des champs trop longs
      * (par exemple, les noms de tournois ou les URLs très longues).
      *
-     * @param s         chaîne d’entrée
+     * @param s   chaîne d’entrée
      * @param maxLength longueur maximale autorisée
      * @return chaîne tronquée à la longueur max, ou null si l’entrée était null
      */
