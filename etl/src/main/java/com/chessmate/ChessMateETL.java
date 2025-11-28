@@ -625,6 +625,9 @@ public class ChessMateETL {
             case "GameURL":
                 game.gameUrl = val;
                 break;
+            case "Site":
+                game.site = val;
+                break;
         }
     }
 
