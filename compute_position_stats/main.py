@@ -425,6 +425,8 @@ def main():
     rank = comm.Get_rank()
     size = comm.Get_size()
 
+    global_start = time.time()
+
     # Debug ponctuel : uniquement sur un rank si besoin
     DEBUG_PARTIE_ID = None
     if DEBUG_PARTIE_ID is not None and rank == 0:
@@ -468,8 +470,10 @@ def main():
             conn.close()
 
     comm.Barrier()
+    global_end = time.time()
+
     if rank == 0:
-        print("[rank 0] Pipeline complet terminé.")
+        print(f"[MPI - rank 0] Temps total d'exécution : {global_end - global_start:.2f} secondes")
 
 
 if __name__ == "__main__":
