@@ -28,8 +28,15 @@ NODES = [
 WORKERS_PER_NODE = 19
 GLOBAL_WORKERS = len(NODES) * WORKERS_PER_NODE
 
-PROJECT_DIR = os.path.expanduser("./compute_position_stats")
-SCRIPT_NAME = "main.py"
+# Répertoire sur la préprod où se trouve docker-compose.yml
+DOCKER_PROJECT_DIR = os.path.expanduser("~/chessmate")   # adapte si besoin
+
+# Nom du service docker compose qui lance ton job Python
+DOCKER_SERVICE_NAME = "compute_position_stats"           # profile jobs
+
+# Répertoire du code sur les nœuds de calcul
+REMOTE_PROJECT_DIR = "~/lichess_compute"
+SCRIPT_NAME = "main.py"  # ton script de calcul dans ce répertoire
 
 
 # =====================
@@ -37,21 +44,32 @@ SCRIPT_NAME = "main.py"
 # =====================
 
 def run_local_mode(mode: str):
-    """Lance compute_position_stats.py en local (sur préprod) avec MODE=..."""
+    """
+    Lance main.py en local MAIS via le conteneur Docker:
+      docker compose --profile jobs run --rm -e MODE=<mode> compute_position_stats
+    """
     env = os.environ.copy()
-    env["MODE"] = mode
 
-    print(f"\n[ORCH] Lancement local : MODE={mode}\n", flush=True)
+    print(f"\n[ORCH] Lancement local dans Docker : MODE={mode}\n", flush=True)
 
-    # On suppose qu'on est sur préprod, dans le même projet
+    # Ici on force MODE dans le conteneur avec -e MODE=...
     result = subprocess.run(
-        ["python3", SCRIPT_NAME],
-        cwd=PROJECT_DIR,
+        [
+            "docker", "compose",
+            "--profile", "jobs",
+            "run",
+            "--rm",
+            "-e", f"MODE={mode}",
+            DOCKER_SERVICE_NAME,
+        ],
+        cwd=DOCKER_PROJECT_DIR,
         env=env,
     )
     if result.returncode != 0:
-        print(f"[ORCH] ERREUR: compute_position_stats.py MODE={mode} a échoué "
-              f"(code={result.returncode})")
+        print(
+            f"[ORCH] ERREUR: {DOCKER_SERVICE_NAME} MODE={mode} a échoué "
+            f"(code={result.returncode})"
+        )
         sys.exit(result.returncode)
 
 
@@ -69,7 +87,7 @@ def run_workers():
             remote_port = 15432 + local_idx  # port DB local au noeud (redirigé vers préprod)
 
             cmd = (
-                f"cd {PROJECT_DIR} && "
+                f"cd {REMOTE_PROJECT_DIR} && "
                 ". .venv/bin/activate && "
                 "mkdir -p logs && "
                 "MODE=worker "
@@ -78,8 +96,11 @@ def run_workers():
                 f"python {SCRIPT_NAME} > logs/worker_{global_idx}.log 2>&1"
             )
 
-            print(f"[ORCH] Lancement worker {global_idx} sur {node} "
-                  f"(remote_port={remote_port})", flush=True)
+            print(
+                f"[ORCH] Lancement worker {global_idx} sur {node} "
+                f"(remote_port={remote_port})",
+                flush=True,
+            )
 
             procs.append(
                 subprocess.Popen(
@@ -98,19 +119,19 @@ def run_workers():
     # Attendre la fin de tous les workers
     for i, p in enumerate(procs, start=1):
         ret = p.wait()
-        print(f"[ORCH] Worker process {i}/{len(procs)} terminé (code={ret})", flush=True)
+        print(f"[ORCH] Worker {i}/{len(procs)} terminé (code={ret})", flush=True)
 
     print("[ORCH] Tous les workers SSH sont terminés.\n", flush=True)
 
 
 def main():
-    # 1) PREPARE (local sur préprod)
+    # 1) PREPARE (via conteneur Docker sur préprod)
     run_local_mode("prepare")
 
-    # 2) WORKERS (distants via ssh)
+    # 2) WORKERS (distants via ssh sur le cluster)
     run_workers()
 
-    # 3) AGGREGATE (local sur préprod)
+    # 3) AGGREGATE (via conteneur Docker sur préprod)
     run_local_mode("aggregate")
 
     print("[ORCH] Pipeline complet terminé (prepare -> workers -> aggregate).")

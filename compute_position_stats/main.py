@@ -197,7 +197,7 @@ def init_staging_table(conn):
         cur.execute(f"""
             CREATE TABLE IF NOT EXISTS {POSITION_STAGE_TABLE} (
              hash BIGINT, -- ON AUTORISE LES DUPLICATIONS DANS LA TABLE DE STAGGING, ON AGGREGERA APRES
-              ²  fen TEXT NOT NULL, -- utile en cas de collision
+                fen TEXT NOT NULL, -- utile en cas de collision
                 nb_total BIGINT NOT NULL,
                 nb_victoires_blanc BIGINT NOT NULL,
                 nb_victoires_noir BIGINT NOT NULL,
