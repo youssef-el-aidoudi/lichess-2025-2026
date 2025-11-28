@@ -38,33 +38,9 @@ services:
       context: ./etl
       dockerfile: Dockerfile
     working_dir: /app
-    volumes :
+    volumes:
       - ./etl:/app
       - maven-cache:/root/.m2
-
-  producer:
-    build:
-      context: ./producer
-      dockerfile: Dockerfile
-    entrypoint: [ "/bin/sh", "-c", "/app/dev-entrypoint.sh" ]
-    working_dir: /app
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
-      SPRING_DEVTOOLS_RESTART_ENABLED: true
-    volumes:
-      - ./producer:/app
-
-  worker:
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    entrypoint: [ "/bin/sh", "-c", "/app/dev-entrypoint.sh" ]
-    working_dir: /app
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
-      SPRING_DEVTOOLS_RESTART_ENABLED: true
-    volumes:
-      - ./worker:/app
 
   postgres:
     volumes:
@@ -73,22 +49,6 @@ services:
       - public
     ports:
       - "5432:5432"
-
-  minio:
-    networks:
-     - public
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    labels:
-      #pour l'API (copie des gros fichiers via api et non pas l'UI)
-      - traefik.http.routers.minio-api.entrypoints=websecure
-      - traefik.http.routers.minio-api.tls=true
-      - traefik.http.routers.minio-api.rule=Host(`minio-api.docker.localhost`)
-      - traefik.http.routers.minio-api.service=minio-api
-      - traefik.http.services.minio-api.loadbalancer.server.port=9000
-      - traefik.http.routers.minio-api.middlewares=securityheaders
-      - traefik.docker.network=chessmate_proxy
 
   benchmark_position_stats:
     networks:
