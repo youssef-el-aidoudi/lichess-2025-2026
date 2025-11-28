@@ -5,7 +5,7 @@ import java.sql.*;
 
 /**
  * Classe de base pour les tests d'intégration.
- * Gère la connexion H2 et le schéma de base de données.
+ * Gère la connexion H2, le schéma et les données de référence.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class BaseIntegrationTest {
@@ -14,8 +14,10 @@ public abstract class BaseIntegrationTest {
 
     @BeforeAll
     public void setupDatabase() throws Exception {
+        // Charger le driver H2
         Class.forName("org.h2.Driver");
 
+        // Connexion H2 en mémoire avec mode PostgreSQL
         connection = DriverManager.getConnection(
                 "jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH",
                 "sa",
@@ -23,8 +25,9 @@ public abstract class BaseIntegrationTest {
         );
 
         connection.setAutoCommit(false);
+
+        // Créer le schéma une seule fois
         createSchema();
-        insertReferenceData();
         connection.commit();
     }
 
@@ -36,40 +39,47 @@ public abstract class BaseIntegrationTest {
     }
 
     @BeforeEach
-    public void resetCaches() {
-        ChessMateETL.cadences = new java.util.HashMap<>();
-        ChessMateETL.ouvertures = new java.util.HashMap<>();
-    }
+    public void prepareTestData() throws SQLException {
+        // Reset caches
+        ChessMateETL.cadences.clear();
+        ChessMateETL.ouvertures.clear();
 
-    @AfterEach
-    public void cleanupTables() throws Exception {
+        // Nettoyer les tables
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("DELETE FROM Partie");
             stmt.execute("DELETE FROM Joueur");
             stmt.execute("DELETE FROM Tournoi");
+            stmt.execute("DELETE FROM Ouverture");
+            stmt.execute("DELETE FROM Cadence");
+            stmt.execute("DELETE FROM Organisateur");
             connection.commit();
         }
+
+        // Ré-insertion des données de référence
+        insertReferenceData();
+        connection.commit();
     }
 
     private void createSchema() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
+
             stmt.execute("""
                 CREATE TABLE Organisateur (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     nom VARCHAR(255)
                 )
             """);
 
             stmt.execute("""
                 CREATE TABLE Cadence (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     libelle VARCHAR(50) UNIQUE NOT NULL
                 )
             """);
 
             stmt.execute("""
                 CREATE TABLE Ouverture (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     code VARCHAR(10) NOT NULL,
                     libelle VARCHAR(255) NOT NULL,
                     UNIQUE(code, libelle)
@@ -78,7 +88,7 @@ public abstract class BaseIntegrationTest {
 
             stmt.execute("""
                 CREATE TABLE Joueur (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     pseudonyme VARCHAR(255) UNIQUE NOT NULL,
                     elo INT,
                     equipe VARCHAR(255),
@@ -88,59 +98,65 @@ public abstract class BaseIntegrationTest {
 
             stmt.execute("""
                 CREATE TABLE Tournoi (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     libelle VARCHAR(255) UNIQUE NOT NULL,
                     site VARCHAR(255),
                     broadcast_url TEXT,
                     date_debut DATE,
-                    Id_Organisateur INT,
+                    id_organisateur INT,
                     id_cadence INT,
-                    FOREIGN KEY (Id_Organisateur) REFERENCES Organisateur(id),
+                    FOREIGN KEY (id_organisateur) REFERENCES Organisateur(id),
                     FOREIGN KEY (id_cadence) REFERENCES Cadence(id)
                 )
             """);
 
             stmt.execute("""
                 CREATE TABLE Partie (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
-                    title VARCHAR(255),
-                    resultat INT,
-                    date_heure_utc TIMESTAMP,
-                    elo_blanc INT,
-                    elo_noir INT,
-                    titre_blanc VARCHAR(10),
-                    titre_noir VARCHAR(10),
-                    round VARCHAR(50),
-                    broadcast_url TEXT,
-                    game_url TEXT,
-                    variant VARCHAR(50),
-                    Id_Joueur_Blanc INT NOT NULL,
-                    Id_Joueur_Noir INT NOT NULL,
-                    id_ouverture INT,
-                    id_cadence INT,
-                    id_tournoi INT,
-                    pgn TEXT,
-                    FOREIGN KEY (Id_Joueur_Blanc) REFERENCES Joueur(id),
-                    FOREIGN KEY (Id_Joueur_Noir) REFERENCES Joueur(id),
-                    FOREIGN KEY (id_ouverture) REFERENCES Ouverture(id),
-                    FOREIGN KEY (id_cadence) REFERENCES Cadence(id),
-                    FOREIGN KEY (id_tournoi) REFERENCES Tournoi(id)
-                )
+                     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                     title VARCHAR(255),
+                     resultat SMALLINT,
+                     pgn TEXT,
+                     date_heure_utc TIMESTAMP,
+                     elo_blanc SMALLINT,
+                     elo_noir SMALLINT,
+                     score_blanc_diff SMALLINT,
+                     score_noir_diff SMALLINT,
+                     titre_blanc VARCHAR(5),
+                     titre_noir VARCHAR(5),
+                     type_resultat VARCHAR(50),
+                     round VARCHAR(20),
+                     broadcast_url TEXT,
+                     game_url TEXT,
+                     variant VARCHAR(50),
+                     id_ouverture INT,
+                     id_cadence INT,
+                     id_joueur_blanc INT NOT NULL,
+                     id_joueur_noir INT NOT NULL,
+                     id_tournoi INT,
+                     FOREIGN KEY (id_ouverture) REFERENCES Ouverture(id),
+                     FOREIGN KEY (id_cadence) REFERENCES Cadence(id),
+                     FOREIGN KEY (id_joueur_blanc) REFERENCES Joueur(id),
+                     FOREIGN KEY (id_joueur_noir) REFERENCES Joueur(id),
+                     FOREIGN KEY (id_tournoi) REFERENCES Tournoi(id)
+                 )
             """);
         }
     }
 
     private void insertReferenceData() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute("INSERT INTO Organisateur (id, nom) VALUES (1, 'Test Org')");
+            // Organisateur
+            stmt.execute("INSERT INTO Organisateur (nom) VALUES ('Test Org')");
 
-            stmt.execute("INSERT INTO Cadence (id, libelle) VALUES (1, '180+2')");
-            stmt.execute("INSERT INTO Cadence (id, libelle) VALUES (2, '300+0')");
-            stmt.execute("INSERT INTO Cadence (id, libelle) VALUES (3, '600+5')");
+            // Cadences
+            stmt.execute("INSERT INTO Cadence (libelle) VALUES ('180+2')");
+            stmt.execute("INSERT INTO Cadence (libelle) VALUES ('300+0')");
+            stmt.execute("INSERT INTO Cadence (libelle) VALUES ('600+5')");
 
-            stmt.execute("INSERT INTO Ouverture (id, code, libelle) VALUES (1, 'C42', 'Petrov Defense')");
-            stmt.execute("INSERT INTO Ouverture (id, code, libelle) VALUES (2, 'E60', 'King''s Indian Defense')");
-            stmt.execute("INSERT INTO Ouverture (id, code, libelle) VALUES (3, 'C65', 'Ruy Lopez, Berlin Defense')");
+            // Ouvertures
+            stmt.execute("INSERT INTO Ouverture (code, libelle) VALUES ('C42', 'Petrov Defense')");
+            stmt.execute("INSERT INTO Ouverture (code, libelle) VALUES ('E60', 'King''s Indian Defense')");
+            stmt.execute("INSERT INTO Ouverture (code, libelle) VALUES ('C65', 'Ruy Lopez, Berlin Defense')");
         }
     }
 
