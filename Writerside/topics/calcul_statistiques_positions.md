@@ -29,16 +29,7 @@ Les paramètres de connexion à Postgres sont passés via :
 - `DB_USER` (défaut : `chessmate`)
 - `DB_PASSWORD` (défaut : `chessmate`)
 
-Exemple de séquence complète (sur le serveur de préproduction) :
+Exemple :
 
-1. Préparation :
-
-   `MODE=prepare python3 compute_position_stats.py`
-
-2. Lancement des workers distribués :
 
    `python3 compute_position_stats.py`
-
-3. Agrégation finale :
-
-   `MODE=aggregate python compute_position_stats.py`
