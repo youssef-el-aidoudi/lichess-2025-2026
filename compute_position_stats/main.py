@@ -1,11 +1,11 @@
+import hashlib
+import io
 import os
 import re
 import time
-import datetime
-import psycopg2
+
 import chess
-import hashlib
-import io
+import psycopg2
 
 # =========================
 # CONFIGURATION
@@ -108,10 +108,11 @@ def outcome_from_resultat(resultat: int):
 
 def iter_positions_from_pgn_moves(pgn_moves: str):
     """
+    Fonction génératrice.
     À partir d'une chaîne PGN contenant uniquement la liste de coups (pas les headers),
     génère tous les FEN atteints dans la partie (y compris la position initiale).
 
-    Le pgn à parse doit être  :
+    Le pgn à parse doit être :
     - Une chaîne de coups SAN nettoyée : "1. e4 e5 2. Nf3 Nc6 ... 1-0"
     - On ignore les numéros de coup ('1.', '2.' etc.) et on s'arrête sur '1-0', '0-1', '1/2-1/2', '*'.
     """
@@ -148,7 +149,7 @@ def iter_positions_from_pgn_moves(pgn_moves: str):
 
 
 # =========================
-# UPSERT DANS Position_Stats - Ancienne méthode laissé pour le rapport ?
+# UPSERT DANS Position_Stats - Ancienne méthode laissé pour le rapport
 # =========================
 #
 # def flush_position_stats(conn, stats_dict):
@@ -342,6 +343,7 @@ def debug_parse_single_partie(conn, partie_id: int):
             break
 
     print("=" * 80)
+
 
 def run_worker(conn):
     total_parties = 0
