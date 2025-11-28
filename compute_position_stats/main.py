@@ -13,8 +13,8 @@ from mpi4py import MPI
 # CONFIGURATION
 # =========================
 
-DB_HOST = os.getenv("DB_HOST", "postgres")
-DB_PORT = int(os.getenv("DB_PORT", 5432))
+DB_HOST = os.getenv("DB_HOST", "172.31.60.32")
+DB_PORT = int(os.getenv("DB_PORT", 55432))
 DB_NAME = os.getenv("DB_NAME", "chessmate")
 DB_USER = os.getenv("DB_USER", "chessmate")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "chessmate")

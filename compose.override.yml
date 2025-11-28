@@ -67,28 +67,5 @@ services:
     depends_on:
       - postgres
 
-  compute_position_stats:
-    build:
-      context: ./compute_position_stats
-
-    environment:
-      DB_NAME: ${POSTGRES_DB}
-      DB_USER: ${POSTGRES_USER}
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-    networks:
-      - internal
-      - public
-    profiles: [ "jobs" ] # le service ne sera pas lancé par défaut
-    working_dir: /app
-    volumes:
-      - ./compute_position_stats:/app
-    command: >
-      sh -c "
-        pip install --no-cache-dir psycopg2-binary python-chess && 
-        python main.py
-      "
-    depends_on:
-      - postgres
-
 volumes:
   maven-cache:
