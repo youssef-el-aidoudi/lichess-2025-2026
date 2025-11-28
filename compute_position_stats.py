@@ -28,7 +28,7 @@ NODES = [
 WORKERS_PER_NODE = 19
 GLOBAL_WORKERS = len(NODES) * WORKERS_PER_NODE
 
-PROJECT_DIR = os.path.expanduser("~/lichess_compute")
+PROJECT_DIR = os.path.expanduser("./compute_position_stats")
 SCRIPT_NAME = "compute_position_stats.py"
 
 
