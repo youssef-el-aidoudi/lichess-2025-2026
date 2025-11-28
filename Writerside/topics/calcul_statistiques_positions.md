@@ -33,3 +33,7 @@ Exemple, à lancer sur un noeud, attention par défaut postgres c'est 100 worker
 
 
    `nohup mpiexec -np 90 -hostfile hosts.txt python compute_position_stats.py > mpi.log 2>&1 &`
+
+Voir si ça tourne :
+
+    `ps aux | grep mpiexec`
