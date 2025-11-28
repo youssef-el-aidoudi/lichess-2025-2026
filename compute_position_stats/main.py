@@ -3,6 +3,7 @@ import io
 import os
 import re
 import time
+from pathlib import Path
 
 import chess
 import psycopg2
@@ -27,6 +28,42 @@ PARTIE_BATCH_SIZE = 10_000
 
 # Nombre maximal de positions accumulées en mémoire avant FLUSH COPY
 POSITION_FLUSH_THRESHOLD = 100_000
+
+# ============
+# CHARGEMENT DU .ENV SI ON EST DEPUIS LE WORKER.
+# Peut pas installer dotenv sur les machines de calculs.
+# ============
+
+
+def load_simple_env(env_filename: str = ".env"):
+    """
+    Charge un fichier .env très simple (KEY=VALUE par ligne)
+    dans os.environ, sans dépendance externe.
+    - Ignore les lignes vides et celles qui commencent par '#'
+    - N'interprète pas les 'export', ni les guillemets, ni l'escaping.
+    """
+    env_path = Path(__file__).parent / env_filename
+    if not env_path.exists():
+        return
+
+    with env_path.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # Ignore les lignes type 'export FOO=bar'
+            if line.startswith("export "):
+                line = line[len("export "):].strip()
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            # On ne remplace pas une variable déjà définie dans l'env
+            os.environ.setdefault(key, value)
+
+# Charger le .env s'il existe
+load_simple_env(".env")
 
 # ============
 # PGN CLEANING
