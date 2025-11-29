@@ -9,8 +9,8 @@ import com.chessmate.backend.entiter.Cadence;
 import com.chessmate.backend.entiter.Cadence.CategorieCadence;
 
 public interface CadenceRopository  extends JpaRepository<Cadence, Long>{
-    Optional<Cadence> findByLibelle(String lib);
-    List<Cadence> findByTemps(int t);
-    List<Cadence> findByIncrement(int c);
-    List<Cadence> findByTypePartie(CategorieCadence typePartie);
+    Optional<Cadence> findByLibelle(String lib);  // recherche par libelle
+    List<Cadence> findByTemps(int t);  // recherche par temps
+    List<Cadence> findByIncrement(int c);  // recherche par increment
+    List<Cadence> findByTypePartie(CategorieCadence typePartie);  // recherche par type
 }

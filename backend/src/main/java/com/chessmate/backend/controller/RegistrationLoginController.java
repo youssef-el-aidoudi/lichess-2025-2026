@@ -23,23 +23,19 @@ import com.chessmate.backend.entiter.Joueur;
 import com.chessmate.backend.repository.JoueurRepository;
 import com.chessmate.backend.repository.UtilisateurRepository;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
 @RestController
-@RequestMapping("/api/auth")
-//@RequiredArgsConstructor
-@Slf4j
+@RequestMapping("/api/auth") // Toutes les routes de ce controller commenceront par /api/auth
 public class RegistrationLoginController {
     
+    // Dépendances injectées dans le controller
     private final UtilisateurRepository utilisateurRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final AuthenticationManager authenticationManager;
     private final JoueurRepository joueurRepository;
 
-    public RegistrationLoginController(UtilisateurRepository r, PasswordEncoder p, JwtUtils j, AuthenticationManager a, JoueurRepository jt)
-    {
+    // Constructeur pour injection manuelle des dépendances
+    public RegistrationLoginController(UtilisateurRepository r, PasswordEncoder p, JwtUtils j, AuthenticationManager a, JoueurRepository jt) {
         this.utilisateurRepository = r;
         this.jwtUtils = j;
         this.passwordEncoder = p;
@@ -47,59 +43,75 @@ public class RegistrationLoginController {
         this.joueurRepository = jt;
     }
 
+    /**
+     * Endpoint pour enregistrer un nouvel utilisateur
+     * POST /api/auth/register
+     */
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@RequestBody Utilisateur utilisateur) {
+        // Vérifier si l'email existe déjà
         if (!utilisateurRepository.findByEmail(utilisateur.getEmail()).isEmpty()) {
             return ResponseEntity.badRequest().body("Ce email existe déja !");
         }
         
+        // Hasher le mot de passe avant de l'enregistrer
         utilisateur.setHash(passwordEncoder.encode(utilisateur.getHash()));
+        // Définir la date d'inscription à maintenant
         utilisateur.setInscrit_A(LocalDateTime.now());
 
-        if(utilisateur.getJoueur()!=null && utilisateur.getJoueur().getPseudo()!=null)
-        {
+        // Vérifier si un joueur est associé à cet utilisateur
+        if(utilisateur.getJoueur() != null && utilisateur.getJoueur().getPseudo() != null) {
             Optional<Joueur> monjoueur = joueurRepository.findByPseudonyme(utilisateur.getJoueur().getPseudo());
-            if(monjoueur.isPresent())
-            {
+            if(monjoueur.isPresent()) {
+                // Si le joueur existe, l'associer à l'utilisateur
                 utilisateur.setJoueur(monjoueur.get());
-            }
-            else
-            {
-                return ResponseEntity.badRequest().body("Joueur avec ce pseudo -> "+ utilisateur.getJoueur().getPseudo() +" introuvable");
+            } else {
+                // Si le pseudo n'existe pas, renvoyer une erreur
+                return ResponseEntity.badRequest().body(
+                        "Joueur avec ce pseudo -> " + utilisateur.getJoueur().getPseudo() + " introuvable"
+                );
             }
         }
 
+        // Sauvegarder l'utilisateur dans la base de données et renvoyer l'objet créé
         return ResponseEntity.ok(utilisateurRepository.save(utilisateur));
     }
 
+    /**
+     * Endpoint pour authentifier un utilisateur
+     * POST /api/auth/login
+     */
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Utilisateur utilisateur) {
         try {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(utilisateur.getEmail(), utilisateur.getHash())    
-        );
-        if (authentication.isAuthenticated()) {
-            //maj connexion du joueur
-            Optional<Utilisateur> userFromOpt = utilisateurRepository.findByEmail(utilisateur.getEmail());
-            if(userFromOpt.isPresent())
-            {
-                Utilisateur userFromDb = userFromOpt.get();
-                // Mettre à jour la dernière connexion
-                userFromDb.setConnexion_A(LocalDateTime.now());
-                utilisateurRepository.save(userFromDb);
+            // Tenter l'authentification avec l'email et le mot de passe fournis
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(utilisateur.getEmail(), utilisateur.getHash())    
+            );
+
+            if (authentication.isAuthenticated()) {
+                // Si authentifié, récupérer l'utilisateur en base
+                Optional<Utilisateur> userFromOpt = utilisateurRepository.findByEmail(utilisateur.getEmail());
+                if(userFromOpt.isPresent()) {
+                    Utilisateur userFromDb = userFromOpt.get();
+                    // Mettre à jour la dernière connexion
+                    userFromDb.setConnexion_A(LocalDateTime.now());
+                    utilisateurRepository.save(userFromDb);
+                }
+
+                // Générer un token JWT et le renvoyer dans la réponse
+                Map<String, Object> authData = new HashMap<>();
+                authData.put("token", jwtUtils.generateToken(utilisateur.getEmail()));
+                authData.put("type", "Bearer");
+                return ResponseEntity.ok(authData);
             }
 
-            //generer le token et le retourner
-            Map<String, Object> authData = new HashMap<>();
-            authData.put("token", jwtUtils.generateToken(utilisateur.getEmail()));
-            authData.put("type", "Bearer");
-            return ResponseEntity.ok(authData);
+            // Si l'authentification a échoué, renvoyer 401
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid email or password");
+        } catch (AuthenticationException e) {
+            // En cas d'exception lors de l'authentification
+            System.out.println(e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid email or password");
         }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid email or password");
-    } catch (AuthenticationException e) {
-        //log.error(e.getMessage());
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid email or password");
-    }
-
     }
 }

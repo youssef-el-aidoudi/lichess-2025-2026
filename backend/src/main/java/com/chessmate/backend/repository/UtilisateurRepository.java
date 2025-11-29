@@ -11,14 +11,14 @@ import org.springframework.data.repository.query.Param;
 import com.chessmate.backend.entiter.Utilisateur;
 
 public interface UtilisateurRepository extends JpaRepository<Utilisateur, Long>{
-    Optional<Utilisateur> findByEmail(String email);
+    Optional<Utilisateur> findByEmail(String email);  // recherche par émail
 
     @Query("SELECT u FROM utilisateur u WHERE u.inscription_a = :date")
-    List<Utilisateur> findByInscriptionA(@Param("date") LocalDateTime dt);
+    List<Utilisateur> findByInscriptionA(@Param("date") LocalDateTime dt);  // recherche par date inscription
 
     @Query("SELECT u FROM utilisateur u WHERE u.connexion_a = :date")
-    List<Utilisateur> findByConnexionA(@Param("date") LocalDateTime dt);
+    List<Utilisateur> findByConnexionA(@Param("date") LocalDateTime dt);  // recherche par date de connexion
 
     @Query("SELECT u FROM utilisateur u WHERE u.banni_a = :date")
-    List<Utilisateur> findByBanniA(@Param("date") LocalDateTime dt);
+    List<Utilisateur> findByBanniA(@Param("date") LocalDateTime dt); //  // recherche par date banni
 }

@@ -13,64 +13,85 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 
-@Entity
+@Entity // Entité JPA mappée à une table "tournoi"
 public class Tournoi {
-    //attributs
-    @Id @GeneratedValue(strategy= GenerationType.IDENTITY)
-    //identifiant généner automatiquement dans la bd
+
+    @Id 
+    @GeneratedValue(strategy= GenerationType.IDENTITY)
+    // Identifiant unique auto-généré pour chaque tournoi
     private long id;
 
     @Column(unique=true)
+    // Nom ou titre du tournoi, doit être unique
     private String libelle;
 
+    // Code unique du tournoi (peut être un identifiant externe ou interne)
     private String code;
-    
+
     @Column(columnDefinition = "TEXT")
+    // Site web du tournoi ou page descriptive
     private String site;
-    
+
     @Column(columnDefinition = "TEXT")
+    // URL de diffusion du tournoi (streaming, live)
     private String broadcastUrl;
-    
+
+    // Date de début du tournoi
     private LocalDate dateDebut;
+
+    // Date de création de l'entrée en base
     private LocalDateTime creeA;
+
+    // Date de dernière modification de l'entrée
     private LocalDateTime modifierA;
 
     @ManyToOne
     @JoinColumn(name="id_organisateur", nullable=false)
+    // Joueur qui organise le tournoi (relation ManyToOne)
     private Joueur organisateur;
 
     @ManyToOne
     @JoinColumn(name="id_cadence", nullable=false)
+    // Cadence du tournoi (temps de jeu par joueur)
     private Cadence cadence;
 
     @ManyToMany
     @JoinTable(
-        name = "participer",
-        joinColumns = @JoinColumn(name = "id_tournoi"),
-        inverseJoinColumns = @JoinColumn(name = "id_joueur")
+        name = "participer", // Table pivot pour la relation ManyToMany
+        joinColumns = @JoinColumn(name = "id_tournoi"), // clé étrangère vers le tournoi
+        inverseJoinColumns = @JoinColumn(name = "id_joueur") // clé étrangère vers le joueur
     )
+    // Joueurs participant au tournoi
     private Set<Joueur> participants = new HashSet<>();
 
     @OneToMany(mappedBy = "tournoi")
+    // Liste des parties jouées dans ce tournoi (relation OneToMany)
     private List<Partie> parties;
 
+    // Constructeur par défaut requis par JPA
     public Tournoi() {}
     
-    //getteurs
-    public String getLibelle() {return this.libelle;}
-    public String getCode(){ return this.code; }
-    public LocalDateTime getCree_A() {return this.creeA;}
-    public LocalDateTime getModifier_A() {return this.modifierA;}
+    // ------------------ GETTERS ------------------
+    
+    public String getLibelle() {
+        return this.libelle;
+    }
 
-    //setteurs
-    public void setLibelle(String l) { this.libelle = l; }
-    public void setCode(String c) { this.code = c; }
-    public void setModifier_A(LocalDateTime dt){ this.modifierA = dt;}
+    public String getCode() { 
+        return this.code; 
+    }
+
+    public LocalDateTime getCree_A() {
+        return this.creeA;
+    }
+
+    public LocalDateTime getModifier_A() {
+        return this.modifierA;
+    }
 
     public String getBroadcastUrl() {
         return broadcastUrl;
@@ -99,4 +120,11 @@ public class Tournoi {
     public List<Partie> getParties() {
         return parties;
     }
+
+    // ------------------ SETTERS ------------------
+
+    public void setModifier_A(LocalDateTime dt){
+        this.modifierA = dt;
+    }
+
 }

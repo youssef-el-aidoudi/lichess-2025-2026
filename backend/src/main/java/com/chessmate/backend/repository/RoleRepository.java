@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.chessmate.backend.entiter.Role;
 
 public interface RoleRepository extends JpaRepository<Role, Long>{
-    Optional<Role> findByLibelle(String libelle);
+    Optional<Role> findByLibelle(String libelle);  // recherche par libelle
 }

@@ -8,31 +8,44 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 
-@Entity
+@Entity // Entité JPA mappée à une table en base de données
 public class Ouverture {
-    //attributs
-    @Id @GeneratedValue(strategy= GenerationType.IDENTITY)
-    //identifiant généner automatiquement dans la bd
+
+    // ---------------- Attributs ----------------
+    
+    @Id 
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // Identifiant unique de l'ouverture, généré automatiquement par la base de données
     private long id;
 
-    @Column(nullable=false)
+    @Column(nullable = false)
+    // Code de l'ouverture, obligatoire
     private String code;
 
-    @Column(nullable=false)
+    @Column(nullable = false)
+    // Libellé ou nom de l'ouverture, obligatoire
     private String libelle;
 
     @ManyToOne
-    @JoinColumn(name="id_suite_coups_stats")
+    @JoinColumn(name = "id_suite_coups_stats")
+    // Relation Many-to-One vers SuiteCoupsStats : plusieurs ouvertures peuvent partager la même suite de coups
     private SuiteCoupsStats suiteCoupsStats;
+
+    // ---------------- Constructeur ----------------
     
+    public Ouverture() {} // Constructeur par défaut requis par JPA
 
-    public Ouverture() {}
+    // ---------------- Getters ----------------
 
-    //getteurs
-    public String getCodeOuverture(){ return this.code; }
-    public String getLibelleOuverture() { return this.libelle; }
+    public String getCodeOuverture() {
+        return this.code; // Retourne le code de l'ouverture
+    }
+
+    public String getLibelleOuverture() {
+        return this.libelle; // Retourne le libellé de l'ouverture
+    }
 
     public SuiteCoupsStats getSuiteCoupsStats() {
-        return suiteCoupsStats;
+        return suiteCoupsStats; // Retourne la suite de coups associée à l'ouverture
     }
 }

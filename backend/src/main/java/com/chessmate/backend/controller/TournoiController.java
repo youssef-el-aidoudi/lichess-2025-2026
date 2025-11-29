@@ -1,8 +1,7 @@
 package com.chessmate.backend.controller;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
@@ -13,154 +12,139 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.chessmate.backend.entiter.Partie;
 import com.chessmate.backend.entiter.Tournoi;
 import com.chessmate.backend.repository.TournoiRepository;
 
 @RestController
-@RequestMapping("tournoi")
+@RequestMapping("/tournois") //URL de base
 public class TournoiController {
+
     private final TournoiRepository tourRep;
 
-    public TournoiController(TournoiRepository rp)
-    {
+    public TournoiController(TournoiRepository rp) {
         this.tourRep = rp;
     }
 
+    /**
+     * GET /tournois
+     * Récupère tous les tournois
+     */
     @GetMapping
-    public ResponseEntity<?> getAllTournoi()
-    {
+    public ResponseEntity<?> getAllTournoi() {
         return ResponseEntity.ok(tourRep.findAll());
     }
 
+    /**
+     * GET /tournois/search?{param}
+     * Recherche un tournoi selon un paramètre
+     */
     @GetMapping("/search")
     public ResponseEntity<?> getTournoi(
-                            @RequestParam(value="code", required=false) String code,
-                            @RequestParam(value="libelle", required=false) String libelle,
-                            @RequestParam(value="dateDebut", required=false) LocalDateTime dtDebut,
-                            @RequestParam(value="dateCreation", required=false) LocalDateTime dtCreeA,
-                            @RequestParam(value="dateModif", required=false) LocalDateTime dtModifA)
-    {
-        if(code!=null)
-        {
-            return ResponseEntity.ok(tourRep.findByCode(code));
+            @RequestParam(value = "code", required = false) String code,
+            @RequestParam(value = "libelle", required = false) String libelle,
+            @RequestParam(value = "dateDebut", required = false) LocalDateTime dtDebut,
+            @RequestParam(value = "dateCreation", required = false) LocalDateTime dtCreeA,
+            @RequestParam(value = "dateModif", required = false) LocalDateTime dtModifA) {
+
+        // Recherche par code (Optional<Tournoi>)
+        if (code != null) {
+            // On récupère le tournoi correspondant au code
+            Optional<Tournoi> result = tourRep.findByCode(code);
+
+            // Si présent, renvoie 200 + objet JSON, sinon 404 avec message clair
+            return result.<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body("Aucun tournoi trouvé avec le code '" + code + "'"));
         }
-        else if(libelle!=null)
-        {
-            return ResponseEntity.ok(tourRep.findByLibelle(libelle));
+
+        // Recherche par libelle (Optional<Tournoi>)
+        if (libelle != null) {
+            // On récupère le tournoi correspondant au libelle
+            Optional<Tournoi> result = tourRep.findByLibelle(libelle);
+
+            // Si présent, renvoie 200 + objet JSON, sinon 404 avec message clair
+            return result.<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body("Aucun tournoi trouvé avec le libelle '" + libelle + "'"));
         }
-        else if(dtDebut!=null)
-        {
+
+        // Recherche par date de début (findAllTournoisByDateDebut renvoie List<Tournoi>)
+        if (dtDebut != null) {
             return ResponseEntity.ok(tourRep.findAllTournoisByDateDebut(dtDebut));
         }
-        else if(dtCreeA!=null)
-        {
+
+        // Recherche par date de création (renvoie List<Tournoi>)
+        if (dtCreeA != null) {
             return ResponseEntity.ok(tourRep.findAllTournoisByCreeA(dtCreeA));
         }
-        else if(dtModifA!=null)
-        {
+
+        // Recherche par date de modification (renvoie List<Tournoi>)
+        if (dtModifA != null) {
             return ResponseEntity.ok(tourRep.findAllTournoisByModifierA(dtModifA));
         }
 
+
         return ResponseEntity.badRequest()
-        .body("Search doit être suivit d'un paramètre : 'code' -> Récupérer un tournoi grâce a son code.\n" +
-          "'dateDebut' -> Récupérer les tournois qui ont commencer a une date de début donnée.\n" +
-          "'dateCreation' -> Récupérer les tournois créer a une date de début donnée.\n" +
-          "'dateModif' -> Récupérer les tournois modifier a une date de début donnée.\n" +
-          "'libelle' -> Récupérer un tournoi par son libelle.");
-
+                .body("Vous devez fournir un paramètre parmi : code, libelle, dateDebut, dateCreation, dateModif.");
     }
 
-
+    /**
+     * GET /tournois/{id}
+     * Récupère un tournoi par son ID
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<?> getTournoiById(@PathVariable Long id)
-    {
-        //aucun id renseigner
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du tournoi est obligatoire");
-        }
-        return ResponseEntity.ok(tourRep.findById(id));
+    public ResponseEntity<?> getTournoiById(@PathVariable Long id) {
+        return tourRep.findById(id)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun tournoi trouvé avec l'id " + id));
     }
 
+    /**
+     * GET /tournois/{id}/organisateur
+     * Récupère l'organisateur du tournoi
+     */
     @GetMapping("/{id}/organisateur")
-    public ResponseEntity<?> getOrganisateurTournoi(@PathVariable Long id)
-    {
-        //aucun id renseigner
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du tournoi est obligatoire");
-        }
-
-        //on recupere le tournoi
-        Optional<Tournoi> tournoi = tourRep.findById(id);
-        if(tournoi.isEmpty())
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Aucun tournoi trouvée avec l'id "+ id);
-        }
-
-        //on recupere l'organisateur du tournoi
-        return ResponseEntity.ok(tournoi.get().getOrganisateur());
+    public ResponseEntity<?> getOrganisateurTournoi(@PathVariable Long id) {
+        return tourRep.findById(id)
+                .<ResponseEntity<?>>map(tournoi -> ResponseEntity.ok(tournoi.getOrganisateur()))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun tournoi trouvé avec l'id " + id));
     }
 
+    /**
+     * GET /tournois/{id}/cadence
+     * Récupère la cadence du tournoi
+     */
     @GetMapping("/{id}/cadence")
-    public ResponseEntity<?> getCadenceTournoi(@PathVariable Long id)
-    {
-        //aucun id renseigner
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du tournoi est obligatoire");
-        }
-
-        //on recupere le tournoi
-        Optional<Tournoi> tournoi = tourRep.findById(id);
-        if(tournoi.isEmpty())
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Aucun tournoi trouvée avec l'id "+ id);
-        }
-
-        //on recupere l'organisateur du tournoi
-        return ResponseEntity.ok(tournoi.get().getCadence());
+    public ResponseEntity<?> getCadenceTournoi(@PathVariable Long id) {
+        return tourRep.findById(id)
+                .<ResponseEntity<?>>map(tournoi -> ResponseEntity.ok(tournoi.getCadence()))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun tournoi trouvé avec l'id " + id));
     }
 
+    /**
+     * GET /tournois/{id}/parties
+     * Récupère les parties associées au tournoi
+     */
     @GetMapping("/{id}/parties")
-    public ResponseEntity<?> getPartiesTournoi(@PathVariable Long id)
-    {
-        //aucun id renseigner
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du tournoi est obligatoire");
-        }
-
-        //on recupere le tournoi
-        Optional<Tournoi> tournoi = tourRep.findById(id);
-        if(tournoi.isEmpty())
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Aucun tournoi trouvée avec l'id "+ id);
-        }
-
-        //on recupere l'organisateur du tournoi
-        return ResponseEntity.ok(tournoi.get().getParties());
+    public ResponseEntity<?> getPartiesTournoi(@PathVariable Long id) {
+        return tourRep.findById(id)
+                .<ResponseEntity<?>>map(tournoi -> ResponseEntity.ok(tournoi.getParties()))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun tournoi trouvé avec l'id " + id));
     }
 
+    /**
+     * GET /tournois/{id}/participants
+     * Récupère les participants du tournoi
+     */
     @GetMapping("/{id}/participants")
-    public ResponseEntity<?> getParticipantTournoi(@PathVariable Long id)
-    {
-        //aucun id renseigner
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du tournoi est obligatoire");
-        }
-
-        //on recupere le tournoi
-        Optional<Tournoi> tournoi = tourRep.findById(id);
-        if(tournoi.isEmpty())
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Aucun tournoi trouvée avec l'id "+ id);
-        }
-
-        //on recupere l'organisateur du tournoi
-        return ResponseEntity.ok(tournoi.get().getParticipants());
+    public ResponseEntity<?> getParticipantTournoi(@PathVariable Long id) {
+        return tourRep.findById(id)
+                .<ResponseEntity<?>>map(tournoi -> ResponseEntity.ok(tournoi.getParticipants()))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun tournoi trouvé avec l'id " + id));
     }
-
 }

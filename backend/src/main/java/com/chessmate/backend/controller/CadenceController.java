@@ -1,6 +1,6 @@
 package com.chessmate.backend.controller;
 
-import java.util.Optional;
+import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,101 +14,135 @@ import com.chessmate.backend.entiter.Cadence;
 import com.chessmate.backend.repository.CadenceRopository;
 
 @RestController
-@RequestMapping("/cadences")
+@RequestMapping("/cadences")  // URL de base pour toutes les routes
 public class CadenceController {
+
+    // Repository injecté pour accéder à la base de données
     private final CadenceRopository repCadence;
 
-    public CadenceController(CadenceRopository rep)
-    {
+    // Injection par constructeur
+    public CadenceController(CadenceRopository rep) {
         this.repCadence = rep;
     }
 
+     /**
+     * GET /cadences
+     * Récupérer toutes les cadences 
+     */
     @GetMapping
-    public ResponseEntity<?> getAllCadence()
-    {
+    public ResponseEntity<?> getAllCadence() {
         return ResponseEntity.ok(repCadence.findAll());
     }
 
+    /**  
+     * GET /cadences/search?{param}
+     * Recherche dynamique selon un seul paramètre :
+     * - temps
+     * - libelle
+     * - increment
+     * - typePartie (enum CategorieCadence)
+     */
     @GetMapping("/search")
-    public ResponseEntity<?> getCadence(@RequestParam(value="temps", required=false) Integer temps,
-                            @RequestParam(value="libelle", required=false) String libelle,
-                            @RequestParam(value="increment", required=false) Integer increment,
-                            @RequestParam(value="typePartie", required=false) String typePartie)
-    {
-        if(temps != null)
-        {
-            return ResponseEntity.ok(repCadence.findByTemps(temps));
+    public ResponseEntity<?> getCadence(
+            @RequestParam(value = "temps", required = false) Integer temps,
+            @RequestParam(value = "libelle", required = false) String libelle,
+            @RequestParam(value = "increment", required = false) Integer increment,
+            @RequestParam(value = "typePartie", required = false) String typePartie) {
+
+        //  Recherche par temps (renvoie une liste)
+        if (temps != null) {
+            List<Cadence> result = repCadence.findByTemps(temps);
+            if (result.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucune cadence trouvée avec le temps " + temps);
+            }
+            return ResponseEntity.ok(result);
         }
-        else if(libelle != null)
-        {
-            return ResponseEntity.ok(repCadence.findByLibelle(libelle));
+
+        // Recherche par libelle (renvoie Optional)
+        if (libelle != null) {
+            return repCadence.findByLibelle(libelle)
+                    .<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body("Aucune cadence trouvée avec le libelle '" + libelle + "'"));
         }
-        else if(increment != null)
-        {
-            return ResponseEntity.ok(repCadence.findByIncrement(increment));
+
+        // Recherche par increment (renvoie une liste)
+        if (increment != null) {
+            List<Cadence> result = repCadence.findByIncrement(increment);
+            if (result.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucune cadence trouvée avec l'increment " + increment);
+            }
+            return ResponseEntity.ok(result);
         }
-        else if(typePartie != null)
-        {
-            Cadence.CategorieCadence cat = Cadence.CategorieCadence.valueOf(typePartie);
-            return ResponseEntity.ok(repCadence.findByTypePartie(cat));
+
+        // Recherche par typePartie (enum, renvoie une liste) 
+        if (typePartie != null) {
+            try {
+                Cadence.CategorieCadence cat = Cadence.CategorieCadence.valueOf(typePartie);
+                List<Cadence> result = repCadence.findByTypePartie(cat);
+                if (result.isEmpty()) {
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body("Aucune cadence trouvée pour le type de partie " + typePartie);
+                }
+                return ResponseEntity.ok(result);
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest()
+                        .body("typePartie invalide : " + typePartie);
+            }
         }
-        
+
+        // --- Aucun paramètre fourni ---
         return ResponseEntity.badRequest()
-        .body("Search doit être suivit d'un paramètre : 'temps' -> Récupérer les cadences ayant le même temps.\n" +
-          "'increment' -> Récupérer les cadences ayant le même increment.\n" +
-          "'typePartie' -> Récupérer les cadences par type de partie.\n" +
-          "'libelle' -> Récupérer une cadence par son libelle.");
+                .body("Vous devez fournir un paramètre parmi : temps, increment, typePartie, libelle.");
     }
 
+
+    /** 
+     * GET /cadences/{id}
+     * Récupérer une cadence par son ID */
     @GetMapping("/{id}")
-    public ResponseEntity<?> getCadenceById(@PathVariable Long id)
-    {
-        //aucun id renseigner
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' de la cadence est obligatoire");
-        }
-        return ResponseEntity.ok(repCadence.findById(id));
+    public ResponseEntity<?> getCadenceById(@PathVariable Long id) {
+        //findById() -> renvoie Optional
+        // map(ResponseEntity::ok) -> renvoie directement l'objet si présent
+        // orElseGet(...) -> construit une réponse 404 si absent
+        return repCadence.findById(id)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body("Aucune cadence trouvée avec l'id " + id));
     }
 
-    //parties associés a une cadence
+    /**
+     * GET /cadences/{id}/parties
+     *  Parties associées à une cadence */
     @GetMapping("/{id}/parties")
-    public ResponseEntity<?> getPartiesByCadence(@PathVariable Long id)
-    {
-        //aucun id renseigner
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' de la cadence est obligatoire");
-        }
-        
-        Optional<Cadence> cadence = repCadence.findById(id);
-
-        if(cadence.isEmpty())
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Aucune cadence trouvée avec l'id "+ id);
-        }
-
-        return ResponseEntity.ok(cadence.get().getParties());
+    public ResponseEntity<?> getPartiesByCadence(@PathVariable Long id) {
+        //findById() -> renvoie Optional
+        // map(ResponseEntity::ok) -> renvoie directement l'objet si présent
+        // orElseGet(...) -> construit une réponse 404 si absent
+        return repCadence.findById(id)
+                .<ResponseEntity<?>>map(c -> ResponseEntity.ok(c.getParties()))
+                .orElseGet(() -> ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body("Aucune cadence trouvée avec l'id " + id));
     }
 
-    //tounois associés a une cadence
+    /** 
+     * GET /cadences/{id}/tournois
+     * Tournois associés à une cadence */
     @GetMapping("/{id}/tournois")
-    public ResponseEntity<?> getTournoiByCadence(@PathVariable Long id)
-    {
-        //aucun id renseigner
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' de la cadence est obligatoire");
-        }
-        
-        Optional<Cadence> cadence = repCadence.findById(id);
+    public ResponseEntity<?> getTournoiByCadence(@PathVariable Long id) {
 
-        if(cadence.isEmpty())
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Aucune cadence trouvée avec l'id "+ id);
-        }
-
-        return ResponseEntity.ok(cadence.get().getTournois());
+        //findById() -> renvoie Optional
+        // map(ResponseEntity::ok) -> renvoie directement l'objet si présent
+        // orElseGet(...) -> construit une réponse 404 si absent
+        return repCadence.findById(id)
+                .<ResponseEntity<?>>map(c -> ResponseEntity.ok(c.getTournois()))
+                .orElseGet(() -> ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body("Aucune cadence trouvée avec l'id " + id));
     }
 
 }
