@@ -1,5 +1,6 @@
 package com.chessmate.backend.controller;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
@@ -14,108 +15,115 @@ import com.chessmate.backend.entiter.Joueur;
 import com.chessmate.backend.repository.JoueurRepository;
 
 @RestController
-@RequestMapping("/joueurs")
+@RequestMapping("/joueurs") // URL de base
 public class JoueurController {
 
     private final JoueurRepository joueurRep;
 
-    public JoueurController(JoueurRepository jp)
-    {
+    public JoueurController(JoueurRepository jp) {
         this.joueurRep = jp;
     }
 
+    /**
+     * GET /joueurs
+     * Récupère tous les joueurs
+     */
     @GetMapping
-    public ResponseEntity<?> getAllJoueur(){
+    public ResponseEntity<?> getAllJoueur() {
         return ResponseEntity.ok(joueurRep.findAll());
     }
 
+    /**
+     * GET /joueurs/{id}
+     * Récupère un joueur par son ID
+     * 200 OK si trouvé, 404 NOT FOUND sinon
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<?> getJoueurById(@PathVariable Long id)
-    {
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du joueur est obligatoire");
-        }
-
-        return ResponseEntity.ok(joueurRep.findById(id));
+    public ResponseEntity<?> getJoueurById(@PathVariable Long id) {
+        return joueurRep.findById(id)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun joueur trouvé avec l'id " + id));
     }
 
+    /**
+     * GET /joueurs/search?{param}
+     * Recherche dynamique selon un seul paramètre : pseudo, equipe, elo
+     */
     @GetMapping("/search")
-     public ResponseEntity<?> getJoueur(@RequestParam(value="pseudo", required=false) String pseudo,
-                                        @RequestParam(value="equipe", required=false) String equipe,
-                                        @RequestParam(value="elo", required=false) Integer elo)
-    {
-        if(pseudo!=null)
-        {
-            return ResponseEntity.ok(joueurRep.findByPseudonyme(pseudo));
-        }
-        else if(equipe!=null)
-        {
-            return ResponseEntity.ok(joueurRep.findByEquipe(equipe));
-        }
-        else if(elo!=null)
-        {
-            return ResponseEntity.ok(joueurRep.findByElo(elo));
+    public ResponseEntity<?> getJoueur(
+            @RequestParam(value = "pseudo", required = false) String pseudo,
+            @RequestParam(value = "equipe", required = false) String equipe,
+            @RequestParam(value = "elo", required = false) Integer elo) {
+
+        // Recherche par pseudo
+        if (pseudo != null) {
+            Optional<Joueur> result = joueurRep.findByPseudonyme(pseudo);
+            return result.<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body("Aucun joueur trouvé avec le pseudo '" + pseudo + "'"));
         }
 
-        return ResponseEntity.badRequest()
-        .body("Search doit être suivit d'un paramètre : 'email' -> Récupérer un joueur grâce a son pseudo.\n" +
-          "'equipe' -> Récupérer les joueurs d'une equipe donnée.\n" +
-          "'elo' -> Récupérer les joueurs qui ayant le même elo.");
+        // Recherche par équipe - renvoie une liste
+        if (equipe != null) {
+            List<Joueur> result = joueurRep.findByEquipe(equipe);
+            if (result.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun joueur trouvé dans l'équipe '" + equipe + "'");
+            }
+            return ResponseEntity.ok(result);
+        }
+
+        // Recherche par elo - renvoie une liste
+        if (elo != null) {
+            List<Joueur> result = joueurRep.findByElo(elo);
+            if (result.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun joueur trouvé avec un elo de " + elo);
+            }
+            return ResponseEntity.ok(result);
+        }
+
+        // Aucun paramètre fourni
+        return ResponseEntity.badRequest().body(
+                "Vous devez fournir un paramètre parmi : pseudo, equipe, elo."
+        );
     }
 
+    /**
+     * GET /joueurs/{id}/account
+     * Récupère le compte utilisateur associé à un joueur
+     */
     @GetMapping("/{id}/account")
-    public ResponseEntity<?> getAccountJoueur(@PathVariable Long id)
-    {
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du joueur est obligatoire");
-        }
-
-        Optional<Joueur> joueur = joueurRep.findById(id);
-
-        if(joueur.isEmpty())
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Aucun joueur trouvé avec l'id "+ id);
-        }
-
-        return ResponseEntity.ok(joueur.get().getUtilisateur());
+    public ResponseEntity<?> getAccountJoueur(@PathVariable Long id) {
+        return joueurRep.findById(id)
+                .<ResponseEntity<?>>map(j -> ResponseEntity.ok(j.getUtilisateur()))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun joueur trouvé avec l'id " + id));
     }
 
+    /**
+     * GET /joueurs/{id}/mestournois
+     * Récupère les tournois organisés par le joueur
+     */
     @GetMapping("/{id}/mestournois")
-    public ResponseEntity<?> getTournoiOrganiserJoueur(@PathVariable Long id)
-    {
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du joueur est obligatoire");
-        }
-
-        Optional<Joueur> joueur = joueurRep.findById(id);
-
-        if(joueur.isEmpty())
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Aucun joueur trouvé avec l'id "+ id);
-        }
-
-        return ResponseEntity.ok(joueur.get().getTournoisOrganises());
+    public ResponseEntity<?> getTournoiOrganiserJoueur(@PathVariable Long id) {
+        return joueurRep.findById(id)
+                .<ResponseEntity<?>>map(j -> ResponseEntity.ok(j.getTournoisOrganises()))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun joueur trouvé avec l'id " + id));
     }
-    
 
-    @GetMapping("/{id}/tounois")
-    public ResponseEntity<?> getTournoiParticiperJoueur(@PathVariable Long id)
-    {
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du joueur est obligatoire");
-        }
-
-        Optional<Joueur> joueur = joueurRep.findById(id);
-
-        if(joueur.isEmpty())
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Aucun joueur trouvé avec l'id "+ id);
-        }
-
-        return ResponseEntity.ok(joueur.get().getTournoisParticipes());
+    /**
+     * GET /joueurs/{id}/tournois
+     * Récupère les tournois auxquels le joueur participe
+     */
+    @GetMapping("/{id}/tournois")
+    public ResponseEntity<?> getTournoiParticiperJoueur(@PathVariable Long id) {
+        return joueurRep.findById(id)
+                .<ResponseEntity<?>>map(j -> ResponseEntity.ok(j.getTournoisParticipes()))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun joueur trouvé avec l'id " + id));
     }
+
 }

@@ -10,12 +10,12 @@ import org.springframework.data.repository.query.Param;
 import com.chessmate.backend.entiter.Joueur;
 
 public interface JoueurRepository extends JpaRepository<Joueur, Long>{
-    Optional<Joueur> findByPseudonyme(String pseudo);
+    Optional<Joueur> findByPseudonyme(String pseudo);  // recherche par pseudo
     
     @Query("SELECT j FROM joueur WHERE j.equipe = :equipe")
-    List<Joueur> findByEquipe(@Param("equipe")String equipe);
+    List<Joueur> findByEquipe(@Param("equipe")String equipe);  // recherche par equipe
 
     @Query("SELECT j FROM joueur WHERE j.elo = :elo")
-    List<Joueur> findByElo(@Param("elo")int elo);
+    List<Joueur> findByElo(@Param("elo")int elo);  // recherche par elo
 
 }

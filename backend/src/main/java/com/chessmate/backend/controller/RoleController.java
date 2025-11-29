@@ -14,76 +14,74 @@ import com.chessmate.backend.entiter.Role;
 import com.chessmate.backend.repository.RoleRepository;
 
 @RestController
-@RequestMapping("/roles")
+@RequestMapping("/roles") //URL de base
 public class RoleController {
+
     private final RoleRepository roleRep;
 
-    public RoleController(RoleRepository rep)
-    {
+    public RoleController(RoleRepository rep) {
         this.roleRep = rep;
     }
 
+    /**
+     * GET /roles
+     * Récupère tous les rôles
+     */
     @GetMapping
-    public ResponseEntity<?> getAllRoles()
-    {
+    public ResponseEntity<?> getAllRoles() {
         return ResponseEntity.ok(roleRep.findAll());
     }
 
+    /**
+     * GET /roles/search?libelle=XXX
+     * Recherche un rôle par son libelle
+     */
     @GetMapping("/search")
-    public ResponseEntity<?> getRole(@RequestParam(value="libelle", required=false) String libelle)
-    {
-        if(libelle!=null)
-        {
-            return ResponseEntity.ok(roleRep.findByLibelle(libelle));
+    public ResponseEntity<?> getRole(@RequestParam(value = "libelle", required = false) String libelle) {
+        if (libelle != null) {
+            Optional<Role> result = roleRep.findByLibelle(libelle);
+            return result.<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body("Aucun rôle trouvé avec le libelle '" + libelle + "'"));
         }
+
         return ResponseEntity.badRequest()
-        .body("Search doit être suivit d'un paramètre : 'libelle' -> Récupérer un role grâce a son libelle.");
+                .body("Vous devez fournir un paramètre : 'libelle' -> Récupérer un rôle grâce à son libelle.");
     }
 
+    /**
+     * GET /roles/{id}
+     * Récupère un rôle par son ID
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<?> getRoleById(@PathVariable Long id)
-    {
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du role est obligatoire");
-        }
-
-        return ResponseEntity.ok(roleRep.findById(id));
+    public ResponseEntity<?> getRoleById(@PathVariable Long id) {
+        return roleRep.findById(id)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun rôle trouvé avec l'id " + id));
     }
 
+    /**
+     * GET /roles/{id}/users
+     * Récupère les utilisateurs associés à un rôle
+     */
     @GetMapping("/{id}/users")
-    public ResponseEntity<?> getUtilisateursByRole(@PathVariable Long id)
-    {
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du role est obligatoire");
-        }
-
-        Optional<Role> role = roleRep.findById(id);
-
-        if(role.isEmpty())
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Aucun rôle trouvé avec l'id "+ id);
-        }
-
-        return ResponseEntity.ok(role.get().getUtilisateurs());
+    public ResponseEntity<?> getUtilisateursByRole(@PathVariable Long id) {
+        return roleRep.findById(id)
+                .<ResponseEntity<?>>map(role -> ResponseEntity.ok(role.getUtilisateurs()))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun rôle trouvé avec l'id " + id));
     }
 
+    /**
+     * GET /roles/{id}/profils
+     * Récupère les profils associés à un rôle
+     */
     @GetMapping("/{id}/profils")
-    public ResponseEntity<?> getProfilsByRole(@PathVariable Long id)
-    {
-        if(id == null)
-        {
-            return ResponseEntity.badRequest().body("Le paramètre 'id' du role est obligatoire");
-        }
-
-        Optional<Role> role = roleRep.findById(id);
-
-        if(role.isEmpty())
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Aucun rôle trouvé avec l'id "+ id);
-        }
-
-        return ResponseEntity.ok(role.get().getProfils());
+    public ResponseEntity<?> getProfilsByRole(@PathVariable Long id) {
+        return roleRep.findById(id)
+                .<ResponseEntity<?>>map(role -> ResponseEntity.ok(role.getProfils()))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Aucun rôle trouvé avec l'id " + id));
     }
 }
