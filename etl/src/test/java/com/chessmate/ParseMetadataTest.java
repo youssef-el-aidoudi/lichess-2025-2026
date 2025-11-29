@@ -6,9 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 
-import com.chessmate.ChessMateETL;
-import com.chessmate.Game;
-
 /**
  * Tests unitaires pour le parsing des métadonnées PGN
  */

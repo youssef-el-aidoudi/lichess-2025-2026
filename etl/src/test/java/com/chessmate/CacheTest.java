@@ -6,10 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 
-import com.chessmate.ChessMateETL;
-
 import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Tests unitaires pour les fonctions de cache (cadence et ouverture)
@@ -171,7 +168,8 @@ class CacheTest {
 
         // Correspondance exacte attendue (sensible à la casse)
         Integer result = ChessMateETL.getIdOuverture("C65", "ruy lopez, berlin defense");
-        // Ne devrait pas trouver de correspondance exacte, donc retourne le premier avec C65
+        // Ne devrait pas trouver de correspondance exacte, donc retourne le premier
+        // avec C65
         assertThat(result).isEqualTo(1);
     }
 }

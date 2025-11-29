@@ -5,12 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
-import com.chessmate.ChessMateETL;
-import com.chessmate.Game;
-import com.chessmate.ETLData;
-import com.chessmate.JoueurDTO;
-import com.chessmate.TournoiDTO;
-
 /**
  * Tests unitaires pour l'accumulation de parties/joueurs
  */

@@ -5,9 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
-import com.chessmate.ChessMateETL;
-import com.chessmate.Game;
-
 /**
  * Tests unitaires pour le filtre de parties
  */
@@ -178,7 +175,6 @@ class FilterTest {
 
         assertThat(ChessMateETL.filter(game)).isFalse();
     }
-
 
     @Test
     @DisplayName("Rejette une partie avec ELO valide mais résultat vide (*)")
