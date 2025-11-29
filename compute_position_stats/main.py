@@ -1,480 +1,121 @@
-import hashlib
-import io
-import os
-import re
-import time
-from pathlib import Path
-
-import chess
-import psycopg2
-from mpi4py import MPI
-
-# =========================
-# CONFIGURATION
-# =========================
-
-DB_HOST = os.getenv("DB_HOST", "172.31.60.32")
-DB_PORT = int(os.getenv("DB_PORT", 5432))
-DB_NAME = os.getenv("DB_NAME", "chessmate")
-DB_USER = os.getenv("DB_USER", "chessmate")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "chessmate")
-
-PARTIE_TABLE = "Partie"
-POSITION_TABLE = "Position_Stats"
-POSITION_STAGE_TABLE = "Position_Stats_Stage"
-
-# Nombre de parties chargées par batch depuis la table Partie
-PARTIE_BATCH_SIZE = 10_000
-
-# Nombre maximal de positions accumulées en mémoire avant FLUSH COPY
-POSITION_FLUSH_THRESHOLD = 100_000
-
-# ============
-# CHARGEMENT DU .ENV SI ON EST DEPUIS LE WORKER.
-# Peut pas installer dotenv sur les machines de calculs.
-# ============
-
-
-def load_simple_env(env_filename: str = ".env"):
+def get_all_parties():
     """
-    Charge un fichier .env très simple (KEY=VALUE par ligne)
-    dans os.environ, sans dépendance externe.
-    - Ignore les lignes vides et celles qui commencent par '#'
-    - N'interprète pas les 'export', ni les guillemets, ni l'escaping.
+    Récupère les parties depuis Postgres.
+    :return:
+    Les parties.
     """
-    env_path = Path(__file__).parent / env_filename
-    if not env_path.exists():
-        return
+    conn = get_conn()
+    cursor = get_cursor()
 
-    with env_path.open() as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            # Ignore les lignes type 'export FOO=bar'
-            if line.startswith("export "):
-                line = line[len("export "):].strip()
-            if "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            # On ne remplace pas une variable déjà définie dans l'env
-            os.environ.setdefault(key, value)
+    try:
+        request = ""
+        parties = cursor.execute(request)
+    except Exception:
+        ""
+    finally:
+        cursor.close()
+        conn.close()
 
-# Charger le .env s'il existe
-load_simple_env(".env")
-
-# ============
-# PGN CLEANING
-# ============
-
-# On pré-compile les regex pour aller vite
-# 1) commentaires entre accolades : { ... }
-_COMMENT_RE = re.compile(r"\{[^}]*}")
-# 2) NAGs style $1, $2, etc.
-_NAG_RE = re.compile(r"\$\d+")
-# 3) Tags type [%eval 0.23], [%clk ...] (au cas où ils ne sont pas dans des {})
-_BRACKET_TAG_RE = re.compile(r"\[%.*?]")
+    return parties
 
 
-def clean_pgn_moves(pgn_moves: str) -> str:
+def parse_partie(partie):
     """
-    Nettoie les coups PGN venant de lichess :
-      - supprime les commentaires { ... }
-      - supprime les NAGs ($1, $2, ...)
-      - supprime les tags [%%eval ...], [%%clk ...], etc.
-      - normalise les espaces
-
-    On ne touche pas aux numéros de coup, ni aux résultats,
-    gérés plus bas dans iter_positions_from_pgn_moves.
+    Parse le PGN d'une partie pour récupérer toutes les positions jouées dans le format FEN.
+    :param partie: Objet Partie.
+    :return:
+    Retourne la liste des positions FEN.
     """
-    if not pgn_moves:
-        return ""
-
-    s = pgn_moves
-
-    # Supprimer commentaires complets { ... }
-    s = _COMMENT_RE.sub(" ", s)
-    # Supprimer tags [%%eval ...] / [%%clk ...] éventuellement restants
-    s = _BRACKET_TAG_RE.sub(" ", s)
-    # Supprimer NAGs $1, $2, ...
-    s = _NAG_RE.sub(" ", s)
-
-    # Nettoyage des espaces
-    s = " ".join(s.split())
-    return s
+    pass
 
 
-# =========================
-# HELPERS
-# =========================
-
-
-def fen_hash(fen: str) -> int:
+def get_positions_from_parties(parties):
     """
-    Hash stable 64 bits signé basé sur le FEN.
-    On prend les 8 premiers octets du SHA-256 et on force sur 63 bits pour rester positif.
+    Récupère les positions depuis toutes les parties.
+    :param parties: Liste de Partie.
+    :return:
+    Liste de position.
     """
-    h = hashlib.sha256(fen.encode("utf-8")).digest()
-    # 8 premiers octets → entier 64 bits
-    val = int.from_bytes(h[:8], byteorder="big", signed=False)
-    # on force le bit de signe à 0 pour rester dans BIGINT positif
-    val &= (1 << 63) - 1
-    return val
+    positions = []
+    for partie in parties:
+        position = parse_partie(partie)
+        positions.append(position)
+    return positions
 
 
-def outcome_from_resultat(resultat: int):
+def hash_positions():
     """
-    Convertit le champ 'resultat' (int) en (w, b, d) à ajouter par position.
-    Convention :
-      2 → 1-0 (victoire blanc)
-      0 → 0-1 (victoire noir)
-      1 → autre (nulle)
+    Hash le FEN en BIGINT pour la clé primaire de la table Position_Stats.
+    :return:
+    Hash en BIGINT.
     """
-    if resultat == 2:
-        return 1, 0, 0
-    elif resultat == 0:
-        return 0, 1, 0
-    else:
-        return 0, 0, 1
+    pass
 
 
-def iter_positions_from_pgn_moves(pgn_moves: str):
+def flush_positions(positions_hashed):
     """
-    Fonction génératrice.
-    À partir d'une chaîne PGN contenant uniquement la liste de coups (pas les headers),
-    génère tous les FEN atteints dans la partie (y compris la position initiale).
-
-    Le pgn à parse doit être :
-    - Une chaîne de coups SAN nettoyée : "1. e4 e5 2. Nf3 Nc6 ... 1-0"
-    - On ignore les numéros de coup ('1.', '2.' etc.) et on s'arrête sur '1-0', '0-1', '1/2-1/2', '*'.
+    Insère toutes les lignes avec un copy_expert.
+    :param positions_hashed:
+    Objet positions avec le hash inclut.
     """
-    if not pgn_moves:
-        return
-
-    cleaned = clean_pgn_moves(pgn_moves)
-    if not cleaned:
-        return
-
-    board = chess.Board()
-    # Position initiale
-    yield board
-
-    tokens = cleaned.split()
-    for token in tokens:
-        # Fin de partie
-        if token in ("1-0", "0-1", "1/2-1/2", "*"):
-            break
-
-        if token.endswith(".") or token == "...":
-            continue
-
-        try:
-            board.push_san(token)
-        except Exception:
-            # Si le PGN est corrompu, on arrête la partie ici
-            break
-
-        yield board
+    pass
 
 
-# =========================
-# COPY STAGING + AGRÉGATION
-# =========================
-
-def init_staging_table(conn):
-    """Crée et vide la table de staging pour les positions."""
-    with conn.cursor() as cur:
-        cur.execute(f"""
-            CREATE TABLE IF NOT EXISTS {POSITION_STAGE_TABLE} (
-                hash BIGINT,
-                fen TEXT NOT NULL,
-                nb_total BIGINT NOT NULL,
-                nb_victoires_blanc BIGINT NOT NULL,
-                nb_victoires_noir BIGINT NOT NULL,
-                nb_nulles BIGINT NOT NULL,
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        """)
-        cur.execute(f"TRUNCATE TABLE {POSITION_STAGE_TABLE};")
-    conn.commit()
-
-
-def make_copy_buffer():
-    """Crée un buffer texte pour COPY et un compteur de lignes."""
-    buf = io.StringIO()
-    row_count = 0
-    return buf, row_count
-
-
-def flush_copy_buffer(conn, buf, row_count):
+def get_parties_from_job():
     """
-    Envoie le contenu du buffer vers la table de staging via COPY.
-    Ne fais PAS de commit (on laisse main() gérer la transaction).
+    Retourne les parties d'un job.
+    :return:
     """
-    if row_count == 0:
-        return make_copy_buffer()
+    pass
 
-    buf.seek(0)
-    copy_sql = f"""
-        COPY {POSITION_STAGE_TABLE} (hash, fen, nb_total,
-                                     nb_victoires_blanc, nb_victoires_noir, nb_nulles)
-        FROM STDIN
+
+def init_mpi():
     """
-    with conn.cursor() as cur:
-        cur.copy_expert(copy_sql, buf)
-
-    print(f"Flushed {row_count:,} positions vers {POSITION_STAGE_TABLE} (COPY)")
-    buf.close()
-    return make_copy_buffer()
-
-
-def aggregate_stage_into_position_stats(conn):
+    Initialise MPI.
+    :return:
+    world, rank ...
     """
-    Agrège la table de staging vers Position_Stats avec ON CONFLICT (hash).
+    pass
+
+
+def create_jobs(parties):
     """
-    with conn.cursor() as cur:
-        cur.execute(f"""
-            INSERT INTO {POSITION_TABLE} AS ps
-                (hash, fen, nb_total,
-                 nb_victoires_blanc, nb_victoires_noir, nb_nulles, updated_at)
-            SELECT
-                hash,
-                MIN(fen) AS fen,
-                SUM(nb_total),
-                SUM(nb_victoires_blanc),
-                SUM(nb_victoires_noir),
-                SUM(nb_nulles),
-                NOW()
-            FROM {POSITION_STAGE_TABLE}
-            GROUP BY hash
-            ON CONFLICT (hash) DO UPDATE
-            SET nb_total           = ps.nb_total           + EXCLUDED.nb_total,
-                nb_victoires_blanc = ps.nb_victoires_blanc + EXCLUDED.nb_victoires_blanc,
-                nb_victoires_noir  = ps.nb_victoires_noir  + EXCLUDED.nb_victoires_noir,
-                nb_nulles          = ps.nb_nulles          + EXCLUDED.nb_nulles,
-                updated_at         = NOW();
-        """)
-    conn.commit()
-    print("Agrégation staging -> Position_Stats terminée.")
-
-
-# =========================
-# DEBUG UNE PARTIE
-# =========================
-
-def debug_parse_single_partie(conn, partie_id: int):
+    Créer les jobs directement en SQL pour ne rien charger en mémoire (TABLE TO TABLE).
+    :param parties:
+    :return:
     """
-    Debug : charge une seule partie, log :
-      - PGN brut
-      - PGN nettoyé
-      - tokens
-      - chaque coup joué avec FEN
+    pass
+
+
+def wait_until_jobs_end():
     """
-    with conn.cursor() as cur:
-        cur.execute(
-            f"SELECT id, resultat, pgn FROM {PARTIE_TABLE} WHERE id = %s",
-            (partie_id,)
-        )
-        row = cur.fetchone()
-
-    if row is None:
-        print(f"[DEBUG] Aucune partie avec id={partie_id}")
-        return
-
-    pid, resultat, pgn_moves = row
-    print("=" * 80)
-    print(f"[DEBUG] Partie id={pid}, resultat={resultat}")
-    print("-" * 80)
-    print("[DEBUG] PGN BRUT :")
-    print(pgn_moves)
-    print("-" * 80)
-
-    cleaned = clean_pgn_moves(pgn_moves or "")
-    print("[DEBUG] PGN APRES NETTOYAGE :")
-    print(cleaned)
-    print("-" * 80)
-
-    tokens = cleaned.split()
-    print("[DEBUG] TOKENS :")
-    for i, tok in enumerate(tokens):
-        print(f"  #{i:03d}: {tok!r}")
-    print("-" * 80)
-
-    board = chess.Board()
-    print("[DEBUG] Position initiale FEN :")
-    print(board.fen())
-    print("-" * 80)
-
-    for i, token in enumerate(tokens):
-        print(f"[DEBUG] Traitement token #{i:03d}: {token!r}")
-
-        # Fin de partie
-        if token in ("1-0", "0-1", "1/2-1/2", "*"):
-            print("  -> Résultat de partie, arrêt.")
-            break
-
-        if token.endswith(".") or token == "...":
-            print("  -> Numéro de coup / '...', on skip.")
-            continue
-
-        try:
-            move = board.parse_san(token)
-            board.push(move)
-            print("  -> Coup accepté")
-            print("     FEN :", board.fen())
-        except Exception as e:
-            print("  -> ERREUR parse_san / push_san !")
-            print(f"     Exception: {e}")
-            print("     FEN courante avant ce coup :", board.fen())
-            print("     On STOP ici pour analyse.")
-            break
-
-    print("=" * 80)
+    Attends que les jobs terminent.
+    :return:
+    """
+    pass
 
 
-# =========================
-# WORKER MPI
-# =========================
-
-def run_worker(conn, rank: int, size: int):
-    total_parties = 0
-    total_positions = 0
-    global_start = time.time()
-
-    copy_buf, copy_row_count = make_copy_buffer()
-
-    with conn.cursor(name=f"parties_cursor_{rank}") as cur:
-        cur.itersize = PARTIE_BATCH_SIZE
-
-        if size == 1:
-            # un seul process -> tout le monde
-            cur.execute(f"SELECT id, resultat, pgn FROM {PARTIE_TABLE}")
-        else:
-            # partitionnement par modulo sur id
-            cur.execute(
-                f"SELECT id, resultat, pgn FROM {PARTIE_TABLE} "
-                f"WHERE (id %% %s) = %s",
-                (size, rank),
-            )
-
-        for row in cur:
-            partie_id, resultat, pgn_moves = row
-            total_parties += 1
-
-            w_inc, b_inc, d_inc = outcome_from_resultat(resultat)
-
-            try:
-                for board in iter_positions_from_pgn_moves(pgn_moves):
-                    fen = board.fen()
-                    h = fen_hash(fen)
-
-                    copy_buf.write(
-                        f"{h}\t{fen}\t1\t{w_inc}\t{b_inc}\t{d_inc}\n"
-                    )
-                    copy_row_count += 1
-                    total_positions += 1
-
-                    if copy_row_count >= POSITION_FLUSH_THRESHOLD:
-                        copy_buf, copy_row_count = flush_copy_buffer(
-                            conn, copy_buf, copy_row_count
-                        )
-
-            except Exception as e:
-                print(f"[WARN][rank {rank}] Partie id={partie_id} ignorée (PGN) : {e}")
-
-            if total_parties % 1_000 == 0:
-                elapsed = time.time() - global_start
-                print(
-                    f"[rank {rank}] {total_parties:,} parties traitées, "
-                    f"{total_positions:,} positions vues, "
-                    f"{elapsed:.1f}s écoulées"
-                )
-
-    # Flush final
-    copy_buf, copy_row_count = flush_copy_buffer(conn, copy_buf, copy_row_count)
-
-    total_time = time.time() - global_start
-    print(
-        f"\n=== Worker rank {rank} terminé ===\n"
-        f"Parties traitées : {total_parties:,}\n"
-        f"Positions totales : {total_positions:,}\n"
-        f"Durée totale : {total_time:.1f} s\n"
-    )
-
-
-# =========================
-# MAIN MPI
-# =========================
-
-def make_conn():
-    conn = psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-    )
-    conn.autocommit = False
-    return conn
+def send_results(positions_hashed):
+    """
+    Envoi les résultats au rank 0.
+    :param positions_hashed:
+    :return:
+    """
+    pass
 
 
 def main():
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    size = comm.Get_size()
-
-    global_start = time.time()
-
-    # Debug ponctuel : uniquement sur un rank si besoin
-    DEBUG_PARTIE_ID = None
-    if DEBUG_PARTIE_ID is not None and rank == 0:
-        conn = make_conn()
-        try:
-            debug_parse_single_partie(conn, DEBUG_PARTIE_ID)
-        finally:
-            conn.close()
-        return
-
-    # 1) PREPARE : rank 0 initialise la table de staging
-    if rank == 0:
-        print(f"[rank 0] INITIALISATION DE LA TABLE DE STAGING", flush=True)
-        conn = make_conn()
-        try:
-            init_staging_table(conn)
-        finally:
-            conn.close()
-
-    # Tous les ranks attendent que le prepare soit fini
-    comm.Barrier()
-
-    # 2) WORKERS : chaque rank traite son sous-ensemble de parties
-    conn = make_conn()
-    try:
-        print(f"[rank {rank}] DÉMARRAGE WORKER (size={size})", flush=True)
-        run_worker(conn, rank, size)
-        conn.commit()
-    finally:
-        conn.close()
-
-    comm.Barrier()
-
-    # 3) AGGREGATE : rank 0 agrège la staging table
-    if rank == 0:
-        print("[rank 0] AGRÉGATION staging -> Position_Stats", flush=True)
-        conn = make_conn()
-        try:
-            aggregate_stage_into_position_stats(conn)
-        finally:
-            conn.close()
-
-    comm.Barrier()
-    global_end = time.time()
+    world, rank = init_mpi()
 
     if rank == 0:
-        print(f"[MPI - rank 0] Temps total d'exécution : {global_end - global_start:.2f} secondes")
-
+        create_jobs(parties)
+        wait_until_jobs_end()
+        flush_positions()
+    else:
+        parties = get_parties_from_job()
+        positions = get_positions_from_parties(parties)
+        positions_hashed = hash_positions()
+        send_results(positions_hashed)
 
 if __name__ == "__main__":
     main()
