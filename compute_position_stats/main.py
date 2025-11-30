@@ -16,7 +16,7 @@ def main():
         print("=== INITIALISATION ===")
         init_staging_table()
         create_all_tasks()
-        print("✓ Prêt pour traitement\n")
+        print("Prêt pour traitement\n")
 
     comm.Barrier()
 
