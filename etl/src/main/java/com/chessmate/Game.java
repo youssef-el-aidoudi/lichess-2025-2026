@@ -7,7 +7,7 @@ package com.chessmate;
                whiteTitle, blackTitle, whiteTeam, blackTeam, whiteFideId, blackFideId,
                utcDate, utcTime,
                broadcastName, broadcastUrl, gameUrl,
-               timeControl;
+               timeControl, pgnNettoye;
 
         Integer whiteElo, blackElo;
         StringBuilder moves = new StringBuilder(); //stock les coups
