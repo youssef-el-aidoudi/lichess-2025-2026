@@ -32,7 +32,7 @@ Les paramètres de connexion à Postgres sont passés via :
 Exemple, à lancer sur un noeud, attention par défaut postgres c'est 100 workers max :
 
 
-   `nohup mpiexec --hostfile hosts.txt -n 90 -x DISPLAY= python main.py > mpi.log 2>&1 &`
+   `nohup mpiexec --hostfile hosts.txt -n 90 -x DISPLAY ~/lichess_compute/compute_position_stats/.venv/bin/python main.py > mpi.log 2>&1 &`
 
 Voir si ça tourne :
 

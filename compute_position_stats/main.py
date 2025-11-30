@@ -44,7 +44,7 @@ def main():
 
                 # Agréger staging vers table finale
                 print("\nAgrégation des résultats...")
-                aggregate_staging_to_stats()
+                aggregate_staging_to_stats(cursor)
 
                 # Rapport final
                 print_final_report(cursor)

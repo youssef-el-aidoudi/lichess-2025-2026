@@ -1,7 +1,6 @@
 """Opérations base de données"""
 
 import psycopg
-from contextlib import contextmanager
 
 from config import (
     DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD,
