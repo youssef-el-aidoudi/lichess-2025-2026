@@ -125,6 +125,7 @@ services:
     build:
       context: ./telegraf
     command: telegraf --config /telegraf_conf
+    user: "0:0"  # root à cause de Docker Desktop de Windows.
     environment:
       TELEGRAF_USER: ${POSTGRES_TELEGRAF_USER}
       TELEGRAF_PASSWORD: ${POSTGRES_TELEGRAF_PASSWORD}
@@ -180,6 +181,7 @@ services:
       TELEGRAF_PASSWORD: ${POSTGRES_TELEGRAF_PASSWORD}
       TELEGRAF_DB: ${POSTGRES_TELEGRAF_DB}
       POSTGRES_URL: postgres:5432
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       GF_MAIN_ORG_ID: ${GF_MAIN_ORG_ID:-1}
     depends_on:
       grafana:
