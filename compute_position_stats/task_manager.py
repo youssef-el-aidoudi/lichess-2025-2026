@@ -170,31 +170,21 @@ def wait_for_all_workers_done(cursor, rank):
     """
     Rank 0 attend que tous les workers terminent.
 
+    :param cursor:
     :param rank: Rank (doit être 0)
     """
     print(f"\nRank {rank}: Attente fin des workers...")
 
-    consecutive_checks = 0
-    REQUIRED_CHECKS = 3
+    if all_tasks_done(cursor):
+        cursor.execute(f"""
+            SELECT statut, COUNT(*) 
+            FROM {TABLE_TACHE}
+            GROUP BY statut
+        """)
+        stats = dict(cursor.fetchall())
+        print(f"Progression: {stats}")
 
-    while consecutive_checks < REQUIRED_CHECKS:
-        if all_tasks_done():
-            consecutive_checks += 1
-            print(f"Check {consecutive_checks}/{REQUIRED_CHECKS}: Toutes les tâches semblent terminées")
-            time.sleep(5)
-        else:
-            consecutive_checks = 0
-
-
-            cursor.execute(f"""
-                SELECT statut, COUNT(*) 
-                FROM {TABLE_TACHE}
-                GROUP BY statut
-            """)
-            stats = dict(cursor.fetchall())
-            print(f"Progression: {stats}")
-
-            time.sleep(10)
+        time.sleep(10)
 
     print(f"Tous les workers ont terminé")
 
