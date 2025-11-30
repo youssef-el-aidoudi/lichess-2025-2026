@@ -20,65 +20,56 @@ def get_connection():
     )
 
 
-@contextmanager
-def get_cursor():
-    """Context manager pour obtenir un curseur"""
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            yield cursor
 
-
-def init_staging_table():
+def init_staging_table(cursor):
     """Initialise la table de staging (rank 0 seulement)"""
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {TABLE_POSITION_STAGE} (
-                    hash BIGINT,
-                    fen TEXT NOT NULL,
-                    nb_total BIGINT NOT NULL,
-                    nb_victoires_blanc BIGINT NOT NULL,
-                    nb_victoires_noir BIGINT NOT NULL,
-                    nb_nulles BIGINT NOT NULL
-                )
-            """)
-            cursor.execute(f"TRUNCATE TABLE {TABLE_POSITION_STAGE}")
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS {TABLE_POSITION_STAGE} (
+            hash BIGINT,
+            fen TEXT NOT NULL,
+            nb_total BIGINT NOT NULL,
+            nb_victoires_blanc BIGINT NOT NULL,
+            nb_victoires_noir BIGINT NOT NULL,
+            nb_nulles BIGINT NOT NULL
+        )
+    """)
+    cursor.execute(f"TRUNCATE TABLE {TABLE_POSITION_STAGE}")
 
-    print("✓ Table de staging initialisée")
+    print("Table de staging initialisée")
 
 
-def aggregate_staging_to_stats():
+def aggregate_staging_to_stats(cursor):
     """Agrège staging vers Position_Stats (rank 0 seulement)"""
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(f"""
-                INSERT INTO {TABLE_POSITION_STATS} AS ps
-                    (hash, fen, nb_total, nb_victoires_blanc, nb_victoires_noir, nb_nulles, updated_at)
-                SELECT
-                    hash,
-                    MIN(fen) AS fen,
-                    SUM(nb_total),
-                    SUM(nb_victoires_blanc),
-                    SUM(nb_victoires_noir),
-                    SUM(nb_nulles),
-                    NOW()
-                FROM {TABLE_POSITION_STAGE}
-                GROUP BY hash
-                ON CONFLICT (hash) DO UPDATE
-                SET nb_total = ps.nb_total + EXCLUDED.nb_total,
-                    nb_victoires_blanc = ps.nb_victoires_blanc + EXCLUDED.nb_victoires_blanc,
-                    nb_victoires_noir = ps.nb_victoires_noir + EXCLUDED.nb_victoires_noir,
-                    nb_nulles = ps.nb_nulles + EXCLUDED.nb_nulles,
-                    updated_at = NOW()
-            """)
+
+    cursor.execute(f"""
+        INSERT INTO {TABLE_POSITION_STATS} AS ps
+            (hash, fen, nb_total, nb_victoires_blanc, nb_victoires_noir, nb_nulles, updated_at)
+        SELECT
+            hash,
+            MIN(fen) AS fen,
+            SUM(nb_total),
+            SUM(nb_victoires_blanc),
+            SUM(nb_victoires_noir),
+            SUM(nb_nulles),
+            NOW()
+        FROM {TABLE_POSITION_STAGE}
+        GROUP BY hash
+        ON CONFLICT (hash) DO UPDATE
+        SET nb_total = ps.nb_total + EXCLUDED.nb_total,
+            nb_victoires_blanc = ps.nb_victoires_blanc + EXCLUDED.nb_victoires_blanc,
+            nb_victoires_noir = ps.nb_victoires_noir + EXCLUDED.nb_victoires_noir,
+            nb_nulles = ps.nb_nulles + EXCLUDED.nb_nulles,
+            updated_at = NOW()
+    """)
 
     print("Agrégation staging, Position_Stats terminée")
 
 
-def flush_positions_to_staging(positions, rank):
+def flush_positions_to_staging(cursor, positions, rank):
     """
     Flush positions vers staging avec COPY.
 
+    :param cursor:
     :param positions: Liste de tuples (hash, fen, nb_total, w, b, d)
     :param rank: Rank du worker (pour logging)
     """
@@ -93,9 +84,7 @@ def flush_positions_to_staging(positions, rank):
 
     buf.seek(0)
 
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.copy(buf, TABLE_POSITION_STAGE)
+    cursor.copy(buf, TABLE_POSITION_STAGE)
 
     buf.close()
     print(f"Worker {rank}: {len(positions):,} positions flushées")

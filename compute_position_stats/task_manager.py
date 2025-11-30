@@ -1,15 +1,14 @@
 """Gestion des tâches (jobs) MPI"""
+import time
 
 from database import get_connection
 from config import MAX_RETRIES, CHUNK_SIZE, TABLE_TACHE, TABLE_PARTIE
 
 
-def get_last_partie_id_in_tasks():
+def get_last_partie_id_in_tasks(cursor):
     """Récupère le dernier ID de partie déjà dans les tâches"""
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(f"SELECT MAX(fin_partie_id) FROM {TABLE_TACHE}")
-            return cursor.fetchone()[0]
+    cursor.execute(f"SELECT MAX(fin_partie_id) FROM {TABLE_TACHE}")
+    return cursor.fetchone()[0]
 
 
 def create_new_tasks(cursor, last_id):
@@ -47,129 +46,197 @@ def create_new_tasks(cursor, last_id):
     print(f"{len(jobs)} tâches créées")
 
 
-def create_all_tasks():
+def create_all_tasks(cursor):
     """Point d'entrée pour créer les tâches (rank 0)"""
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            last_id = get_last_partie_id_in_tasks()
-            create_new_tasks(cursor, last_id)
+    last_id = get_last_partie_id_in_tasks(cursor)
+    create_new_tasks(cursor, last_id)
 
 
-def claim_next_task(rank):
+def claim_next_task(cursor, rank):
     """
     Récupère atomiquement la prochaine tâche disponible.
 
+    :param cursor:
     :param rank: Rank du worker
     :return: (task_id, start_id, end_id) ou None
     """
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(f"""
-                SELECT id, debut_partie_id, fin_partie_id
-                FROM {TABLE_TACHE}
-                WHERE statut = 'pending'
-                   OR (statut = 'failed' AND tentative < %s)
-                ORDER BY tentative ASC, id ASC
-                LIMIT 1
-                FOR UPDATE SKIP LOCKED
-            """, (MAX_RETRIES,))
 
-            result = cursor.fetchone()
-            if result is None:
-                return None
+    cursor.execute(f"""
+        SELECT id, debut_partie_id, fin_partie_id
+        FROM {TABLE_TACHE}
+        WHERE statut = 'pending'
+           OR (statut = 'failed' AND tentative < %s)
+        ORDER BY tentative ASC, id ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+    """, (MAX_RETRIES,))
 
-            task_id, start, end = result
+    result = cursor.fetchone()
+    if result is None:
+        return None
 
-            cursor.execute(f"""
-                UPDATE {TABLE_TACHE}
-                SET statut = 'running',
-                    worker_rank = %s,
-                    debut_a = NOW(),
-                    tentative = tentative + 1
-                WHERE id = %s
-            """, (rank, task_id))
+    task_id, start, end = result
 
-            return task_id, start, end
+    cursor.execute(f"""
+        UPDATE {TABLE_TACHE}
+        SET statut = 'running',
+            worker_rank = %s,
+            debut_a = NOW(),
+            tentative = tentative + 1
+        WHERE id = %s
+    """, (rank, task_id))
+
+    return task_id, start, end
 
 
-def mark_task_completed(task_id, rank):
+def mark_task_completed(cursor, task_id, rank):
     """Marque une tâche comme terminée"""
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(f"""
-                UPDATE {TABLE_TACHE}
-                SET statut = 'completed',
-                    fin_a = NOW()
-                WHERE id = %s AND worker_rank = %s
-            """, (task_id, rank))
+
+    cursor.execute(f"""
+        UPDATE {TABLE_TACHE}
+        SET statut = 'completed',
+            fin_a = NOW()
+        WHERE id = %s AND worker_rank = %s
+    """, (task_id, rank))
 
 
-def mark_task_failed(task_id, error_msg, rank):
+def mark_task_failed(cursor, task_id, error_msg, rank):
     """Marque une tâche comme échouée"""
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(f"""
-                UPDATE {TABLE_TACHE}
-                SET statut = 'failed',
-                    message_erreur = %s
-                WHERE id = %s AND worker_rank = %s
-            """, (error_msg[:500], task_id, rank))
+
+    cursor.execute(f"""
+        UPDATE {TABLE_TACHE}
+        SET statut = 'failed',
+            message_erreur = %s
+        WHERE id = %s AND worker_rank = %s
+    """, (error_msg[:500], task_id, rank))
 
 
-def all_tasks_done():
-    """Vérifie si toutes les tâches sont terminées"""
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(f"""
-                SELECT COUNT(*)
-                FROM {TABLE_TACHE}
-                WHERE statut IN ('pending', 'running')
-                   OR (statut = 'failed' AND tentative < %s)
-            """, (MAX_RETRIES,))
+def mark_task_timeout(cursor):
+    cursor.execute("""
+                   UPDATE TachePositionStats
+                   SET statut         = 'failed',
+                       message_erreur = 'Timeout'
+                   WHERE statut = 'running'
+                     AND debut_a < NOW() - INTERVAL '10 minutes'
+                     AND tentative
+                       < %s
+                   """, (MAX_RETRIES,))
 
+    timeout_count = cursor.rowcount
+    if timeout_count > 0:
+        print(f"{timeout_count} tâches en timeout.")
+
+
+def get_count_tasks_not_done(cursor):
+    cursor.execute("""
+                   SELECT COUNT(*)
+                   FROM TachePositionStats
+                   WHERE statut IN ('pending', 'running')
+                      OR (statut = 'failed' AND tentative < %s)
+                   """, (MAX_RETRIES,))
+
+    return cursor.fetchone()[0]
+
+
+def all_tasks_done(cursor):
+    """Version avec auto-récupération des tâches bloquées"""
+    mark_task_timeout(cursor)
+    count = get_count_tasks_not_done(cursor)
+    return count == 0
+
+
+def wait_for_tasks_creation(cursor, rank):
+    """
+    Workers attendent que les tâches soient créées.
+
+    :param rank: Rank du worker
+    """
+    print(f"Worker {rank}: Attente création des tâches...")
+
+    while True:
+        try:
+            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_TACHE}")
             count = cursor.fetchone()[0]
-            return count == 0
+            if count > 0:
+                print(f"Worker {rank}: {count} tâches détectées, démarrage !")
+                return
+        except Exception as e:
+            print(f"Worker {rank}: Erreur attente tâches: {e}")
+
+        time.sleep(2)
 
 
-def get_parties_from_task(start_id, end_id, rank):
+def wait_for_all_workers_done(cursor, rank):
+    """
+    Rank 0 attend que tous les workers terminent.
+
+    :param rank: Rank (doit être 0)
+    """
+    print(f"\nRank {rank}: Attente fin des workers...")
+
+    consecutive_checks = 0
+    REQUIRED_CHECKS = 3
+
+    while consecutive_checks < REQUIRED_CHECKS:
+        if all_tasks_done():
+            consecutive_checks += 1
+            print(f"Check {consecutive_checks}/{REQUIRED_CHECKS}: Toutes les tâches semblent terminées")
+            time.sleep(5)
+        else:
+            consecutive_checks = 0
+
+
+            cursor.execute(f"""
+                SELECT statut, COUNT(*) 
+                FROM {TABLE_TACHE}
+                GROUP BY statut
+            """)
+            stats = dict(cursor.fetchall())
+            print(f"Progression: {stats}")
+
+            time.sleep(10)
+
+    print(f"Tous les workers ont terminé")
+
+
+def get_parties_from_task(cursor, start_id, end_id, rank):
     """
     Récupère les parties d'une tâche.
 
+    :param cursor:
     :param start_id: ID début
     :param end_id: ID fin
     :param rank: Rank (pour logging)
     :return: Liste de tuples (id, pgn, resultat)
     """
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(f"""
-                SELECT id, pgn, resultat
-                FROM {TABLE_PARTIE}
-                WHERE id BETWEEN %s AND %s
-                  AND pgn IS NOT NULL
-                ORDER BY id
-            """, (start_id, end_id))
 
-            parties = cursor.fetchall()
-            print(f"Worker {rank}: {len(parties)} parties récupérées [{start_id}-{end_id}]")
-            return parties
+    cursor.execute(f"""
+        SELECT id, pgn, resultat
+        FROM {TABLE_PARTIE}
+        WHERE id BETWEEN %s AND %s
+          AND pgn IS NOT NULL
+        ORDER BY id
+    """, (start_id, end_id))
+
+    parties = cursor.fetchall()
+    print(f"Worker {rank}: {len(parties)} parties récupérées [{start_id}-{end_id}]")
+    return parties
 
 
-def print_final_report():
+def print_final_report(cursor):
     """Affiche le rapport final des tâches"""
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(f"""
-                SELECT statut, COUNT(*) as count
-                FROM {TABLE_TACHE}
-                GROUP BY statut
-            """)
 
-            stats = cursor.fetchall()
+    cursor.execute(f"""
+        SELECT statut, COUNT(*) as count
+        FROM {TABLE_TACHE}
+        GROUP BY statut
+    """)
 
-            print("\n" + "="*60)
-            print("RAPPORT FINAL")
-            print("="*60)
-            for statut, count in stats:
-                print(f"{statut:12s}: {count:6d}")
-            print("="*60)
+    stats = cursor.fetchall()
+
+    print("\n" + "=" * 60)
+    print("RAPPORT FINAL")
+    print("=" * 60)
+    for statut, count in stats:
+        print(f"{statut:12s}: {count:6d}")
+    print("=" * 60)
