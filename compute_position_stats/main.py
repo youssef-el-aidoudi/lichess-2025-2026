@@ -26,7 +26,7 @@ def main():
 
             if rank != 0:
                 # Workers attendent que rank 0 crée les tâches
-                wait_for_tasks_creation(conn, cursor, rank)
+                wait_for_tasks_creation(cursor, rank)
 
                 # Traiter les tâches
                 print(f"Worker {rank}: Démarrage du traitement")
@@ -47,7 +47,7 @@ def main():
                 aggregate_staging_to_stats(conn, cursor)
 
                 # Rapport final
-                print_final_report(conn, cursor)
+                print_final_report(cursor)
 
                 print("\n" + "="*60)
                 print("TRAITEMENT GLOBAL TERMINÉ")

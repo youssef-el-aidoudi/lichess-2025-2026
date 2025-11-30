@@ -17,6 +17,7 @@ def process_all_tasks(conn, cursor, rank):
     """
     Boucle principale : les workers récupèrent et traitent les tâches.
 
+    :param conn:
     :param cursor:
     :param rank: Rank du worker MPI
     """
@@ -34,7 +35,7 @@ def process_all_tasks(conn, cursor, rank):
         task_id, start_id, end_id = task
 
         try:
-            parties = get_parties_from_task(conn, cursor, start_id, end_id, rank)
+            parties = get_parties_from_task(cursor, start_id, end_id, rank)
 
             positions = get_positions_from_parties(parties)
 
