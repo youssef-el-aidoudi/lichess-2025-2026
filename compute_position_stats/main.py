@@ -1,8 +1,7 @@
 """Point d'entrée principal du programme MPI"""
 from mpi4py import MPI
 
-from compute_position_stats.database import get_connection
-from database import init_staging_table, aggregate_staging_to_stats
+from database import init_staging_table, aggregate_staging_to_stats, get_connection
 from task_manager import create_all_tasks, print_final_report, wait_for_tasks_creation, wait_for_all_workers_done
 from worker import process_all_tasks
 
