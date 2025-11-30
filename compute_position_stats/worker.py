@@ -38,7 +38,7 @@ def process_all_tasks(conn, cursor, rank):
 
             positions = get_positions_from_parties(parties)
 
-            flush_positions_to_staging(cursor, positions, rank)
+            flush_positions_to_staging(conn, cursor, positions, rank)
 
             mark_task_completed(conn, cursor, task_id, rank)
             tasks_processed += 1

@@ -69,6 +69,7 @@ def flush_positions_to_staging(conn, cursor, positions, rank):
     """
     Flush positions vers staging avec COPY.
 
+    :param conn:
     :param cursor:
     :param positions: Liste de tuples (hash, fen, nb_total, w, b, d)
     :param rank: Rank du worker (pour logging)
