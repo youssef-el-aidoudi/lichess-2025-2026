@@ -11,6 +11,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - internal
+      - public
     # Client MPI hors docker, on utilisera 5432 et IP du Host pour se co à postgres.
     ports:
       - "5432:5432"
