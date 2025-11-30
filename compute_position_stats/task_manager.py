@@ -43,6 +43,8 @@ def create_new_tasks(cursor, last_id):
         VALUES (%s, %s, %s)
     """, jobs)
 
+    cursor.commit()
+
     print(f"{len(jobs)} tâches créées")
 
 
@@ -86,6 +88,8 @@ def claim_next_task(cursor, rank):
         WHERE id = %s
     """, (rank, task_id))
 
+    cursor.commit()
+
     return task_id, start, end
 
 
@@ -99,6 +103,7 @@ def mark_task_completed(cursor, task_id, rank):
         WHERE id = %s AND worker_rank = %s
     """, (task_id, rank))
 
+    cursor.commit()
 
 def mark_task_failed(cursor, task_id, error_msg, rank):
     """Marque une tâche comme échouée"""
@@ -110,6 +115,7 @@ def mark_task_failed(cursor, task_id, error_msg, rank):
         WHERE id = %s AND worker_rank = %s
     """, (error_msg[:500], task_id, rank))
 
+    cursor.commit()
 
 def mark_task_timeout(cursor):
     cursor.execute("""
@@ -126,6 +132,7 @@ def mark_task_timeout(cursor):
     if timeout_count > 0:
         print(f"{timeout_count} tâches en timeout.")
 
+    cursor.commit()
 
 def get_count_tasks_not_done(cursor):
     cursor.execute("""
@@ -149,6 +156,7 @@ def wait_for_tasks_creation(cursor, rank):
     """
     Workers attendent que les tâches soient créées.
 
+    :param cursor:
     :param rank: Rank du worker
     """
     print(f"Worker {rank}: Attente création des tâches...")
