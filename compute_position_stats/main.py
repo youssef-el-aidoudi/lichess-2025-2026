@@ -19,18 +19,18 @@ def main():
                 print("PHASE 1 : INITIALISATION")
                 print("="*60)
 
-                init_staging_table(cursor)
-                create_all_tasks(cursor)
+                init_staging_table(conn, cursor)
+                create_all_tasks(conn, cursor)
 
                 print("Initialisation terminée\n")
 
             if rank != 0:
                 # Workers attendent que rank 0 crée les tâches
-                wait_for_tasks_creation(cursor, rank)
+                wait_for_tasks_creation(conn, cursor, rank)
 
                 # Traiter les tâches
                 print(f"Worker {rank}: Démarrage du traitement")
-                process_all_tasks(cursor, rank)
+                process_all_tasks(conn, cursor, rank)
 
                 print(f"Worker {rank}: Traitement terminé, arrêt")
 
@@ -40,14 +40,14 @@ def main():
                 print("="*60)
 
                 # Attendre que tous les workers terminent
-                wait_for_all_workers_done(cursor, rank)
+                wait_for_all_workers_done(conn, cursor, rank)
 
                 # Agréger staging vers table finale
                 print("\nAgrégation des résultats...")
-                aggregate_staging_to_stats(cursor)
+                aggregate_staging_to_stats(conn, cursor)
 
                 # Rapport final
-                print_final_report(cursor)
+                print_final_report(conn, cursor)
 
                 print("\n" + "="*60)
                 print("TRAITEMENT GLOBAL TERMINÉ")

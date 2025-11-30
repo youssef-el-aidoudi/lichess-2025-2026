@@ -20,7 +20,7 @@ def get_connection():
 
 
 
-def init_staging_table(cursor):
+def init_staging_table(conn, cursor):
     """Initialise la table de staging (rank 0 seulement)"""
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS {TABLE_POSITION_STAGE} (
@@ -33,11 +33,11 @@ def init_staging_table(cursor):
         )
     """)
     cursor.execute(f"TRUNCATE TABLE {TABLE_POSITION_STAGE}")
-
+    conn.commit()
     print("Table de staging initialisée")
 
 
-def aggregate_staging_to_stats(cursor):
+def aggregate_staging_to_stats(conn, cursor):
     """Agrège staging vers Position_Stats (rank 0 seulement)"""
 
     cursor.execute(f"""
@@ -61,10 +61,11 @@ def aggregate_staging_to_stats(cursor):
             updated_at = NOW()
     """)
 
+    conn.commit()
     print("Agrégation staging, Position_Stats terminée")
 
 
-def flush_positions_to_staging(cursor, positions, rank):
+def flush_positions_to_staging(conn, cursor, positions, rank):
     """
     Flush positions vers staging avec COPY.
 
@@ -84,6 +85,7 @@ def flush_positions_to_staging(cursor, positions, rank):
     buf.seek(0)
 
     cursor.copy(buf, TABLE_POSITION_STAGE)
-
+    conn.commit()
     buf.close()
+
     print(f"Worker {rank}: {len(positions):,} positions flushées")

@@ -5,13 +5,13 @@ from database import get_connection
 from config import MAX_RETRIES, CHUNK_SIZE, TABLE_TACHE, TABLE_PARTIE
 
 
-def get_last_partie_id_in_tasks(cursor):
+def get_last_partie_id_in_tasks(conn, cursor):
     """Récupère le dernier ID de partie déjà dans les tâches"""
     cursor.execute(f"SELECT MAX(fin_partie_id) FROM {TABLE_TACHE}")
     return cursor.fetchone()[0]
 
 
-def create_new_tasks(cursor, last_id):
+def create_new_tasks(conn, cursor, last_id):
     """
     Crée de nouvelles tâches pour les parties non encore traitées.
 
@@ -48,13 +48,13 @@ def create_new_tasks(cursor, last_id):
     print(f"{len(jobs)} tâches créées")
 
 
-def create_all_tasks(cursor):
+def create_all_tasks(conn, cursor):
     """Point d'entrée pour créer les tâches (rank 0)"""
-    last_id = get_last_partie_id_in_tasks(cursor)
-    create_new_tasks(cursor, last_id)
+    last_id = get_last_partie_id_in_tasks(conn, cursor)
+    create_new_tasks(conn, cursor, last_id)
 
 
-def claim_next_task(cursor, rank):
+def claim_next_task(conn, cursor, rank):
     """
     Récupère atomiquement la prochaine tâche disponible.
 
@@ -93,7 +93,7 @@ def claim_next_task(cursor, rank):
     return task_id, start, end
 
 
-def mark_task_completed(cursor, task_id, rank):
+def mark_task_completed(conn, cursor, task_id, rank):
     """Marque une tâche comme terminée"""
 
     cursor.execute(f"""
@@ -105,7 +105,7 @@ def mark_task_completed(cursor, task_id, rank):
 
     conn.commit()
 
-def mark_task_failed(cursor, task_id, error_msg, rank):
+def mark_task_failed(conn, cursor, task_id, error_msg, rank):
     """Marque une tâche comme échouée"""
 
     cursor.execute(f"""
@@ -117,7 +117,7 @@ def mark_task_failed(cursor, task_id, error_msg, rank):
 
     conn.commit()
 
-def mark_task_timeout(cursor):
+def mark_task_timeout(conn, cursor):
     cursor.execute("""
                    UPDATE TachePositionStats
                    SET statut         = 'failed',
@@ -134,7 +134,7 @@ def mark_task_timeout(cursor):
 
     conn.commit()
 
-def get_count_tasks_not_done(cursor):
+def get_count_tasks_not_done(conn, cursor):
     cursor.execute("""
                    SELECT COUNT(*)
                    FROM TachePositionStats
@@ -145,14 +145,14 @@ def get_count_tasks_not_done(cursor):
     return cursor.fetchone()[0]
 
 
-def all_tasks_done(cursor):
+def all_tasks_done(conn, cursor):
     """Version avec auto-récupération des tâches bloquées"""
     mark_task_timeout(cursor)
     count = get_count_tasks_not_done(cursor)
     return count == 0
 
 
-def wait_for_tasks_creation(cursor, rank):
+def wait_for_tasks_creation(conn, cursor, rank):
     """
     Workers attendent que les tâches soient créées.
 
@@ -174,7 +174,7 @@ def wait_for_tasks_creation(cursor, rank):
         time.sleep(2)
 
 
-def wait_for_all_workers_done(cursor, rank):
+def wait_for_all_workers_done(conn, cursor, rank):
     """
     Rank 0 attend que tous les workers terminent.
 
@@ -197,7 +197,7 @@ def wait_for_all_workers_done(cursor, rank):
     print(f"Tous les workers ont terminé")
 
 
-def get_parties_from_task(cursor, start_id, end_id, rank):
+def get_parties_from_task(conn, cursor, start_id, end_id, rank):
     """
     Récupère les parties d'une tâche.
 
@@ -221,7 +221,7 @@ def get_parties_from_task(cursor, start_id, end_id, rank):
     return parties
 
 
-def print_final_report(cursor):
+def print_final_report(conn, cursor):
     """Affiche le rapport final des tâches"""
 
     cursor.execute(f"""
