@@ -85,7 +85,10 @@ def flush_positions_to_staging(conn, cursor, positions, rank):
 
     buf.seek(0)
 
-    cursor.copy(buf, TABLE_POSITION_STAGE)
+    with cursor.copy(f"COPY {TABLE_POSITION_STAGE} (hash, fen, nb_total, w, b, d) FROM STDIN") as copy:
+        for h, fen, total, w, b, d in positions:
+            copy.write_row((h, fen, total, w, b, d))
+
     conn.commit()
     buf.close()
 
