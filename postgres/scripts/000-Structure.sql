@@ -194,3 +194,17 @@ CREATE INDEX IF NOT EXISTS idx_tache_statut_tentative
 
 CREATE INDEX IF NOT EXISTS idx_tache_worker
     ON TachePositionStats(worker_rank, statut);
+
+CREATE TABLE IF NOT EXISTS PositionStatsProgress (
+       id INTEGER PRIMARY KEY DEFAULT 1,
+       derniere_partie_id_calculee INTEGER DEFAULT 0
+    );
+
+CREATE TABLE IF NOT EXISTS Position_Stats_Stage (
+    hash BIGINT,
+    fen TEXT NOT NULL,
+    nb_total BIGINT NOT NULL,
+    nb_victoires_blanc BIGINT NOT NULL,
+    nb_victoires_noir BIGINT NOT NULL,
+    nb_nulles BIGINT NOT NULL
+);

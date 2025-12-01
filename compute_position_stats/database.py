@@ -19,26 +19,34 @@ def get_connection():
     )
 
 
-
 def init_staging_table(conn, cursor):
-    """Initialise la table de staging (rank 0 seulement)"""
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS {TABLE_POSITION_STAGE} (
-            hash BIGINT,
-            fen TEXT NOT NULL,
-            nb_total BIGINT NOT NULL,
-            nb_victoires_blanc BIGINT NOT NULL,
-            nb_victoires_noir BIGINT NOT NULL,
-            nb_nulles BIGINT NOT NULL
-        )
-    """)
+    """
+    Initialise la table de progression (une seule fois).
+    """
+    cursor.execute("""
+                   INSERT INTO PositionStatsProgress (id, derniere_partie_id_calculee)
+                   VALUES (1, 0)
+                       ON CONFLICT (id) DO NOTHING
+                   """)
+    conn.commit()
+    print("Table de progression initialisée")
+
+
+def clear_staging_table(conn, cursor):
+    """
+    Vide la table staging avant un nouveau batch.
+    """
     cursor.execute(f"TRUNCATE TABLE {TABLE_POSITION_STAGE}")
     conn.commit()
-    print("Table de staging initialisée")
+    print("Table staging vidée")
 
 
 def aggregate_staging_to_stats(conn, cursor):
-    """Agrège staging vers Position_Stats (rank 0 seulement)"""
+    """
+    Agrège staging vers Position_Stats (rank 0 seulement).
+    Utilise UPSERT pour incrémenter les compteurs existants.
+    """
+    print("Agrégation staging → Position_Stats...")
 
     cursor.execute(f"""
         INSERT INTO {TABLE_POSITION_STATS} AS ps
@@ -61,35 +69,46 @@ def aggregate_staging_to_stats(conn, cursor):
             updated_at = NOW()
     """)
 
+    rows_affected = cursor.rowcount
     conn.commit()
-    print("Agrégation staging, Position_Stats terminée")
+    print(f"Agrégation terminée : {rows_affected:,} positions mises à jour")
 
 
-def flush_positions_to_staging(conn, cursor, positions, rank):
+def get_parties_range_to_process(cursor):
     """
-    Flush positions vers staging avec COPY.
+    Détermine la plage de parties à traiter.
 
-    :param conn:
-    :param cursor:
-    :param positions: Liste de tuples (hash, fen, nb_total, w, b, d)
-    :param rank: Rank du worker (pour logging)
+    Returns:
+        tuple: (start_id, end_id, total_new_parties)
     """
-    if not positions:
-        return
+    # Récupérer la dernière partie traitée
+    cursor.execute("""
+                   SELECT derniere_partie_id_calculee
+                   FROM PositionStatsProgress
+                   WHERE id = 1
+                   """)
+    result = cursor.fetchone()
+    last_processed = result[0] if result else 0
 
-    import io
+    # Récupérer l'ID max actuel
+    cursor.execute("SELECT COALESCE(MAX(id), 0) FROM Partie")
+    (max_id,) = cursor.fetchone()
 
-    buf = io.StringIO()
-    for h, fen, total, w, b, d in positions:
-        buf.write(f"{h}\t{fen}\t{total}\t{w}\t{b}\t{d}\n")
+    start_id = last_processed + 1
+    end_id = max_id
+    total_new = max(0, end_id - start_id + 1)
 
-    buf.seek(0)
+    return start_id, end_id, total_new
 
-    with cursor.copy(f"COPY {TABLE_POSITION_STAGE} (hash, fen, nb_total, nb_victoires_blanc, nb_victoires_noir, nb_nulles) FROM STDIN") as copy:
-        for h, fen, total, w, b, d in positions:
-            copy.write_row((h, fen, total, w, b, d))
 
+def update_processing_progress(conn, cursor, last_id_processed):
+    """
+    Met à jour le pointeur de dernière partie calculée.
+    """
+    cursor.execute("""
+                   UPDATE PositionStatsProgress
+                   SET derniere_partie_id_calculee = %s
+                   WHERE id = 1
+                   """, (last_id_processed,))
     conn.commit()
-    buf.close()
-
-    print(f"Worker {rank}: {len(positions):,} positions flushées")
+    print(f"Progression sauvegardée : dernière partie = {last_id_processed:,}")

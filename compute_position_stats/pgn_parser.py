@@ -120,7 +120,7 @@ def get_positions_from_parties(parties):
     Parse toutes les parties et retourne positions hashées.
 
     :param parties: Liste de tuples (id, pgn, resultat)
-    :return: Liste plate de positions
+    :return: Liste de positions
     """
     all_positions = []
 
