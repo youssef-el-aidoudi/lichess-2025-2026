@@ -34,13 +34,12 @@ def main():
 
                 print(f"Worker {rank}: Traitement terminé, arrêt")
 
+            comm.Barrier()
+
             if rank == 0:
                 print("\n" + "="*60)
                 print("PHASE 3 : AGGREGATION")
                 print("="*60)
-
-                # Attendre que tous les workers terminent
-                wait_for_all_workers_done(conn, cursor, rank)
 
                 # Agréger staging vers table finale
                 print("\nAgrégation des résultats...")
