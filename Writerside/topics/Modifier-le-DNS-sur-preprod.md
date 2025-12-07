@@ -31,8 +31,7 @@ domain=chessmate-preprod.fr
 
 # Résolution des sous-domaines vers l'IP du serveur
 address=/chessmate-preprod.fr/172.31.60.32
-address=/storage.chessmate-preprod.fr/172.31.60.32
-address=/grafana.chessmate-preprod.fr/172.31.60.32
+address=/visu.chessmate-preprod.fr/172.31.60.32
 
 # Serveur DNS de l'université (pour les autres résolutions)
 server=172.31.21.35
