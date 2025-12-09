@@ -30,6 +30,10 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DEVTOOLS_RESTART_ENABLED: true
+      SPRING_DATASOURCE_URL: jdbc:h2:mem:chessmate
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: ""
     volumes:
       - ./backend:/app
 
