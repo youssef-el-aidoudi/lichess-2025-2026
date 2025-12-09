@@ -11,17 +11,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.chessmate.backend.entiter.Cadence;
-import com.chessmate.backend.repository.CadenceRopository;
+import com.chessmate.backend.repository.CadenceRepository;
 
 @RestController
 @RequestMapping("/cadences")  // URL de base pour toutes les routes
 public class CadenceController {
 
     // Repository injecté pour accéder à la base de données
-    private final CadenceRopository repCadence;
+    private final CadenceRepository repCadence;
 
     // Injection par constructeur
-    public CadenceController(CadenceRopository rep) {
+    public CadenceController(CadenceRepository rep) {
         this.repCadence = rep;
     }
 

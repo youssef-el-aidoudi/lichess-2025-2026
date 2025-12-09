@@ -3,6 +3,7 @@ package com.chessmate.backend.entiter;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonAlias;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,6 +25,7 @@ public class Joueur {
     private long id;
 
     @Column(nullable = false, unique = true, length = 50)
+    @JsonAlias("pseudo")  // Accept both "pseudo" and "pseudonyme" in JSON input
     // Pseudonyme unique du joueur, obligatoire et limité à 50 caractères
     private String pseudonyme;
 

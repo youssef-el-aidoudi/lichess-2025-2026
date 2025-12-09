@@ -36,7 +36,7 @@ public class PositionStats {
     // Nombre de parties nulles à partir de cette position
     private long nbNulles;
 
-    @Column(columnDefinition = "TIMESTAMPTZ DEFAULT NOW()", nullable = false)
+    @Column(nullable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     // Date de la dernière mise à jour des statistiques
     private LocalDateTime updatedAt;
 

@@ -1,6 +1,9 @@
 package com.chessmate.backend.configuration;
 
 import org.springframework.context.annotation.Bean;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.chessmate.backend.filter.JwtFilter;
 import com.chessmate.backend.service.CustomUserDetailsService;
@@ -16,59 +19,72 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-@Configuration // Déclare cette classe comme configuration Spring
-@EnableWebSecurity // Active la sécurité Spring Security
+import java.util.Arrays;
+import java.util.List;
+
+@Configuration
+@EnableWebSecurity
 public class SecurityConfig {
 
-    // Service personnalisé pour charger les utilisateurs depuis la base
     private final CustomUserDetailsService customUserDetailsService;
-    
-    // Classe utilitaire pour gérer les JWT
     private final JwtUtils jwtUtils;
 
-    // Constructeur manuel pour injecter les dépendances
     public SecurityConfig(CustomUserDetailsService s, JwtUtils u) {
         this.customUserDetailsService = s;
         this.jwtUtils = u;
     }
 
-    // Bean pour encoder les mots de passe avec BCrypt
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        
+        // CRITICAL: Use setAllowedOriginPatterns instead of setAllowedOrigins for more flexibility
+        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:*", "http://127.0.0.1:*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L); // Cache preflight for 1 hour
+        
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/auth/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/chess/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/chess/**").permitAll()
+                        .requestMatchers(
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui/index.html"
+                        ).permitAll()
+                        .anyRequest().authenticated()
+                )
+                .addFilterBefore(new JwtFilter(customUserDetailsService, jwtUtils),
+                        UsernamePasswordAuthenticationFilter.class)
+                .build();
+    }
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // Bean pour configurer le AuthenticationManager de Spring Security
     @Bean
-    public AuthenticationManager authenticationManager(HttpSecurity http, PasswordEncoder passwordEncoder) throws Exception {
-        // Récupère le builder de l'AuthenticationManager
-        AuthenticationManagerBuilder authenticationManagerBuilder = http.getSharedObject(AuthenticationManagerBuilder.class);
-        // Configure le UserDetailsService et le PasswordEncoder
-        authenticationManagerBuilder.userDetailsService(customUserDetailsService).passwordEncoder(passwordEncoder);
+    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
+        AuthenticationManagerBuilder authenticationManagerBuilder = http
+                .getSharedObject(AuthenticationManagerBuilder.class);
+        authenticationManagerBuilder.userDetailsService(customUserDetailsService)
+                .passwordEncoder(passwordEncoder());
         return authenticationManagerBuilder.build();
     }
-
-    // Bean pour configurer la chaîne de filtres de sécurité HTTP
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        return http
-                // Désactive CSRF (protection contre les attaques cross-site, ici inutile pour une API REST)
-                .csrf(AbstractHttpConfigurer::disable)
-                // Configure les autorisations pour les requêtes HTTP
-                .authorizeHttpRequests(auth -> 
-                        auth.requestMatchers(
-                            "/api/auth/**", // Autorise toutes les routes d'authentification
-                            
-                            // Autorise les routes Swagger pour la documentation
-                            "/v3/api-docs/**",
-                            "/swagger-ui/**",
-                            "/swagger-ui/index.html")
-                            .permitAll() // Ces routes sont accessibles sans authentification
-                            .anyRequest().authenticated() // Toutes les autres routes nécessitent une authentification
-                )
-                // Ajoute le filtre JWT avant le filtre standard de Spring Security
-                .addFilterBefore(new JwtFilter(customUserDetailsService, jwtUtils), UsernamePasswordAuthenticationFilter.class)
-                .build(); // Construit et retourne la chaîne de filtres
-    }
-
 }
