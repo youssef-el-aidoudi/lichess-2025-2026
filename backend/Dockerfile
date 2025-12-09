@@ -1,5 +1,5 @@
 # Étape 1 : build du JAR
-FROM maven:3.9.9-eclipse-temurin-21 AS build
+FROM maven:eclipse-temurin AS build
 WORKDIR /app
 COPY . .
 RUN mvn -q clean package -DskipTests
