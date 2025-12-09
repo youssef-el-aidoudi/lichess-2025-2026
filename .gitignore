@@ -28,3 +28,5 @@ data/*
 # Fichiers liés au certificat local
 traefik/cert.pem
 traefik/private.key
+
+frontend/build
