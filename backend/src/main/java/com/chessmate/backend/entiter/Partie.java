@@ -35,6 +35,7 @@ public class Partie {
     private String titreBlanc; // Titre du joueur blanc (ex : GM, IM)
     private String titreNoir;  // Titre du joueur noir
     private String typeResultat; // Type de résultat (normal, abandon, etc.)
+    @Column(name = "\"round\"")
     private int round; // Numéro du round dans un tournoi
     
     @Column(columnDefinition = "TEXT")

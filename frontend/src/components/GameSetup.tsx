@@ -1,7 +1,17 @@
 import { useState } from 'react';
-import { Clock, User, Bot, Zap, Timer, Crown, Play } from 'lucide-react';
+import { Clock, User, Bot, Zap, Timer, Crown, Play, Settings } from 'lucide-react';
 
-const TIME_PRESETS = {
+interface TimePreset {
+  label: string;
+  minutes: number;
+  increment: number;
+}
+
+interface GameSetupProps {
+  onStartGame: (settings: any) => void;
+}
+
+const TIME_PRESETS: { [key: string]: TimePreset[] } = {
   bullet: [
     { label: '1+0', minutes: 1, increment: 0 },
     { label: '1+1', minutes: 1, increment: 1 },
@@ -25,26 +35,46 @@ const TIME_PRESETS = {
   ],
 };
 
-export function GameSetup({ onStartGame }) {
-  const [timeControl, setTimeControl] = useState('blitz');
-  const [selectedPreset, setSelectedPreset] = useState(TIME_PRESETS.blitz[1]);
-  const [opponent, setOpponent] = useState('bot');
+export function GameSetup({ onStartGame }: GameSetupProps) {
+  const [timeControl, setTimeControl] = useState<string>('blitz');
+  const [selectedPreset, setSelectedPreset] = useState<TimePreset>(TIME_PRESETS.blitz[1]);
+  const [opponent, setOpponent] = useState<string>('bot');
+  const [depth, setDepth] = useState<number | null>(null);
+  const [movetime, setMovetime] = useState<number | null>(null);
+  const [useDepth, setUseDepth] = useState<boolean>(true);
 
-  const handleTimeControlChange = (control) => {
+  const handleTimeControlChange = (control: string) => {
     setTimeControl(control);
     setSelectedPreset(TIME_PRESETS[control][0]);
   };
 
   const handleStartGame = () => {
+    // Validate engine settings for bot mode
+    if (opponent === 'bot') {
+      if (useDepth && depth === null) {
+        alert('Veuillez sélectionner une profondeur');
+        return;
+      }
+      if (!useDepth && movetime === null) {
+        alert('Veuillez sélectionner un temps');
+        return;
+      }
+    }
+
     onStartGame({
       timeControl,
       timeMinutes: selectedPreset.minutes,
       increment: selectedPreset.increment,
       opponent,
+      engineSettings: opponent === 'bot' ? {
+        depth: useDepth ? depth : null,
+        movetime: !useDepth ? movetime : null,
+        useDepth,
+      } : null,
     });
   };
 
-  const getTimeControlClass = (control) => {
+  const getTimeControlClass = (control: string): string => {
     const baseClass = 'p-4 rounded-xl border-2 transition-all duration-200';
     if (timeControl === control) {
       return baseClass + ' border-blue-500 bg-blue-50 shadow-lg scale-105';
@@ -52,21 +82,12 @@ export function GameSetup({ onStartGame }) {
     return baseClass + ' border-slate-200 bg-white hover:border-blue-300 hover:shadow-md';
   };
 
-  const getPresetClass = (preset) => {
+  const getPresetClass = (preset: TimePreset): string => {
     const baseClass = 'p-4 rounded-xl border-2 transition-all duration-200';
     if (selectedPreset.label === preset.label) {
       return baseClass + ' border-purple-500 bg-purple-50 shadow-lg scale-105';
     }
     return baseClass + ' border-slate-200 bg-white hover:border-purple-300 hover:shadow-md';
-  };
-
-  const getOpponentClass = (opp) => {
-    const baseClass = 'p-6 rounded-xl border-2 transition-all duration-200';
-    if (opponent === opp) {
-      const color = opp === 'bot' ? 'green' : 'orange';
-      return baseClass + ' border-' + color + '-500 bg-' + color + '-50 shadow-lg scale-105';
-    }
-    return baseClass + ' border-slate-200 bg-white hover:shadow-md';
   };
 
   return (
@@ -150,6 +171,104 @@ export function GameSetup({ onStartGame }) {
           </div>
         </div>
 
+        {opponent === 'bot' && (
+          <div className="mb-8 p-6 bg-blue-50 rounded-xl border-2 border-blue-200">
+            <label className="flex items-center gap-2 text-gray-900 mb-4">
+              <Settings className="w-5 h-5 text-blue-600" />
+              Paramètres du moteur Stockfish
+            </label>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Mode de calcul</label>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setUseDepth(true)}
+                  className={`flex-1 p-3 rounded-lg border-2 transition-all ${
+                    useDepth
+                      ? 'border-blue-500 bg-blue-100 text-blue-900'
+                      : 'border-slate-200 bg-white text-gray-700 hover:border-blue-300'
+                  }`}
+                >
+                  Profondeur
+                </button>
+                <button
+                  onClick={() => setUseDepth(false)}
+                  className={`flex-1 p-3 rounded-lg border-2 transition-all ${
+                    !useDepth
+                      ? 'border-purple-500 bg-purple-100 text-purple-900'
+                      : 'border-slate-200 bg-white text-gray-700 hover:border-purple-300'
+                  }`}
+                >
+                  Temps
+                </button>
+              </div>
+            </div>
+
+            {useDepth ? (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Profondeur (coups d'avance)</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {[5, 10, 15, 20, 25].map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setDepth(d)}
+                      className={`p-2 rounded-lg border-2 transition-all text-sm font-medium ${
+                        depth === d
+                          ? 'border-blue-500 bg-blue-100 text-blue-900'
+                          : 'border-slate-200 bg-white text-gray-700 hover:border-blue-300'
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <label className="text-xs text-gray-600">Ou valeur personnalisée (1-30):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="30"
+                    placeholder="Ex: 18"
+                    className="mt-1 px-3 py-2 border border-slate-300 rounded-lg w-24 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? null : Math.max(1, Math.min(30, parseInt(e.target.value) || depth || 15));
+                      setDepth(val);
+                    }}
+                  />
+                </div>
+                {depth && <p className="mt-2 text-sm text-gray-600">Profondeur sélectionnée: <span className="font-bold">{depth}</span></p>}
+              </div>
+            ) : (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Temps de réflexion (millisecondes)</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[500, 1000, 2000, 3000, 5000].map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setMovetime(t)}
+                      className={`p-2 rounded-lg border-2 transition-all text-sm font-medium ${
+                        movetime === t
+                          ? 'border-purple-500 bg-purple-100 text-purple-900'
+                          : 'border-slate-200 bg-white text-gray-700 hover:border-purple-300'
+                      }`}
+                    >
+                      {t}ms
+                    </button>
+                  ))}
+                </div>
+                {movetime && <p className="mt-2 text-sm text-gray-600">Temps sélectionné: <span className="font-bold">{movetime}ms</span></p>}
+              </div>
+            )}
+
+            {(useDepth && !depth) && (
+              <p className="text-red-600 text-sm mt-3">⚠️ Veuillez sélectionner une profondeur</p>
+            )}
+            {(!useDepth && !movetime) && (
+              <p className="text-red-600 text-sm mt-3">⚠️ Veuillez sélectionner un temps</p>
+            )}
+          </div>
+        )}
+
         <div className="border-t border-slate-200 pt-6">
           <div className="bg-slate-50 rounded-xl p-4 mb-6">
             <div className="text-sm text-gray-600 mb-2">Resume de la partie</div>
@@ -168,7 +287,12 @@ export function GameSetup({ onStartGame }) {
 
           <button
             onClick={handleStartGame}
-            className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+            disabled={opponent === 'bot' && ((useDepth && !depth) || (!useDepth && !movetime))}
+            className={`w-full py-4 rounded-xl transition-all duration-200 shadow-lg flex items-center justify-center gap-3 text-white font-semibold ${
+              opponent === 'bot' && ((useDepth && !depth) || (!useDepth && !movetime))
+                ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl'
+            }`}
           >
             <Play className="w-6 h-6" />
             <span className="text-lg">Commencer</span>

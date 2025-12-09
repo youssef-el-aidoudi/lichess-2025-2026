@@ -121,8 +121,6 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-    volumes:
-      - ./backend/target/demo-0.0.1-SNAPSHOT.jar:/app.jar
     depends_on:
       postgres:
         condition: service_healthy

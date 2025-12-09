@@ -37,6 +37,7 @@ export function PlayPage() {
           minutes: gameSettings?.timeMinutes || 5,
           increment: gameSettings?.increment || 0,
         }}
+        engineSettings={gameSettings?.engineSettings}
       />
     </div>
   );

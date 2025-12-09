@@ -74,6 +74,12 @@ public class RegistrationLoginController {
                 Joueur savedJoueur = joueurRepository.save(newJoueur);
                 utilisateur.setJoueur(savedJoueur);
             }
+        } else {
+            // Si aucun joueur n'est fourni, créer un joueur par défaut avec l'email comme pseudo
+            Joueur defaultJoueur = new Joueur();
+            defaultJoueur.setPseudo(utilisateur.getEmail().split("@")[0]); // Utiliser la partie avant @ comme pseudo
+            Joueur savedJoueur = joueurRepository.save(defaultJoueur);
+            utilisateur.setJoueur(savedJoueur);
         }
 
         // Sauvegarder l'utilisateur dans la base de données et renvoyer l'objet créé

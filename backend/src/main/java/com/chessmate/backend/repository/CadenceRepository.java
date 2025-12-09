@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.chessmate.backend.entiter.Cadence;
 import com.chessmate.backend.entiter.Cadence.CategorieCadence;
 
-public interface CadenceRopository  extends JpaRepository<Cadence, Long>{
+public interface CadenceRepository  extends JpaRepository<Cadence, Long>{
     Optional<Cadence> findByLibelle(String lib);  // recherche par libelle
     List<Cadence> findByTemps(int t);  // recherche par temps
     List<Cadence> findByIncrement(int c);  // recherche par increment
