@@ -7,6 +7,7 @@
                   start-page="installer-docker-et-docker-compose.md">
 
     <toc-element toc-title="Installation et Configuration">
+        <toc-element topic="Utiliser-le-DNS-sous-Linu.md"/>
         <toc-element topic="installer-docker-et-docker-compose.md"/>
         <toc-element topic="installation-guide-user.md"/>
         <toc-element topic="deployer-production.md"/>
