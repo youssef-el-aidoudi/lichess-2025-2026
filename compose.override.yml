@@ -34,6 +34,9 @@ services:
       - ./backend:/app
 
   etl:
+    # Pas lancé au démarrage.
+    # docker compose --profile jobs run etl
+    profiles: [ "jobs" ] # le service ne sera pas lancé par défaut
     build:
       context: ./etl
       dockerfile: Dockerfile
