@@ -55,7 +55,8 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS Suite_Coups_Stats (
     id SERIAL PRIMARY KEY,
     pgn TEXT NOT NULL,
-    pgn_hash CHAR(64) GENERATED ALWAYS AS (encode(digest(pgn, 'sha256'), 'hex')) STORED UNIQUE,
+--     pgn_hash CHAR(64) GENERATED ALWAYS AS (encode(digest(pgn, 'sha256'), 'hex')) STORED UNIQUE,
+    pgn_hash UUID,
     nb_victoires INT DEFAULT 0,
     nb_defaites INT DEFAULT 0,
     nb_nulles INT DEFAULT 0,
@@ -65,7 +66,7 @@ CREATE TABLE IF NOT EXISTS Suite_Coups_Stats (
     );
 
 CREATE TABLE IF NOT EXISTS Position_Stats (
-    hash BIGINT PRIMARY KEY,
+    hash UUID PRIMARY KEY,
     fen TEXT NOT NULL,
     nb_total BIGINT NOT NULL,
     nb_victoires_blanc BIGINT NOT NULL,
@@ -119,7 +120,7 @@ CREATE TABLE IF NOT EXISTS Partie (
     game_url TEXT,
     variant VARCHAR(50),
     id_suite_coups_stats INT,
-    hash_position_stats BIGINT,
+    hash_position_stats UUID,
     id_ouverture INT,
     id_cadence INT,
     id_joueur_blanc INT NOT NULL,
@@ -201,7 +202,7 @@ CREATE TABLE IF NOT EXISTS PositionStatsProgress (
     );
 
 CREATE TABLE IF NOT EXISTS Position_Stats_Stage (
-    hash BIGINT,
+    hash UUID,
     fen TEXT NOT NULL,
     nb_total BIGINT NOT NULL,
     nb_victoires_blanc BIGINT NOT NULL,
