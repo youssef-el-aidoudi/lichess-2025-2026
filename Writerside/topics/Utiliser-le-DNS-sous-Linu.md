@@ -82,6 +82,6 @@ Si la résolution retourne l'IP 172.31.60.32, la configuration est opérationnel
 
 Si la résolution ne fonctionne pas :
 
-1. Vérifiez que vous êtes bien connecté au réseau de l'IUT/université
+1. Vérifiez que vous êtes bien connecté au réseau de l'université
 2. Assurez-vous que le serveur DNS (172.31.60.32) est accessible : `ping 172.31.60.32`
 3. Vérifiez qu'aucun autre service ne bloque la configuration DNS (ex: VPN)
