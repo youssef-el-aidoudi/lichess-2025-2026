@@ -75,7 +75,7 @@ Le fichier `.env` centralise les variables de configuration du projet (ports, UR
 2. Ouvrir `.env` et adapter **les valeurs** à votre contexte local (domaines, ports, mots de passe, clés d’API…).
 3. Conserver `.env` **en local** (ne pas le committer si le repository est public) car il contient des secrets.
 
-> **Note :** Plusieurs services (Traefik, MinIO, etc.) lisent leurs paramètres depuis ce fichier. Vérifiez que **toutes
+> **Note :** Plusieurs services (Traefik, etc.) lisent leurs paramètres depuis ce fichier. Vérifiez que **toutes
 ** les clés requises sont renseignées avant de démarrer.
 
 ---
@@ -112,50 +112,6 @@ Après avoir rempli le `.env`, construire et lancer :
 ```bash
 docker compose up --build
 ```
-
----
-
-### Configuration de MinIO
-
-#### Se connecter à l’interface MinIO
-
-* **URL de développement (par défaut)** : [https://storage.docker.localhost/](https://storage.docker.localhost/)
-  *(Adaptez selon votre nom de domaine.)*
-* À l’écran de connexion : **Other Authentication Methods** → **Use Credentials**.
-* **Utilisateur** : `minio_admin`
-* **Mot de passe** : valeur définie lors de l’exécution de `generate_env.py` (ou dans votre `.env`).
-
-Les identifiants root se configurent dans le fichier `.env` via :
-
-```
-MINIO_ROOT_USER=minio_admin
-MINIO_ROOT_PASSWORD=CHANGEME
-```
-
-#### Créer une Access Key
-
-1. Ouvrir **Access Keys** dans la barre latérale gauche.
-2. Cliquer sur **Create access key +**.
-3. Cliquer sur **Create** pour générer une nouvelle paire (Access/Secret).
-4. **Copier** les valeurs générées et mettre à jour votre `.env` :
-
-```
-# URL interne utilisée par les services (Docker ↔ MinIO)
-MINIO_SERVER_URL=http://minio:9000
-
-# Identifiants d’accès applicatifs MinIO
-MINIO_ACCESS_KEY=PASTE_ACCESS_KEY_HERE
-MINIO_SECRET_KEY=PASTE_SECRET_KEY_HERE
-```
-
-> Astuce : conservez ces clés en lieu sûr et ne les versionnez jamais.
-
-**Points à prévoir :**
-
-* Où récupérer les identifiants (UI MinIO, variables par défaut, procédure d’initialisation…).
-* Quelles variables ajouter dans `.env` (ex. `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION`,
-  `MINIO_BUCKET_*`, etc.).
-* Bonnes pratiques (droits minimaux, rotation des secrets, stockage hors VCS).
 
 ---
 

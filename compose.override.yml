@@ -1,77 +1,12 @@
 services:
-  postgres:
-    build:
-      context: ./postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    networks:
-      - internal
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-appdb}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    ports:
-      - "5432:5432"
-    labels:
-      - traefik.enable=false
-
-  rabbitmq:
-    image: rabbitmq:4.1-management
-    restart: unless-stopped
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
-    volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
-    networks:
-      - internal
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-    labels:
-      - traefik.enable=false
-
-  minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_SERVER_URL: ${MINIO_SERVER_URL}
-    volumes:
-      - minio-data:/data
-    networks:
-      - internal
-      - proxy
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.minio.entrypoints=websecure
-      - traefik.http.routers.minio.tls=true
-      - traefik.http.services.minio.loadbalancer.server.port=9001
-      - traefik.docker.network=chessmate_proxy
-      - traefik.http.routers.minio.rule=Host(`${MINIO_HOST}`)
-      - traefik.http.routers.minio.middlewares=securityheaders
-
   traefik:
-    container_name: traefik
-    build:
-      context: ./traefik
     command:
-      - --log.level=ERROR
-      - --api.debug=false
+      - --log.level=DEBUG
+      - --api.debug=true
       - --global.checknewversion=false
       - --global.sendAnonymousUsage=true
       - --api=true
-      - --api.dashboard=false
+      - --api.dashboard=true
       - --ping=true
       - --ping.entryPoint=ping
       - --entrypoints.ping.address=:8080
@@ -86,58 +21,17 @@ services:
       - --entrypoints.websecure.http.tls=true
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/tls.yml:/etc/traefik/tls.yml:ro
-    ports:
-      - "80:80"
-      - "443:443"
-      - "8085:8080"
-    networks:
-      - public
-      - proxy
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.api.service=api@internal
-      - traefik.http.routers.api.entrypoints=websecure
-      - traefik.http.routers.api.tls=true
-      - traefik.http.routers.api.rule=Host(`${TRAEFIK_HOST}`)
-      - traefik.http.routers.api.middlewares=securityheaders
-      - traefik.http.middlewares.securityheaders.headers.stsSeconds=31536000
-      - traefik.http.middlewares.securityheaders.headers.stsIncludeSubdomains=true
-      - traefik.http.middlewares.securityheaders.headers.contentTypeNosniff=true
-      - traefik.http.middlewares.securityheaders.headers.browserXssFilter=true
-
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    restart: unless-stopped
+    working_dir: /app
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - internal
-      - public
-      - proxy
-    ports:
-      - "8080:8080"
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.backend.entrypoints=websecure
-      - traefik.http.routers.backend.tls=true
-      - traefik.http.services.backend.loadbalancer.server.port=8080
-      - traefik.docker.network=chessmate_proxy
-      - traefik.http.routers.backend.rule=Host(`${BACKEND_HOST}`)
-      - traefik.http.routers.backend.middlewares=securityheaders
+      SPRING_DEVTOOLS_RESTART_ENABLED: true
+    volumes:
+      - ./backend:/app
 
   etl:
     # Pas lancé au démarrage.
@@ -146,78 +40,35 @@ services:
     build:
       context: ./etl
       dockerfile: Dockerfile
-    restart: no
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    working_dir: /app
     volumes:
-      - ./data:/data
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - ./etl:/app
+      - maven-cache:/root/.m2
+
+  postgres:
+    volumes:
+      - ./postgres/scripts:/scripts
+    networks:
+      - public
+    ports:
+      - "5432:5432"
+
+  benchmark_position_stats:
     networks:
       - internal
       - public
-    labels:
-      - traefik.enable=false
-
-  producer:
-    build:
-      context: ./producer
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    profiles: [ "jobs" ] # le service ne sera pas lancé par défaut
+    image: python:3.14.0
+    working_dir: /app
+    volumes:
+      - ./benchmark_position_stats:/app
+    command: >
+      sh -c "
+        pip install --no-cache-dir psycopg2-binary &&
+        python main.py
+      "
     depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - internal
-    labels:
-      - traefik.enable=false
-
-  worker:
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - internal
-    labels:
-      - traefik.enable=false
-
-networks:
-  public:
-    name: chessmate_public
-    driver: bridge
-  proxy:
-    name: chessmate_proxy
-    internal: true
-  internal:
-    name: chessmate_internal
-    internal: true
-
+      - postgres
 
 volumes:
-  postgres-data:
-  minio-data:
-  rabbitmq-data:
+  maven-cache:

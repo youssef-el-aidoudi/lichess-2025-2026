@@ -10,6 +10,7 @@
         <toc-element topic="installer-docker-et-docker-compose.md"/>
         <toc-element topic="installation-guide-user.md"/>
         <toc-element topic="deployer-production.md"/>
+        <toc-element topic="Modifier-le-DNS-sur-preprod.md"/>
     </toc-element>
 
 
