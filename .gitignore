@@ -17,6 +17,7 @@ node_modules/
 
 # Environment variables
 .env
+.env.dev
 
 # Git metadata (inutile mais sans risque)
 data/*
