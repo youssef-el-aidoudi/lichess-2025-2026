@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:8080';
+const API_URL = import.meta.env.VITE_API_URL || 'https://api.docker.localhost';
 
 // Helper pour récupérer le token JWT du localStorage
 const getAuthToken = (): string | null => {
@@ -89,11 +89,11 @@ export const getStockfishBestMove = async (
         return data.bestmove || 'e2e4'; // Return bestmove from JSON response
     } catch (error) {
         console.error('❌ Stockfish API Error:', error);
-        
+
         if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
             throw new Error('Backend server not responding. Please ensure the backend is running on port 8080.');
         }
-        
+
         throw error;
     }
 };

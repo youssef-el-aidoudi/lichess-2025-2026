@@ -46,7 +46,7 @@ export function Stats() {
       openings: openingStats,
       bestMoves: bestMovesProbability,
     };
-    
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -133,10 +133,10 @@ export function Stats() {
               <YAxis domain={[75, 95]} />
               <Tooltip />
               <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="accuracy" 
-                stroke="#3b82f6" 
+              <Line
+                type="monotone"
+                dataKey="accuracy"
+                stroke="#3b82f6"
                 strokeWidth={3}
                 name="Précision (%)"
               />
@@ -162,7 +162,7 @@ export function Stats() {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {openingStats.map((entry, index) => (
+                {openingStats.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
@@ -173,8 +173,8 @@ export function Stats() {
             {openingStats.map((opening, index) => (
               <div key={index} className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
-                  <div 
-                    className="w-3 h-3 rounded-full" 
+                  <div
+                    className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: COLORS[index % COLORS.length] }}
                   />
                   <span className="text-gray-700">{opening.name}</span>
@@ -224,7 +224,7 @@ export function Stats() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <h3 className="text-gray-900 mb-2">Configuration ETL Lichess</h3>
         <p className="text-gray-600 mb-4">
-          Les données sont automatiquement extraites de Lichess, traitées par votre backend Java, 
+          Les données sont automatiquement extraites de Lichess, traitées par votre backend Java,
           et analysées avec Stockfish pour calculer les probabilités des meilleurs coups.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
