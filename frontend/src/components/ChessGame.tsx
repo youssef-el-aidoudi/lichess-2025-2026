@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Download, Brain, Circle } from 'lucide-react';
 import { getStockfishBestMove, analyzePosition } from '../services/api';
 
@@ -39,23 +39,25 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   const [currentTurn, setCurrentTurn] = useState<'white' | 'black'>('white');
   const [gameStatus, setGameStatus] = useState<string>('En cours');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  // Silence unused variable warning until used in UI
+  useEffect(() => { if (backendStatus) { } }, [backendStatus]);
   const [thinking, setThinking] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
-  
+
   const [whiteTime, setWhiteTime] = useState((timeControl?.minutes || 5) * 60);
   const [blackTime, setBlackTime] = useState((timeControl?.minutes || 5) * 60);
   const [isTimerActive, setIsTimerActive] = useState(true);
-  
+
   // Track pieces that have moved for castling validation
   const [movedPieces, setMovedPieces] = useState<Set<string>>(new Set());
-  
+
   // Track the last pawn double move for en passant
   const [lastEnPassantFile, setLastEnPassantFile] = useState<number | null>(null);
-  
+
   // Track UCI moves for Stockfish (more reliable than parsing moveHistory)
   const uciMovesRef = useRef<string[]>([]);
-  
-  const [engineSettings, setEngineSettings] = useState<EngineSettings>(() => {
+
+  const [engineSettings] = useState<EngineSettings>(() => {
     if (passedEngineSettings) {
       if (passedEngineSettings.useDepth) {
         return {
@@ -75,7 +77,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       movetime: null,
     };
   });
-  
+
   const [promotionState, setPromotionState] = useState<{
     row: number;
     col: number;
@@ -123,7 +125,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     if (mode !== 'bot' || currentTurn !== 'white' || thinking || winner) {
       return;
     }
-    
+
     // Don't do anything - bot moves are triggered by currentTurn changing to 'black' below
   }, [currentTurn, mode, thinking, winner]);
 
@@ -172,11 +174,11 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       for (let c = 0; c < 8; c++) {
         const piece = boardState[r][c];
         if (piece === '') continue;
-        
+
         // Vérifier si la pièce appartient à l'attaquant
         const isPieceWhite = isWhitePiece(piece);
         if (isPieceWhite !== byWhite) continue;
-        
+
         // Vérifier si cette pièce peut légalement attaquer la case cible
         if (isValidMove(boardState, r, c, row, col, true)) {
           return true;
@@ -189,10 +191,10 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   const isPathClear = (boardState: string[][], fromRow: number, fromCol: number, toRow: number, toCol: number): boolean => {
     const rowDir = toRow > fromRow ? 1 : toRow < fromRow ? -1 : 0;
     const colDir = toCol > fromCol ? 1 : toCol < fromCol ? -1 : 0;
-    
+
     let currentRow = fromRow + rowDir;
     let currentCol = fromCol + colDir;
-    
+
     while (currentRow !== toRow || currentCol !== toCol) {
       if (boardState[currentRow][currentCol] !== '') {
         return false; // Obstacle trouvé
@@ -200,7 +202,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       currentRow += rowDir;
       currentCol += colDir;
     }
-    
+
     return true;
   };
 
@@ -208,11 +210,12 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   const checkBackendStatus = async () => {
     try {
       setBackendStatus('checking');
-      const response = await fetch('http://localhost:8080/api/chess/bestmove?moves=&mode=depth&color=black&depth=1&movetime=100', {
+      const API_URL = import.meta.env.VITE_API_URL || 'https://api.docker.localhost';
+      const response = await fetch(`${API_URL}/api/chess/bestmove?moves=&mode=depth&color=black&depth=1&movetime=100`, {
         method: 'GET',
         signal: AbortSignal.timeout(3000),
       });
-      
+
       if (response.ok) {
         setBackendStatus('connected');
         if (gameStatus.includes('❌ Erreur')) {
@@ -322,36 +325,36 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       if (absRowDiff <= 1 && absColDiff <= 1 && !(rowDiff === 0 && colDiff === 0)) {
         return true;
       }
-      
+
       // Castling (grand roque et petit roque)
       if (rowDiff === 0 && absColDiff === 2 && !isAttackCheck) {
         const isWhiteKing = piece === '♔';
         const kingRow = isWhiteKing ? 7 : 0;
         const rookCol = colDiff > 0 ? 7 : 0; // Petit roque = col droite (7), Grand roque = col gauche (0)
-        
+
         // Vérifier que le roi est en position initiale
         if (fromRow === kingRow && fromCol === 4) {
           // Vérifier que la tour est en place
           const rook = boardState[kingRow][rookCol];
           const isWhiteRook = rook === '♖';
           const isBlackRook = rook === '♜';
-          
+
           if ((isWhiteKing && isWhiteRook) || (!isWhiteKing && isBlackRook)) {
             // Vérifier que le chemin est dégagé
             if (isPathClear(boardState, fromRow, fromCol, kingRow, rookCol)) {
               // Vérifier que ni le roi ni la tour n'ont bougé
               const kingPieceId = isWhiteKing ? 'K' : 'k';
               const rookPieceId = isWhiteKing ? `R${rookCol}` : `r${rookCol}`;
-              
+
               const kingHasMoved = movedPieces.has(kingPieceId);
               const rookHasMoved = movedPieces.has(rookPieceId);
-              
+
               return !kingHasMoved && !rookHasMoved;
             }
           }
         }
       }
-      
+
       return false;
     }
 
@@ -361,7 +364,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   const isKingInCheck = (boardState: string[][], isWhiteKing: boolean): boolean => {
     const kingPos = findKing(boardState, isWhiteKing);
     if (!kingPos) return false;
-    
+
     // Vérifier si le roi est attaqué par l'adversaire
     return isSquareAttacked(boardState, kingPos.row, kingPos.col, !isWhiteKing);
   };
@@ -372,27 +375,27 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       for (let fromCol = 0; fromCol < 8; fromCol++) {
         const piece = boardState[fromRow][fromCol];
         if (piece === '') continue;
-        
+
         // Vérifier si la pièce appartient au joueur
         const isPieceWhite = isWhitePiece(piece);
         if (isPieceWhite !== isWhite) continue;
-        
+
         // Tester tous les coups possibles pour cette pièce
         for (let toRow = 0; toRow < 8; toRow++) {
           for (let toCol = 0; toCol < 8; toCol++) {
             // Vérifier que ce n'est pas la case source
             if (toRow === fromRow && toCol === fromCol) continue;
-            
+
             // Vérifier qu'on n'essaie pas de capturer une pièce alliée
             const targetPiece = boardState[toRow][toCol];
             if (targetPiece !== '' && isWhitePiece(targetPiece) === isWhite) continue;
-            
+
             if (isValidMove(boardState, fromRow, fromCol, toRow, toCol)) {
               // Simuler le coup
               const testBoard = boardState.map(r => [...r]);
               testBoard[toRow][toCol] = testBoard[fromRow][fromCol];
               testBoard[fromRow][fromCol] = '';
-              
+
               // Si le roi n'est pas en échec après ce coup, c'est un coup légal
               if (!isKingInCheck(testBoard, isWhite)) {
                 return true;
@@ -408,11 +411,11 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   const checkGameOver = (boardState: string[][], nextPlayerIsWhite: boolean) => {
     // Vérifier si le joueur suivant a des coups légaux
     const canMove = hasLegalMoves(boardState, nextPlayerIsWhite);
-    
+
     if (!canMove) {
       // Vérifier si le roi est en échec
       const inCheck = isKingInCheck(boardState, nextPlayerIsWhite);
-      
+
       if (inCheck) {
         // Échec et mat
         if (nextPlayerIsWhite) {
@@ -473,25 +476,25 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       const newBoard = board.map(r => [...r]);
       const movingPiece = newBoard[selectedSquare.row][selectedSquare.col];
       const capturedPiece = newBoard[row][col];
-      
+
       // Vérifier si le coup est valide selon les règles de la pièce
       if (!isValidMove(board, selectedSquare.row, selectedSquare.col, row, col)) {
         setSelectedSquare(null);
         return;
       }
-      
+
       // Enregistrer le coup pour l'affichage
       const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
       let move = `${movingPiece} ${files[selectedSquare.col]}${8 - selectedSquare.row} → ${files[col]}${8 - row}`;
-      
+
       if (capturedPiece) {
         move += ` (capture ${capturedPiece})`;
       }
-      
+
       // Appliquer le coup et vérifier le castling
       newBoard[row][col] = movingPiece;
       newBoard[selectedSquare.row][selectedSquare.col] = '';
-      
+
       // Gérer la capture en passant (pion capture en diagonale sur case vide)
       if ((movingPiece === '♙' || movingPiece === '♟') && !capturedPiece && selectedSquare.col !== col) {
         // C'est une capture en diagonale sur case vide - enlever le pion capturé
@@ -500,7 +503,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
         const capturedPawn = movingPiece === '♙' ? '♟' : '♙';
         move = `${movingPiece} ${files[selectedSquare.col]}${8 - selectedSquare.row} → ${files[col]}${8 - row} (en passant ${capturedPawn})`;
       }
-      
+
       // Gérer le castling (déplacer aussi la tour)
       if ((movingPiece === '♔' || movingPiece === '♚') && Math.abs(col - selectedSquare.col) === 2) {
         const kingRow = selectedSquare.row;
@@ -520,19 +523,19 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           move = `${movingPiece} ${files[selectedSquare.col]}${8 - kingRow} → ${files[col]}${8 - kingRow} (grand roque)`;
         }
       }
-      
+
       // Créer la notation PGN standard
       const pieceNotation = pieceToNotation(movingPiece);
-      const fromSquare = `${files[selectedSquare.col]}${8 - selectedSquare.row}`;
+      // const fromSquare = `${files[selectedSquare.col]}${8 - selectedSquare.row}`;
       const toSquare = `${files[col]}${8 - row}`;
-      
+
       // Check for pawn promotion (white pawns reach row 0, black pawns reach row 7)
       if ((movingPiece === '♙' && row === 0) || (movingPiece === '♟' && row === 7)) {
         // Promotion needed - update board with pawn position first, then show promotion dialog
         setBoard(newBoard);
-        setPromotionState({ 
-          row, 
-          col, 
+        setPromotionState({
+          row,
+          col,
           isWhite: movingPiece === '♙',
           fromRow: selectedSquare.row,
           fromCol: selectedSquare.col
@@ -541,23 +544,23 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
         setSelectedSquare(null);
         return;
       }
-      
+
       // Vérifier si le roi actuel serait en échec après le coup (coup illégal)
       const isWhiteTurn = currentTurn === 'white';
       if (isKingInCheck(newBoard, isWhiteTurn)) {
         // Coup illégal - on reste en échec ou on se met en échec
         return;
       }
-      
+
       // Vérifier si on met l'adversaire en échec
       const opponentInCheck = isKingInCheck(newBoard, !isWhiteTurn);
-      
+
       // Vérifier si la partie est terminée après le coup
       const willBeGameOver = checkGameOver(newBoard, !isWhiteTurn);
-      
+
       // Construire le coup en notation PGN
       let pgnMove = '';
-      
+
       // Check for castling
       if ((movingPiece === '♔' || movingPiece === '♚') && Math.abs(col - selectedSquare.col) === 2) {
         // Castling notation in PGN
@@ -578,7 +581,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
         // Déplacement simple
         pgnMove = `${pieceNotation}${toSquare}`;
       }
-      
+
       // Ajouter # pour échec et mat, ou + pour échec
       if (willBeGameOver) {
         pgnMove += '#';
@@ -591,7 +594,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       // Check for pawn double move (for en passant on next move)
       const isPawnDoubleMoveWhite = movingPiece === '♙' && selectedSquare.row === 6 && row === 4;
       const isPawnDoubleMoveBlack = movingPiece === '♟' && selectedSquare.row === 1 && row === 3;
-      
+
       // Track UCI move for Stockfish
       const fromFile = String.fromCharCode('a'.charCodeAt(0) + selectedSquare.col);
       const fromRank = 8 - selectedSquare.row;
@@ -605,13 +608,13 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       console.log('All UCI moves:', uciMovesRef.current.join(' '));
       console.log('Updated board will be sent to Stockfish');
       console.log('================================');
-      
+
       const updatedMoveHistory = [...moveHistory, move];
       setBoard(newBoard);
       setMoveHistory(updatedMoveHistory);
       setPgnMoves([...pgnMoves, pgnMove]);
       setSelectedSquare(null);
-      
+
       // Track pieces that have moved (for castling validation)
       const newMovedPieces = new Set(movedPieces);
       if (movingPiece === '♔' || movingPiece === '♚') {
@@ -620,21 +623,21 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
         newMovedPieces.add(movingPiece === '♖' ? `R${selectedSquare.col}` : `r${selectedSquare.col}`);
       }
       setMovedPieces(newMovedPieces);
-      
+
       // Update en passant file if pawn double move
       if (isPawnDoubleMoveWhite || isPawnDoubleMoveBlack) {
         setLastEnPassantFile(col);
       } else {
         setLastEnPassantFile(null);
       }
-      
+
       // Ajouter l'incrément de temps après le coup
       if (currentTurn === 'white') {
         setWhiteTime(prev => prev + (timeControl?.increment || 0));
       } else {
         setBlackTime(prev => prev + (timeControl?.increment || 0));
       }
-      
+
       if (!willBeGameOver) {
         setCurrentTurn(currentTurn === 'white' ? 'black' : 'white');
         // Bot move will be triggered by useEffect when turn changes
@@ -649,9 +652,9 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   // Calculer les coups légaux pour la pièce sélectionnée
   const getLegalMoves = (): { row: number; col: number }[] => {
     if (!selectedSquare) return [];
-    
+
     const legalMoves: { row: number; col: number }[] = [];
-    
+
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
         if (isValidMove(board, selectedSquare.row, selectedSquare.col, row, col)) {
@@ -659,7 +662,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           const testBoard = board.map(r => [...r]);
           testBoard[row][col] = testBoard[selectedSquare.row][selectedSquare.col];
           testBoard[selectedSquare.row][selectedSquare.col] = '';
-          
+
           const isWhiteTurn = currentTurn === 'white';
           if (!isKingInCheck(testBoard, isWhiteTurn)) {
             legalMoves.push({ row, col });
@@ -667,7 +670,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
         }
       }
     }
-    
+
     return legalMoves;
   };
 
@@ -675,17 +678,17 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
   const handlePromotion = (piece: string) => {
     if (!promotionState) return;
-    
+
     const newBoard = board.map((r: string[]) => [...r]);
     newBoard[promotionState.row][promotionState.col] = piece;
-    
+
     const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
     const toSquare = `${files[promotionState.col]}${8 - promotionState.row}`;
     const fromSquare = `${files[promotionState.fromCol]}${8 - promotionState.fromRow}`;
-    
+
     // Build descriptive move string
     const moveStr = `Promotion: ${fromSquare} → ${toSquare} = ${piece}`;
-    
+
     // Build PGN notation for promotion (e.g., e8=Q)
     const promotedPieceNotation: { [key: string]: string } = {
       '♕': 'Q', '♛': 'Q',
@@ -694,7 +697,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       '♘': 'N', '♞': 'N',
     };
     const pgnMove = `${toSquare}=${promotedPieceNotation[piece] || 'Q'}`;
-    
+
     // Track UCI move for Stockfish (with promotion piece)
     const uciPromotion = promotedPieceNotation[piece]?.toLowerCase() || 'q';
     const uciMove = `${fromSquare}${toSquare}${uciPromotion}`;
@@ -704,25 +707,25 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     console.log('Promotion UCI move:', uciMove);
     console.log('All UCI moves:', uciMovesRef.current.join(' '));
     console.log('===================================');
-    
+
     const isWhiteTurn = currentTurn === 'white';
-    const opponentInCheck = isKingInCheck(newBoard, !isWhiteTurn);
+    // const opponentInCheck = isKingInCheck(newBoard, !isWhiteTurn);
     const gameOver = checkGameOver(newBoard, !isWhiteTurn);
-    
+
     // Update board and move history
     setBoard(newBoard);
     setMoveHistory([...moveHistory, moveStr]);
     setPgnMoves([...pgnMoves, pgnMove]);
-    
+
     // Add increment time
     if (currentTurn === 'white') {
       setWhiteTime((prev: number) => prev + (timeControl?.increment || 0));
     } else {
       setBlackTime((prev: number) => prev + (timeControl?.increment || 0));
     }
-    
+
     setPromotionState(null);
-    
+
     if (!gameOver) {
       setCurrentTurn(currentTurn === 'white' ? 'black' : 'white');
       // Bot move will be triggered by useEffect when turn changes
@@ -737,7 +740,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     console.log('Mode:', mode, 'Current turn:', currentTurn, 'Thinking:', thinking, 'Winner:', winner);
     console.log('Bot move in progress:', botMoveInProgress.current);
     console.log('Current UCI moves when bot turn starts:', uciMovesRef.current.join(' '));
-    
+
     // Early exit conditions - must be bot mode, black's turn, not thinking, no winner, and bot not in progress
     if (mode !== 'bot' || currentTurn !== 'black' || thinking || winner || botMoveInProgress.current) {
       console.log('Bot move skipped due to conditions');
@@ -752,26 +755,26 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
     const makeBotMove = async () => {
       // Validate engine settings before making a move
-      if ((engineSettings.depth === null || engineSettings.depth === undefined) && 
-          (engineSettings.movetime === null || engineSettings.movetime === undefined)) {
+      if ((engineSettings.depth === null || engineSettings.depth === undefined) &&
+        (engineSettings.movetime === null || engineSettings.movetime === undefined)) {
         console.warn('Engine settings not configured');
         setThinking(false);
         botMoveInProgress.current = false;
         return;
       }
-      
+
       try {
         // Use the UCI moves ref directly (more reliable than parsing moveHistory)
         const uciMoves = [...uciMovesRef.current];
         const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-        
+
         console.log('Sending UCI moves to Stockfish:', uciMoves.join(' '));
-        
+
         // Use movetime if set, otherwise use depth
         const mode = engineSettings.movetime && engineSettings.movetime > 0 ? 'movetime' : 'depth';
         const depthValue = engineSettings.depth || 15;
         const movetimeValue = engineSettings.movetime || 1000;
-        
+
         // Appeler Stockfish via l'API backend
         const bestMove = await getStockfishBestMove(
           uciMoves.join(' '),
@@ -787,7 +790,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           const fromRow = 8 - parseInt(bestMove[1]);
           const toCol = bestMove.charCodeAt(2) - 'a'.charCodeAt(0);
           const toRow = 8 - parseInt(bestMove[3]);
-          
+
           // Check for promotion piece (5th character: q, r, b, n)
           let promotionPiece: string | null = null;
           if (bestMove.length === 5) {
@@ -810,7 +813,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           const toSquare = bestMove.substring(2, 4);
           const piece = currentBoard[fromRow]?.[fromCol];
           const targetPiece = currentBoard[toRow]?.[toCol];
-          
+
           console.log('=== BOT MOVE ANALYSIS ===');
           console.log('UCI moves sent to Stockfish:', uciMovesRef.current.join(' '));
           console.log('Stockfish returned move:', bestMove);
@@ -818,19 +821,19 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           console.log('Piece at source position:', piece);
           console.log('Piece at target position:', targetPiece);
           console.log('Current board state:');
-          console.log(currentBoard.map((row: string[], r: number) => 
-            row.map((cell: string, c: number) => cell || '.').join(' ')
+          console.log(currentBoard.map((row: string[]) =>
+            row.map((cell: string) => cell || '.').join(' ')
           ).join('\n'));
-          
+
           // Check if the coordinates are valid first
-          if (fromRow < 0 || fromRow >= 8 || fromCol < 0 || fromCol >= 8 || 
-              toRow < 0 || toRow >= 8 || toCol < 0 || toCol >= 8) {
+          if (fromRow < 0 || fromRow >= 8 || fromCol < 0 || fromCol >= 8 ||
+            toRow < 0 || toRow >= 8 || toCol < 0 || toCol >= 8) {
             console.error('❌ Invalid coordinates:', { fromRow, fromCol, toRow, toCol });
             setThinking(false);
             botMoveInProgress.current = false;
             return;
           }
-          
+
           // Check if there's actually a piece at the source
           if (!piece || piece === '') {
             console.error('❌ No piece at source position');
@@ -838,7 +841,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
             botMoveInProgress.current = false;
             return;
           }
-          
+
           // Check if it's a black piece (bot should only move black pieces)
           if (isWhitePiece(piece)) {
             console.error('❌ Bot trying to move white piece');
@@ -856,7 +859,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
             botMoveInProgress.current = false;
             return;
           }
-          
+
           console.log('✅ Move validation passed');
 
           const newBoard = currentBoard;
@@ -866,14 +869,14 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           // Appliquer le coup
           newBoard[toRow][toCol] = movingPiece;
           newBoard[fromRow][fromCol] = '';
-          
+
           // Gérer la capture en passant
           if ((movingPiece === '♙' || movingPiece === '♟') && !capturedPiece && fromCol !== toCol) {
             // C'est une capture en diagonale sur case vide - enlever le pion capturé
             const capturedPawnRow = fromRow; // Le pion capturé est sur la même ligne que la source
             newBoard[capturedPawnRow][toCol] = '';
           }
-          
+
           // Gérer le castling (déplacer aussi la tour)
           if ((movingPiece === '♔' || movingPiece === '♚') && Math.abs(toCol - fromCol) === 2) {
             const kingRow = fromRow;
@@ -916,7 +919,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           // Construire la notation PGN
           const pieceNotation = pieceToNotation(movingPiece);
           const toSquareNotation = `${files[toCol]}${8 - toRow}`;
-          
+
           let pgnMove = '';
           if (capturedPiece) {
             if (pieceNotation === '') {
@@ -951,7 +954,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           setBoard(newBoard);
           setMoveHistory((prev: string[]) => [...prev, moveStr]);
           setPgnMoves((prev: string[]) => [...prev, pgnMove]);
-          
+
           // Track pieces that have moved (for castling validation)
           const newMovedPieces = new Set(movedPieces);
           if (movingPiece === '♔' || movingPiece === '♚') {
@@ -960,7 +963,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
             newMovedPieces.add(movingPiece === '♖' ? `R${fromCol}` : `r${fromCol}`);
           }
           setMovedPieces(newMovedPieces);
-          
+
           // Update en passant file if pawn double move
           const isPawnDoubleMoveBlack = movingPiece === '♟' && fromRow === 1 && toRow === 3;
           if (isPawnDoubleMoveBlack) {
@@ -982,9 +985,9 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
         }
       } catch (error) {
         console.error('❌ Bot move failed:', error);
-        
+
         const errorMessage = error instanceof Error ? error.message : String(error);
-        
+
         if (errorMessage.includes('Backend server not responding')) {
           setGameStatus('❌ Erreur: Le serveur backend n\'est pas disponible. Veuillez le redémarrer.');
         } else if (errorMessage.includes('Failed to fetch')) {
@@ -992,7 +995,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
         } else {
           setGameStatus(`❌ Erreur Stockfish: ${errorMessage}`);
         }
-        
+
         // Don't show alert for network errors, just update game status
         if (!errorMessage.includes('Backend server not responding') && !errorMessage.includes('Failed to fetch')) {
           alert('Erreur Stockfish: ' + errorMessage);
@@ -1035,19 +1038,19 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       const moveNumber = Math.floor(i / 2) + 1;
       const whiteMove = pgnMoves[i];
       const blackMove = pgnMoves[i + 1];
-      
+
       if (blackMove) {
         formattedMoves += `${moveNumber}. ${whiteMove} ${blackMove}\n`;
       } else {
         formattedMoves += `${moveNumber}. ${whiteMove}\n`;
       }
     }
-    
+
     // Ajouter le résultat
     let result = '1/2-1/2'; // Match nul par défaut
     if (winner === 'Blancs') result = '1-0';
     if (winner === 'Noirs') result = '0-1';
-    
+
     const pgn = `[Event "Chess Game"]
 [Site "Chess Analytics Platform"]
 [Date "${new Date().toISOString().split('T')[0]}"]
@@ -1057,7 +1060,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 [Result "${result}"]
 
 ${formattedMoves}${result}`;
-    
+
     const blob = new Blob([pgn], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1070,9 +1073,9 @@ ${formattedMoves}${result}`;
   const analyzeWithStockfish = async () => {
     try {
       // Obtenir l'historique des coups en notation UCI
-      const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+      // const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
       const uciMoves: string[] = [];
-      
+
       moveHistory.forEach((move: string) => {
         const match = move.match(/([a-h])(\d) → ([a-h])(\d)/);
         if (match) {
@@ -1081,10 +1084,10 @@ ${formattedMoves}${result}`;
           uciMoves.push(fromSquare + toSquare);
         }
       });
-      
+
       // Appeler l'analyse Stockfish
       const result = await analyzePosition(uciMoves.join(' '), 20);
-      
+
       alert(
         `Analyse Stockfish complétée!\n\n` +
         `Meilleur coup: ${result.bestmove}\n` +
@@ -1097,15 +1100,15 @@ ${formattedMoves}${result}`;
   };
 
   return (
-      <div className="space-y-6">
+    <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-gray-900 mb-2">
             {mode === 'bot' ? 'Jouer contre Stockfish' : 'Jouer aux échecs'}
           </h2>
           <p className="text-gray-600">
-            {mode === 'bot' 
-              ? 'Affrontez le moteur d\'échecs Stockfish' 
+            {mode === 'bot'
+              ? 'Affrontez le moteur d\'échecs Stockfish'
               : 'Jouez une partie libre'}
           </p>
         </div>
@@ -1116,19 +1119,17 @@ ${formattedMoves}${result}`;
           <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl shadow-xl p-8 border border-slate-200">
             {/* Indicateurs de joueurs */}
             <div className="flex justify-center items-center mb-6">
-              <div className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 ${
-                currentTurn === 'white' && !winner
-                  ? 'bg-white shadow-lg ring-2 ring-blue-500 scale-105'
-                  : 'bg-white/50 shadow'
-              }`}>
+              <div className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 ${currentTurn === 'white' && !winner
+                ? 'bg-white shadow-lg ring-2 ring-blue-500 scale-105'
+                : 'bg-white/50 shadow'
+                }`}>
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-100 to-slate-300 border-2 border-slate-400 flex items-center justify-center">
                   <Circle className="w-4 h-4 text-slate-700 fill-white" />
                 </div>
                 <div>
                   <div className="text-sm text-gray-600">Blancs</div>
-                  <div className={`text-lg font-mono ${
-                    whiteTime < 30 ? 'text-red-600 animate-pulse' : 'text-gray-900'
-                  }`}>
+                  <div className={`text-lg font-mono ${whiteTime < 30 ? 'text-red-600 animate-pulse' : 'text-gray-900'
+                    }`}>
                     {formatTime(whiteTime)}
                   </div>
                 </div>
@@ -1139,19 +1140,17 @@ ${formattedMoves}${result}`;
                 )}
               </div>
 
-              <div className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 ${
-                currentTurn === 'black' && !winner
-                  ? 'bg-slate-800 shadow-lg ring-2 ring-purple-500 scale-105'
-                  : 'bg-slate-800/50 shadow'
-              }`}>
+              <div className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 ${currentTurn === 'black' && !winner
+                ? 'bg-slate-800 shadow-lg ring-2 ring-purple-500 scale-105'
+                : 'bg-slate-800/50 shadow'
+                }`}>
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 border-2 border-slate-600 flex items-center justify-center">
                   <Circle className="w-4 h-4 text-slate-300 fill-slate-800" />
                 </div>
                 <div>
                   <div className="text-sm text-slate-200">Noirs</div>
-                  <div className={`text-lg font-mono ${
-                    blackTime < 30 ? 'text-red-400 animate-pulse' : 'text-slate-100'
-                  }`}>
+                  <div className={`text-lg font-mono ${blackTime < 30 ? 'text-red-400 animate-pulse' : 'text-slate-100'
+                    }`}>
                     {formatTime(blackTime)}
                   </div>
                 </div>
@@ -1176,7 +1175,7 @@ ${formattedMoves}${result}`;
                       </div>
                     ))}
                   </div>
-                  
+
                   {/* Échiquier principal */}
                   <div className="border-8 border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
                     {board.map((row, rowIndex) => (
@@ -1185,34 +1184,29 @@ ${formattedMoves}${result}`;
                           const isLight = (rowIndex + colIndex) % 2 === 0;
                           const isSelected = selectedSquare?.row === rowIndex && selectedSquare?.col === colIndex;
                           const isLegalMove = legalMoves.some(move => move.row === rowIndex && move.col === colIndex);
-                          
+
                           return (
                             <button
                               key={`${rowIndex}-${colIndex}`}
                               onClick={() => handleSquareClick(rowIndex, colIndex)}
                               disabled={thinking}
-                              className={`w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-5xl sm:text-6xl transition-all duration-200 relative ${
-                                isLight 
-                                  ? 'bg-gradient-to-br from-amber-50 to-amber-100' 
-                                  : 'bg-gradient-to-br from-amber-600 to-amber-800'
-                              } ${
-                                isSelected 
-                                  ? 'ring-4 ring-blue-500 ring-inset scale-95 shadow-inner' 
+                              className={`w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-5xl sm:text-6xl transition-all duration-200 relative ${isLight
+                                ? 'bg-gradient-to-br from-amber-50 to-amber-100'
+                                : 'bg-gradient-to-br from-amber-600 to-amber-800'
+                                } ${isSelected
+                                  ? 'ring-4 ring-blue-500 ring-inset scale-95 shadow-inner'
                                   : ''
-                              } ${
-                                !winner && !thinking ? 'hover:brightness-110 active:scale-95' : 'cursor-default'
-                              } ${
-                                thinking ? 'opacity-60' : ''
-                              }`}
+                                } ${!winner && !thinking ? 'hover:brightness-110 active:scale-95' : 'cursor-default'
+                                } ${thinking ? 'opacity-60' : ''
+                                }`}
                             >
                               {piece && (
-                                <span className={`drop-shadow-2xl transition-transform filter ${
-                                  isSelected ? 'scale-110' : ''
-                                }`} style={{ 
-                                  filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
-                                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                                  color: isBlackPiece(piece) ? '#1f2937' : '#f9fafb'
-                                }}>
+                                <span className={`drop-shadow-2xl transition-transform filter ${isSelected ? 'scale-110' : ''
+                                  }`} style={{
+                                    filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
+                                    textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                                    color: isBlackPiece(piece) ? '#1f2937' : '#f9fafb'
+                                  }}>
                                   {piece}
                                 </span>
                               )}
@@ -1232,7 +1226,7 @@ ${formattedMoves}${result}`;
                     ))}
                   </div>
                 </div>
-                
+
                 {/* Ligne de lettres en bas */}
                 <div className="flex pl-8">
                   {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((letter) => (
@@ -1314,13 +1308,12 @@ ${formattedMoves}${result}`;
 
             {/* Statut de la partie */}
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className={`px-6 py-3 rounded-xl transition-all duration-300 ${
-                winner 
-                  ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 shadow-lg ring-2 ring-yellow-600 scale-105'
-                  : gameStatus === 'Échec !'
+              <div className={`px-6 py-3 rounded-xl transition-all duration-300 ${winner
+                ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 shadow-lg ring-2 ring-yellow-600 scale-105'
+                : gameStatus === 'Échec !'
                   ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg animate-pulse'
                   : 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-md'
-              }`}>
+                }`}>
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${winner ? 'bg-yellow-900' : 'bg-white'}`} />
                   <span>{gameStatus}</span>
@@ -1389,18 +1382,16 @@ ${formattedMoves}${result}`;
                   {moveHistory.map((move, index) => (
                     <div
                       key={index}
-                      className={`px-4 py-3 rounded-xl text-sm transition-all duration-200 ${
-                        index === moveHistory.length - 1
-                          ? 'bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 shadow-sm'
-                          : 'bg-slate-50 hover:bg-slate-100'
-                      }`}
+                      className={`px-4 py-3 rounded-xl text-sm transition-all duration-200 ${index === moveHistory.length - 1
+                        ? 'bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 shadow-sm'
+                        : 'bg-slate-50 hover:bg-slate-100'
+                        }`}
                     >
                       <div className="flex items-start gap-2">
-                        <span className={`mt-0.5 px-2 py-0.5 rounded text-xs ${
-                          index % 2 === 0 
-                            ? 'bg-blue-100 text-blue-700' 
-                            : 'bg-purple-100 text-purple-700'
-                        }`}>
+                        <span className={`mt-0.5 px-2 py-0.5 rounded text-xs ${index % 2 === 0
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-purple-100 text-purple-700'
+                          }`}>
                           {Math.floor(index / 2) + 1}.{index % 2 === 0 ? '' : '..'}
                         </span>
                         <span className="text-gray-900 flex-1">{move}</span>

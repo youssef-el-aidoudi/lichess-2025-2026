@@ -24,7 +24,7 @@ export function Login({ onLogin }: LoginProps) {
         ? { email, hash: password, joueur: { pseudo: username } }
         : { email, hash: password };
 
-      const API_URL = 'http://localhost:8080';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://api.docker.localhost';
 
       console.log('Sending request to:', `${API_URL}${endpoint}`, 'Body:', body);
 
@@ -65,7 +65,7 @@ export function Login({ onLogin }: LoginProps) {
     } catch (err) {
       console.error('Request error:', err);
       if (err instanceof TypeError && err.message.includes('fetch')) {
-        setError('Impossible de se connecter au serveur. Vérifiez que le backend tourne sur http://localhost:8080');
+        setError('Impossible de se connecter au serveur. Vérifiez que le backend tourne sur https://api.docker.localhost');
       } else {
         setError(err instanceof Error ? err.message : 'Une erreur est survenue');
       }
@@ -177,7 +177,7 @@ export function Login({ onLogin }: LoginProps) {
         </form>
 
         <div className="mt-6 text-center text-sm text-gray-600">
-          <p>Assurez-vous que le backend tourne sur le port 8080</p>
+          <p>Assurez-vous que le backend tourne sur https://api.docker.localhost</p>
         </div>
       </div>
     </div>

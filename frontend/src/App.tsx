@@ -7,7 +7,7 @@ import { Stats } from './components/Stats';
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<{ username: string } | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('jwt_token');
@@ -18,7 +18,7 @@ export default function App() {
     }
   }, []);
 
-  const handleLogin = (token, username) => {
+  const handleLogin = (token: string, username: string) => {
     localStorage.setItem('jwt_token', token);
     localStorage.setItem('username', username);
     setIsAuthenticated(true);
@@ -37,7 +37,7 @@ export default function App() {
     return <Login onLogin={handleLogin} />;
   }
 
-  const navButtonClass = (page) => {
+  const navButtonClass = (page: string) => {
     const baseClass = 'px-3 py-2 rounded-md transition-colors';
     if (currentPage === page) {
       return baseClass + ' bg-blue-50 text-blue-600';
