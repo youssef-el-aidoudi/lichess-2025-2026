@@ -197,11 +197,12 @@ docker compose -f compose.yml up -d
 Dans le dossier data en attendant que la config pour Minio soit OK (exemple pour le fichier octobre 2025) :
 
 ```bash
-mkdir -p /home/chessmate/chessmate/data && \
-cd /home/chessmate/chessmate/data && \
-wget https://database.lichess.org/standard/lichess_db_standard_rated_2025-10.pgn.zst && \
-unzstd lichess_db_standard_rated_2025-10.pgn.zst && \
-rm lichess_db_standard_rated_2025-10.pgn.zst
+mkdir -p /home/chessmate/chessmate/data
+nohup bash -c 'cd /home/chessmate/chessmate/data && \
+                                  wget https://database.lichess.org/standard/lichess_db_standard_rated_2025-10.pgn.zst && \
+                                  unzstd lichess_db_standard_rated_2025-10.pgn.zst && \
+                                  rm lichess_db_standard_rated_2025-10.pgn.zst' > download.log 2>&1 &
+
 ```
 
 ### Lancer l'ETL sur le serveur de production ou préproduction
