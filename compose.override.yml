@@ -1,0 +1,78 @@
+services:
+  traefik:
+    command:
+      - --log.level=DEBUG
+      - --api.debug=true
+      - --global.checknewversion=false
+      - --global.sendAnonymousUsage=true
+      - --api=true
+      - --api.dashboard=true
+      - --ping=true
+      - --ping.entryPoint=ping
+      - --entrypoints.ping.address=:8080
+      - --providers.docker=true
+      - --providers.docker.watch=true
+      - --providers.docker.endpoint=unix:///var/run/docker.sock
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.filename=/etc/traefik/tls.yml
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http.tls=true
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    working_dir: /app
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DEVTOOLS_RESTART_ENABLED: true
+      SPRING_DATASOURCE_URL: jdbc:h2:mem:chessmate
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: ""
+    volumes:
+      - ./backend:/app
+
+  etl:
+    # Pas lancé au démarrage.
+    # docker compose --profile jobs run etl
+    profiles: [ "jobs" ] # le service ne sera pas lancé par défaut
+    build:
+      context: ./etl
+      dockerfile: Dockerfile
+    working_dir: /app
+    volumes:
+      - ./etl:/app
+      - maven-cache:/root/.m2
+
+  postgres:
+    volumes:
+      - ./postgres/scripts:/scripts
+    networks:
+      - public
+    ports:
+      - "5432:5432"
+
+  benchmark_position_stats:
+    networks:
+      - internal
+      - public
+    profiles: [ "jobs" ] # le service ne sera pas lancé par défaut
+    image: python:3.14.0
+    working_dir: /app
+    volumes:
+      - ./benchmark_position_stats:/app
+    command: >
+      sh -c "
+        pip install --no-cache-dir psycopg2-binary &&
+        python main.py
+      "
+    depends_on:
+      - postgres
+
+volumes:
+  maven-cache:

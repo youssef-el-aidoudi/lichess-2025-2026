@@ -31,7 +31,7 @@ build:
 
 test:
   stage: test
-  image: openjdk:18-jdk-alpine
+  image: eclipse-temurin:18-alpine
   before_script:
     - apk add curl
   script:

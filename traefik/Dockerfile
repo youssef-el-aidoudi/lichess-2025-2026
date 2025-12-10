@@ -1,4 +1,4 @@
-FROM traefik:v3.3.2
+FROM felixbuenemann/traefik:v3.6.1
 
 COPY tls.yml /etc/traefik/tls.yml
 

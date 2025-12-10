@@ -59,7 +59,7 @@ docker compose version
 
 ### Ajouter votre utilisateur au groupe `docker`
 
-Pour exécuter Docker sans `sudo` :
+Pour exécuter Docker sans `sudo`:
 
 ```bash
 sudo usermod -aG docker $USER
@@ -95,13 +95,13 @@ Le fichier `.env` centralise les variables de configuration du projet (ports, UR
 
 ## 4) Générer les certificats de développement (Traefik)
 
-Se placer dans le répertoire `traefik` :
+Se placer dans le répertoire `traefik`:
 
 ```bash
 cd traefik
 ```
 
-Générer la clé privée RSA :
+Générer la clé privée RSA:
 
 ```bash
 openssl genrsa -out private.key 2048
@@ -178,9 +178,37 @@ MINIO_SECRET_KEY=PASTE_SECRET_KEY_HERE
 git config core.autocrlf input
 git rm --cached -r .
 git reset --hard
-## 8) URLS en dev
+
+---
+
+## 8) URLs en dev
 https://minio.docker.localhost
 https://api.docker.localhost (backend)
 https://traefik.docker.localhost (url traefik en dev)
 
-Besoin d'autres ?? Signaler le à votre devops préféré.
+---
+
+## 9) Lancer l'ETL/BD
+* Pour lancer l'ETL, lancez Docker Desktop puis:
+
+
+* Mettez vous dans le répertoire du projet et copiez le .env dans le dossier /etl:
+   ```bash
+  cp ./env ./etl/.env
+  ```
+* Build & lancer docker:
+    ```bash
+  docker compose build
+  docker compose up -d
+  ```
+* Plus qu'à lancer l'ETL via:
+   ```
+  docker compose --profile jobs build etl (des fois obligé de le faire pour les changements de code j'ignore pourquoi)
+  docker compose --profile jobs run --remove-orphans etl (le remove orphans pour alléger la mémoire si lancé plusieurs fois)
+  ```
+* Pour accéder à la BD PostgreSQL :
+   ```bash
+  docker compose exec postgres psql -U chessmate -d chessmate
+  ```
+
+Besoin d'autres ?? Signaler le à votre devops préféré et/ou votre meilleur chef de projet :)

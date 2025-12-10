@@ -1,6 +1,7 @@
 # IDEs & project metadata
 .idea/
 *.iml
+.vscode/
 
 # Build / compilation artifacts
 target/
@@ -16,10 +17,16 @@ node_modules/
 
 # Environment variables
 .env
+.env.dev
 
 # Git metadata (inutile mais sans risque)
-.gitignore
-
+data/*
 # Optionnel (mais propre)
 # Exclure le dossier .git n’a pas de sens, car il ne peut pas être versionné de toute façon.
 # .git
+
+# Fichiers liés au certificat local
+traefik/cert.pem
+traefik/private.key
+
+frontend/build
