@@ -3,11 +3,22 @@ import { GameSetup } from './GameSetup';
 import { ChessGame } from './ChessGame';
 import { ArrowLeft } from 'lucide-react';
 
+interface GameSettings {
+  opponent: 'human' | 'bot';
+  timeMinutes: number;
+  increment: number;
+  engineSettings?: {
+    depth: number | null;
+    movetime: number | null;
+    useDepth: boolean;
+  };
+}
+
 export function PlayPage() {
   const [gameStarted, setGameStarted] = useState(false);
-  const [gameSettings, setGameSettings] = useState(null);
+  const [gameSettings, setGameSettings] = useState<GameSettings | null>(null);
 
-  const handleStartGame = (settings) => {
+  const handleStartGame = (settings: GameSettings) => {
     setGameSettings(settings);
     setGameStarted(true);
   };
@@ -31,8 +42,8 @@ export function PlayPage() {
         Retour
       </button>
 
-      <ChessGame 
-        mode={gameSettings?.opponent || 'bot'} 
+      <ChessGame
+        mode={gameSettings?.opponent || 'bot'}
         timeControl={{
           minutes: gameSettings?.timeMinutes || 5,
           increment: gameSettings?.increment || 0,
