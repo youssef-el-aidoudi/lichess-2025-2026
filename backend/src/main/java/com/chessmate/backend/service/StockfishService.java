@@ -1,6 +1,7 @@
 package com.chessmate.backend.service;
 
 import org.springframework.stereotype.Service;
+import java.util.Map;
 
 @Service
 public class StockfishService {
@@ -13,6 +14,10 @@ public class StockfishService {
 
     public String getBestMove(String moves, String mode) {
         return stockfish.getBestMove(moves, mode);
+    }
+
+    public Map<String, Object> evaluatePosition(String moves, int depth) {
+        return stockfish.getEvaluation(moves, depth);
     }
 
     public void setDepth(int depth) {
