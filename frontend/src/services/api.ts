@@ -98,16 +98,51 @@ export const getStockfishBestMove = async (
     }
 };
 
-// Stockfish - Analyser une position
+// Stockfish - Évaluer une position (retourne le score en centipawns)
+export const evaluatePosition = async (
+    moves: string,
+    depth: number = 15
+): Promise<{ score: number; isMate: boolean; bestMove: string }> => {
+    try {
+        const params = new URLSearchParams({
+            moves: moves || '',
+            depth: depth.toString(),
+        });
+
+        const response = await fetch(`${API_URL}/api/chess/evaluate?${params}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            signal: AbortSignal.timeout(10000),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Evaluate API Error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return {
+            score: data.score || 0,
+            isMate: data.isMate || false,
+            bestMove: data.bestMove || 'e2e4',
+        };
+    } catch (error) {
+        console.error('❌ Evaluate API Error:', error);
+        throw error;
+    }
+};
+
+// Stockfish - Analyser une position (wrapper legacy)
 export const analyzePosition = async (
     moves: string,
     depth: number = 20
 ): Promise<{ bestmove: string; evaluation: number }> => {
     try {
-        const bestMove = await getStockfishBestMove(moves, 'depth', 'black', depth, 3000);
+        const result = await evaluatePosition(moves, depth);
         return {
-            bestmove: bestMove,
-            evaluation: 0, // Backend ne retourne que bestmove pour maintenant
+            bestmove: result.bestMove,
+            evaluation: result.score,
         };
     } catch (error) {
         console.error('Erreur analyse:', error);
