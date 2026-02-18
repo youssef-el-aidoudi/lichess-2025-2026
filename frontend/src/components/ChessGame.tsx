@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Download, Brain, Circle, Search } from 'lucide-react';
 import { getStockfishBestMove, analyzePosition } from '../services/api';
-import { Chessboard } from 'react-chessboard';
+import { Chessboard } from "react-chessboard";
+
+
 
 interface ChessGameProps {
   mode: 'human' | 'bot';
@@ -511,6 +513,8 @@ ${formattedMoves} ${result}`;
   };
 
   const onPieceDrop = (sourceSquare: string, targetSquare: string) => {
+    
+
     if (winner || thinking) return false;
     const fromCol = sourceSquare.charCodeAt(0) - 'a'.charCodeAt(0);
     const fromRow = 8 - parseInt(sourceSquare[1]);

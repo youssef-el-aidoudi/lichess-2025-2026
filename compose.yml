@@ -12,7 +12,6 @@ services:
     networks:
       - internal
       - public
-    # Client MPI hors docker, on utilisera 5432 et IP du Host pour se co à postgres.
     ports:
       - "5432:5432"
     healthcheck:
@@ -24,9 +23,8 @@ services:
       - traefik.enable=false
 
   traefik:
+    image: traefik:v3.6
     container_name: traefik
-    build:
-      context: ./traefik
     command:
       - --log.level=ERROR
       - --api.debug=false
@@ -41,8 +39,6 @@ services:
       - --providers.docker.watch=true
       - --providers.docker.endpoint=unix:///var/run/docker.sock
       - --providers.docker.exposedbydefault=false
-      - --providers.file.filename=/etc/traefik/tls.yml
-      - --providers.file.watch=true
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
       - --entrypoints.websecure.http.tls=true
@@ -50,7 +46,6 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/tls.yml:/etc/traefik/tls.yml:ro
     ports:
       - "80:80"
       - "443:443"
@@ -98,13 +93,11 @@ services:
       - traefik.http.routers.backend.middlewares=securityheaders
 
   etl:
-    # Pas lancé au démarrage.
-    # docker compose --profile jobs run etl
-    profiles: [ "jobs" ] # le service ne sera pas lancé par défaut
+    profiles: [ "jobs" ]
     build:
       context: ./etl
       dockerfile: Dockerfile
-    restart: no
+    restart: "no"
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
@@ -125,7 +118,7 @@ services:
     build:
       context: ./telegraf
     command: telegraf --config /telegraf_conf
-    user: "0:0"  # root à cause de Docker Desktop de Windows.
+    user: "0:0"
     environment:
       TELEGRAF_USER: ${POSTGRES_TELEGRAF_USER}
       TELEGRAF_PASSWORD: ${POSTGRES_TELEGRAF_PASSWORD}
@@ -209,6 +202,3 @@ networks:
 volumes:
   postgres-data:
   grafana-storage:
-
-
-
