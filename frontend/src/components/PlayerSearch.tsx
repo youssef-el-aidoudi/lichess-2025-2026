@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Search, Loader2, User } from 'lucide-react';
 import { searchPlayerGames } from '../services/api';
 
 interface ParsedGame {
@@ -99,6 +100,54 @@ function formatTimeControl(tc: string): string {
 }
 
 export function PlayerSearch() {
+    const [pseudo, setPseudo] = useState('');
+    const [maxGames, setMaxGames] = useState(10);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [games, setGames] = useState<ParsedGame[]>([]);
+    const [hasSearched, setHasSearched] = useState(false);
+    const [searchedPseudo, setSearchedPseudo] = useState('');
+
+    const handleSearch = async () => {
+        const trimmed = pseudo.trim();
+        if (!trimmed) {
+            setError('Veuillez entrer un pseudo.');
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+        setGames([]);
+        setHasSearched(true);
+        setSearchedPseudo(trimmed);
+
+        try {
+            const pgn = await searchPlayerGames(trimmed, { max: maxGames });
+            if (!pgn || pgn.trim() === '') {
+                setGames([]);
+            } else {
+                const parsed = parsePgnGames(pgn);
+                setGames(parsed);
+            }
+        } catch (err: unknown) {
+            if (err instanceof Error) {
+                if (err.message.includes('404')) {
+                    setError(`Aucun joueur trouve avec le pseudo "${trimmed}" sur Lichess.`);
+                } else {
+                    setError(err.message);
+                }
+            } else {
+                setError('Une erreur est survenue lors de la recherche.');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') handleSearch();
+    };
+
     return (
         <div className="space-y-6">
             <div>
@@ -107,6 +156,55 @@ export function PlayerSearch() {
                     Recherchez les parties d'un joueur directement depuis l'API Lichess
                 </p>
             </div>
+
+            {/* Barre de recherche */}
+            <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1 relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                            type="text"
+                            value={pseudo}
+                            onChange={(e) => setPseudo(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder="Entrez un pseudo Lichess (ex: DrNykterstein)"
+                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600 whitespace-nowrap">Max:</label>
+                        <select
+                            value={maxGames}
+                            onChange={(e) => setMaxGames(Number(e.target.value))}
+                            className="px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                        </select>
+                    </div>
+                    <button
+                        onClick={handleSearch}
+                        disabled={loading}
+                        className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        {loading ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                            <Search className="w-5 h-5" />
+                        )}
+                        Rechercher
+                    </button>
+                </div>
+            </div>
+
+            {/* Erreur */}
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    {error}
+                </div>
+            )}
         </div>
     );
 }
