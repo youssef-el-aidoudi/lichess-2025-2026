@@ -37,15 +37,17 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        
-        // CRITICAL: Use setAllowedOriginPatterns instead of setAllowedOrigins for more flexibility
-        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:*", "http://127.0.0.1:*"));
+
+        // CRITICAL: Use setAllowedOriginPatterns instead of setAllowedOrigins for more
+        // flexibility
+        configuration.setAllowedOriginPatterns(
+                Arrays.asList("http://localhost:*", "http://127.0.0.1:*", "https://*.docker.localhost"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L); // Cache preflight for 1 hour
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
@@ -62,13 +64,14 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/auth/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/chess/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/chess/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/parties/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/partie/**").permitAll()
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/swagger-ui/index.html"
-                        ).permitAll()
-                        .anyRequest().authenticated()
-                )
+                                "/swagger-ui/index.html")
+                        .permitAll()
+                        .anyRequest().authenticated())
                 .addFilterBefore(new JwtFilter(customUserDetailsService, jwtUtils),
                         UsernamePasswordAuthenticationFilter.class)
                 .build();
