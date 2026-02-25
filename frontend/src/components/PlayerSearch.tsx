@@ -22,19 +22,19 @@ function parsePgnGames(pgn: string): ParsedGame[] {
     if (!pgn || pgn.trim() === '') return [];
 
     const games: ParsedGame[] = [];
-    const blocks = pgn.split(/\n\n(?=\[)/);
+    // Split par double saut de ligne pour separer headers et coups
+    const sections = pgn.split(/\n\n/).filter(s => s.trim() !== '');
 
     let currentHeaders: Record<string, string> = {};
-    let currentMoves = '';
 
-    for (const block of blocks) {
-        const trimmed = block.trim();
+    for (const section of sections) {
+        const trimmed = section.trim();
         if (!trimmed) continue;
 
         if (trimmed.startsWith('[')) {
-            if (Object.keys(currentHeaders).length > 0 && currentMoves) {
-                games.push(buildGame(currentHeaders, currentMoves));
-                currentMoves = '';
+            // Nouveau bloc de headers : si on avait des headers precedents sans coups, les pusher
+            if (Object.keys(currentHeaders).length > 0) {
+                games.push(buildGame(currentHeaders, ''));
             }
             currentHeaders = {};
             const headerLines = trimmed.split('\n');
@@ -45,12 +45,18 @@ function parsePgnGames(pgn: string): ParsedGame[] {
                 }
             }
         } else {
-            currentMoves = trimmed.replace(/\n/g, ' ').trim();
+            // Bloc de coups : on le combine avec les headers courants
+            const moves = trimmed.replace(/\n/g, ' ').trim();
+            if (Object.keys(currentHeaders).length > 0) {
+                games.push(buildGame(currentHeaders, moves));
+                currentHeaders = {};
+            }
         }
     }
 
+    // Derniere partie si elle n'a pas de coups
     if (Object.keys(currentHeaders).length > 0) {
-        games.push(buildGame(currentHeaders, currentMoves));
+        games.push(buildGame(currentHeaders, ''));
     }
 
     return games;
