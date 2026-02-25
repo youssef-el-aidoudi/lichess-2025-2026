@@ -205,6 +205,34 @@ export function PlayerSearch() {
                     {error}
                 </div>
             )}
+
+            {/* Resume statistiques */}
+            {games.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-lg shadow p-4 text-center">
+                        <div className="text-2xl font-semibold text-gray-900">{games.length}</div>
+                        <div className="text-sm text-gray-600">Parties trouvees</div>
+                    </div>
+                    <div className="bg-green-50 rounded-lg shadow p-4 text-center">
+                        <div className="text-2xl font-semibold text-green-700">
+                            {games.filter(g => getResultLabel(g.result, searchedPseudo, g.white).label === 'Victoire').length}
+                        </div>
+                        <div className="text-sm text-green-600">Victoires</div>
+                    </div>
+                    <div className="bg-red-50 rounded-lg shadow p-4 text-center">
+                        <div className="text-2xl font-semibold text-red-700">
+                            {games.filter(g => getResultLabel(g.result, searchedPseudo, g.white).label === 'Defaite').length}
+                        </div>
+                        <div className="text-sm text-red-600">Defaites</div>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg shadow p-4 text-center">
+                        <div className="text-2xl font-semibold text-gray-700">
+                            {games.filter(g => getResultLabel(g.result, searchedPseudo, g.white).label === 'Nulle').length}
+                        </div>
+                        <div className="text-sm text-gray-600">Nulles</div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
