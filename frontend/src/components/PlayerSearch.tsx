@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Loader2, User } from 'lucide-react';
+import { Search, Loader2, User, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { searchPlayerGames } from '../services/api';
 
 interface ParsedGame {
@@ -106,6 +106,7 @@ export function PlayerSearch() {
     const [error, setError] = useState<string | null>(null);
     const [games, setGames] = useState<ParsedGame[]>([]);
     const [hasSearched, setHasSearched] = useState(false);
+    const [expandedGame, setExpandedGame] = useState<number | null>(null);
     const [searchedPseudo, setSearchedPseudo] = useState('');
 
     const handleSearch = async () => {
@@ -253,49 +254,116 @@ export function PlayerSearch() {
                                 game.white.toLowerCase() === searchedPseudo.toLowerCase()
                                     ? 'Blancs'
                                     : 'Noirs';
+                            const isExpanded = expandedGame === index;
 
                             return (
-                                <div key={index} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
-                                    {/* Indicateur couleur */}
+                                <div key={index} className="hover:bg-gray-50 transition-colors">
                                     <div
-                                        className={`w-4 h-4 rounded-full border-2 ${playerColor === 'Blancs'
+                                        className="p-4 flex items-center gap-4 cursor-pointer"
+                                        onClick={() => setExpandedGame(isExpanded ? null : index)}
+                                    >
+                                        {/* Indicateur couleur */}
+                                        <div
+                                            className={`w-4 h-4 rounded-full border-2 ${playerColor === 'Blancs'
                                                 ? 'bg-white border-gray-400'
                                                 : 'bg-gray-800 border-gray-800'
-                                            }`}
-                                        title={playerColor}
-                                    />
+                                                }`}
+                                            title={playerColor}
+                                        />
 
-                                    {/* Info principale */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-gray-900 font-medium truncate">
-                                                vs {opponent}
-                                            </span>
-                                            {game.opening !== '?' && (
-                                                <span className="text-xs text-gray-500 truncate hidden sm:inline">
-                                                    {game.opening}
+                                        {/* Info principale */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-gray-900 font-medium truncate">
+                                                    vs {opponent}
                                                 </span>
-                                            )}
+                                                {game.opening !== '?' && (
+                                                    <span className="text-xs text-gray-500 truncate hidden sm:inline">
+                                                        {game.opening}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                                                <span>{game.date.replace(/\./g, '/')}</span>
+                                                <span>{formatTimeControl(game.timeControl)}</span>
+                                                <span>{game.event}</span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
-                                            <span>{game.date.replace(/\./g, '/')}</span>
-                                            <span>{formatTimeControl(game.timeControl)}</span>
-                                            <span>{game.event}</span>
+
+                                        {/* Elo */}
+                                        <div className="text-sm text-gray-500 hidden md:block">
+                                            {game.white.toLowerCase() === searchedPseudo.toLowerCase()
+                                                ? game.whiteElo
+                                                : game.blackElo}{' '}
+                                            Elo
                                         </div>
+
+                                        {/* Badge resultat */}
+                                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${result.color}`}>
+                                            {result.label}
+                                        </div>
+
+                                        {/* Lien Lichess */}
+                                        {game.site && game.site.startsWith('http') && (
+                                            <a
+                                                href={game.site}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="text-blue-500 hover:text-blue-700"
+                                                title="Voir sur Lichess"
+                                            >
+                                                <ExternalLink className="w-4 h-4" />
+                                            </a>
+                                        )}
+
+                                        {/* Fleche deplier */}
+                                        {isExpanded ? (
+                                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                                        ) : (
+                                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                                        )}
                                     </div>
 
-                                    {/* Elo */}
-                                    <div className="text-sm text-gray-500 hidden md:block">
-                                        {game.white.toLowerCase() === searchedPseudo.toLowerCase()
-                                            ? game.whiteElo
-                                            : game.blackElo}{' '}
-                                        Elo
-                                    </div>
-
-                                    {/* Badge resultat */}
-                                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${result.color}`}>
-                                        {result.label}
-                                    </div>
+                                    {/* Details deplies */}
+                                    {isExpanded && (
+                                        <div className="px-4 pb-4 pt-0 border-t bg-gray-50">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                                                <div className="space-y-2 text-sm">
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-500">Evenement</span>
+                                                        <span className="text-gray-900">{game.event}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-500">Blancs</span>
+                                                        <span className="text-gray-900">{game.white} ({game.whiteElo})</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-500">Noirs</span>
+                                                        <span className="text-gray-900">{game.black} ({game.blackElo})</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-500">Ouverture</span>
+                                                        <span className="text-gray-900">{game.opening}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-500">Variante</span>
+                                                        <span className="text-gray-900">{game.variant}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-500">Resultat</span>
+                                                        <span className="text-gray-900 font-medium">{game.result}</span>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm text-gray-500 mb-1">Coups</div>
+                                                    <div className="bg-white p-3 rounded border text-sm font-mono text-gray-700 max-h-40 overflow-y-auto">
+                                                        {game.moves || 'Aucun coup disponible'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
