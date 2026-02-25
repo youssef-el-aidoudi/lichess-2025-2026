@@ -32,6 +32,46 @@ export const getJoueurByPseudo = async (pseudo: string) => {
     return fetchWithAuth(`/joueurs/search?pseudo=${encodeURIComponent(pseudo)}`);
 };
 
+// Recherche les parties d'un joueur sur Lichess via l'API proxy backend
+export const searchPlayerGames = async (
+    pseudo: string,
+    options?: { debut?: number; fin?: number; max?: number }
+): Promise<string> => {
+    const params = new URLSearchParams();
+    if (options?.debut) params.append('debut', options.debut.toString());
+    if (options?.fin) params.append('fin', options.fin.toString());
+    if (options?.max) params.append('max', options.max.toString());
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await fetch(
+        `${API_URL}/api/parties/${encodeURIComponent(pseudo)}${query}`,
+        {
+            method: 'GET',
+            signal: AbortSignal.timeout(15000),
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Erreur API: ${response.status} ${response.statusText}`);
+    }
+
+    return response.text();
+};
+
+// Recherche une partie par son ID sur Lichess
+export const searchGameById = async (id: string): Promise<string> => {
+    const response = await fetch(`${API_URL}/api/partie/${encodeURIComponent(id)}`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Erreur API: ${response.status} ${response.statusText}`);
+    }
+
+    return response.text();
+};
+
 // Récupère toutes les parties
 export const getAllParties = async () => {
     return fetchWithAuth('/parties');
