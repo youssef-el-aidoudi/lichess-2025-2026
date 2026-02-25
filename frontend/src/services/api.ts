@@ -109,7 +109,7 @@ export const getStockfishBestMove = async (
             movetime: movetime.toString(),
         });
 
-        console.log('🔗 API Call:', `${API_URL}/api/chess/bestmove?${params}`);
+        console.log('API Call:', `${API_URL}/api/chess/bestmove?${params}`);
 
         const response = await fetch(`${API_URL}/api/chess/bestmove?${params}`, {
             method: 'GET',
@@ -120,15 +120,15 @@ export const getStockfishBestMove = async (
         });
 
         if (!response.ok) {
-            console.error('❌ API Response Error:', response.status, response.statusText);
+            console.error('API Response Error:', response.status, response.statusText);
             throw new Error(`Stockfish API Error: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
-        console.log('✅ API Response:', data);
+        console.log('API Response:', data);
         return data.bestmove || 'e2e4'; // Return bestmove from JSON response
     } catch (error) {
-        console.error('❌ Stockfish API Error:', error);
+        console.error('Stockfish API Error:', error);
 
         if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
             throw new Error('Backend server not responding. Please ensure the backend is running on port 8080.');
@@ -168,7 +168,7 @@ export const evaluatePosition = async (
             bestMove: data.bestMove || 'e2e4',
         };
     } catch (error) {
-        console.error('❌ Evaluate API Error:', error);
+        console.error('Evaluate API Error:', error);
         throw error;
     }
 };
