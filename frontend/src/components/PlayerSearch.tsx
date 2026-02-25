@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Loader2, User, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Loader2, User, ExternalLink, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
 import { searchPlayerGames } from '../services/api';
 
 interface ParsedGame {
@@ -368,6 +368,14 @@ export function PlayerSearch() {
                             );
                         })}
                     </div>
+                </div>
+            )}
+
+            {/* Etat vide */}
+            {hasSearched && !loading && games.length === 0 && !error && (
+                <div className="bg-white rounded-lg shadow p-8 text-center">
+                    <Trophy className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-600">Aucune partie trouvee pour ce joueur.</p>
                 </div>
             )}
         </div>
