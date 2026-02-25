@@ -233,6 +233,75 @@ export function PlayerSearch() {
                     </div>
                 </div>
             )}
+
+            {/* Liste des parties */}
+            {games.length > 0 && (
+                <div className="bg-white rounded-lg shadow">
+                    <div className="p-4 border-b">
+                        <h3 className="text-gray-900">
+                            Parties de <span className="text-blue-600 font-semibold">{searchedPseudo}</span>
+                        </h3>
+                    </div>
+                    <div className="divide-y">
+                        {games.map((game, index) => {
+                            const result = getResultLabel(game.result, searchedPseudo, game.white);
+                            const opponent =
+                                game.white.toLowerCase() === searchedPseudo.toLowerCase()
+                                    ? game.black
+                                    : game.white;
+                            const playerColor =
+                                game.white.toLowerCase() === searchedPseudo.toLowerCase()
+                                    ? 'Blancs'
+                                    : 'Noirs';
+
+                            return (
+                                <div key={index} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+                                    {/* Indicateur couleur */}
+                                    <div
+                                        className={`w-4 h-4 rounded-full border-2 ${playerColor === 'Blancs'
+                                                ? 'bg-white border-gray-400'
+                                                : 'bg-gray-800 border-gray-800'
+                                            }`}
+                                        title={playerColor}
+                                    />
+
+                                    {/* Info principale */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-900 font-medium truncate">
+                                                vs {opponent}
+                                            </span>
+                                            {game.opening !== '?' && (
+                                                <span className="text-xs text-gray-500 truncate hidden sm:inline">
+                                                    {game.opening}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                                            <span>{game.date.replace(/\./g, '/')}</span>
+                                            <span>{formatTimeControl(game.timeControl)}</span>
+                                            <span>{game.event}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Elo */}
+                                    <div className="text-sm text-gray-500 hidden md:block">
+                                        {game.white.toLowerCase() === searchedPseudo.toLowerCase()
+                                            ? game.whiteElo
+                                            : game.blackElo}{' '}
+                                        Elo
+                                    </div>
+
+                                    {/* Badge resultat */}
+                                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${result.color}`}>
+                                        {result.label}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
