@@ -65,7 +65,8 @@ export function Login({ onLogin }: LoginProps) {
     } catch (err) {
       console.error('Request error:', err);
       if (err instanceof TypeError && err.message.includes('fetch')) {
-        setError("Impossible de se connecter au serveur. Vérifiez que le backend est démarré.");
+        setError('Impossible de se connecter au serveur. Vérifiez que le backend tourne sur https://api.docker.localhost');
+      } else {
         setError(err instanceof Error ? err.message : 'Une erreur est survenue');
       }
     } finally {
@@ -176,7 +177,7 @@ export function Login({ onLogin }: LoginProps) {
         </form>
 
         <div className="mt-6 text-center text-sm text-gray-600">
-          <p>Assurez-vous que le backend est démarré.</p>
+          <p>Assurez-vous que le backend tourne sur https://api.docker.localhost</p>
         </div>
       </div>
     </div>
