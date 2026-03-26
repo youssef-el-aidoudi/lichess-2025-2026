@@ -3,6 +3,7 @@ import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
 import { PlayPage } from './components/PlayPage';
 import { Stats } from './components/Stats';
+import { PlayerSearch } from './components/PlayerSearch';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -71,6 +72,12 @@ export default function App() {
                 >
                   Statistiques
                 </button>
+                <button
+                  onClick={() => setCurrentPage('search')}
+                  className={navButtonClass('search')}
+                >
+                  Recherche
+                </button>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -90,6 +97,7 @@ export default function App() {
         {currentPage === 'dashboard' && <Dashboard />}
         {currentPage === 'play' && <PlayPage />}
         {currentPage === 'stats' && <Stats />}
+        {currentPage === 'search' && <PlayerSearch />}
       </main>
     </div>
   );

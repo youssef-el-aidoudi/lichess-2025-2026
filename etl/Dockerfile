@@ -1,9 +1,7 @@
-FROM maven:eclipse-temurin
+FROM maven:eclipse-temurin AS build
 WORKDIR /app
 COPY . .
 RUN mvn -q clean package -DskipTests
-EXPOSE 8080
-CMD ["java", "-jar", "target/demo-0.0.1-SNAPSHOT.jar"]
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
