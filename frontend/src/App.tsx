@@ -4,15 +4,19 @@ import { Dashboard } from './components/Dashboard';
 import { PlayPage } from './components/PlayPage';
 import { Stats } from './components/Stats';
 import { PlayerSearch } from './components/PlayerSearch';
+import { HistoryPage } from './components/HistoryPage';
+import { PartieDetailPage } from './components/PartieDetailPage';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [user, setUser] = useState<{ username: string } | null>(null);
+  const [selectedPartieId, setSelectedPartieId] = useState<number | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('jwt_token');
     const username = localStorage.getItem('username');
+
     if (token && username) {
       setIsAuthenticated(true);
       setUser({ username });
@@ -32,6 +36,7 @@ export default function App() {
     setIsAuthenticated(false);
     setUser(null);
     setCurrentPage('dashboard');
+    setSelectedPartieId(null);
   };
 
   if (!isAuthenticated) {
@@ -53,33 +58,60 @@ export default function App() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
               <h1 className="text-xl text-gray-900">Chess Analytics</h1>
+
               <div className="flex gap-4">
                 <button
-                  onClick={() => setCurrentPage('dashboard')}
+                  onClick={() => {
+                    setCurrentPage('dashboard');
+                    setSelectedPartieId(null);
+                  }}
                   className={navButtonClass('dashboard')}
                 >
                   Dashboard
                 </button>
+
                 <button
-                  onClick={() => setCurrentPage('play')}
+                  onClick={() => {
+                    setCurrentPage('play');
+                    setSelectedPartieId(null);
+                  }}
                   className={navButtonClass('play')}
                 >
                   Jouer
                 </button>
+
                 <button
-                  onClick={() => setCurrentPage('stats')}
+                  onClick={() => {
+                    setCurrentPage('stats');
+                    setSelectedPartieId(null);
+                  }}
                   className={navButtonClass('stats')}
                 >
                   Statistiques
                 </button>
+
                 <button
-                  onClick={() => setCurrentPage('search')}
+                  onClick={() => {
+                    setCurrentPage('history');
+                    setSelectedPartieId(null);
+                  }}
+                  className={navButtonClass('history')}
+                >
+                  Historique
+                </button>
+
+                <button
+                  onClick={() => {
+                    setCurrentPage('search');
+                    setSelectedPartieId(null);
+                  }}
                   className={navButtonClass('search')}
                 >
                   Recherche
                 </button>
               </div>
             </div>
+
             <div className="flex items-center gap-4">
               <span className="text-gray-700">{user?.username}</span>
               <button
@@ -98,6 +130,23 @@ export default function App() {
         {currentPage === 'play' && <PlayPage />}
         {currentPage === 'stats' && <Stats />}
         {currentPage === 'search' && <PlayerSearch />}
+
+        {currentPage === 'history' && selectedPartieId === null && (
+          <HistoryPage
+            onSelectPartie={(partieId) => {
+              setSelectedPartieId(partieId);
+            }}
+            onGoToPlay={() => setCurrentPage('play')}
+            onGoToSearch={() => setCurrentPage('search')}
+          />
+        )}
+
+        {currentPage === 'history' && selectedPartieId !== null && (
+          <PartieDetailPage
+            partieId={selectedPartieId}
+            onBack={() => setSelectedPartieId(null)}
+          />
+        )}
       </main>
     </div>
   );

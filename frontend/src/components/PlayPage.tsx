@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { GameSetup } from './GameSetup';
-import { ChessGame } from './ChessGame';
+import { ChessGame } from '../components/ChessGame';
 import { ArrowLeft } from 'lucide-react';
 
 interface GameSettings {

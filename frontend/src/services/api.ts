@@ -1,191 +1,244 @@
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.docker.localhost';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 // Helper pour récupérer le token JWT du localStorage
 const getAuthToken = (): string | null => {
-    return localStorage.getItem('token');
+  return localStorage.getItem('jwt_token') || localStorage.getItem('token');
 };
 
 // Helper pour les requêtes authentifiées
 const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
-    const token = getAuthToken();
+  const token = getAuthToken();
 
-    const headers = {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
-        ...options.headers,
-    };
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  };
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-        ...options,
-        headers,
-    });
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
 
-    if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  const contentType = response.headers.get('content-type') || '';
+
+  if (!response.ok) {
+    let errorBody = '';
+    try {
+      errorBody = contentType.includes('application/json')
+        ? JSON.stringify(await response.json())
+        : await response.text();
+    } catch {
+      errorBody = '';
     }
 
+    throw new Error(
+      `API Error: ${response.status} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`
+    );
+  }
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  if (contentType.includes('application/json')) {
     return response.json();
+  }
+
+  return response.text();
 };
 
 // Récupère un joueur par son pseudo
 export const getJoueurByPseudo = async (pseudo: string) => {
-    return fetchWithAuth(`/joueurs/search?pseudo=${encodeURIComponent(pseudo)}`);
+  return fetchWithAuth(`/joueurs/search?pseudo=${encodeURIComponent(pseudo)}`);
 };
 
 // Recherche les parties d'un joueur sur Lichess via l'API proxy backend
 export const searchPlayerGames = async (
-    pseudo: string,
-    options?: { debut?: number; fin?: number; max?: number }
+  pseudo: string,
+  options?: { debut?: number; fin?: number; max?: number }
 ): Promise<string> => {
-    const params = new URLSearchParams();
-    if (options?.debut) params.append('debut', options.debut.toString());
-    if (options?.fin) params.append('fin', options.fin.toString());
-    if (options?.max) params.append('max', options.max.toString());
+  const params = new URLSearchParams();
+  if (options?.debut) params.append('debut', options.debut.toString());
+  if (options?.fin) params.append('fin', options.fin.toString());
+  if (options?.max) params.append('max', options.max.toString());
 
-    const query = params.toString() ? `?${params.toString()}` : '';
-    const response = await fetch(
-        `${API_URL}/api/parties/${encodeURIComponent(pseudo)}${query}`,
-        {
-            method: 'GET',
-            signal: AbortSignal.timeout(15000),
-        }
-    );
-
-    if (!response.ok) {
-        throw new Error(`Erreur API: ${response.status} ${response.statusText}`);
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const response = await fetch(
+    `${API_URL}/api/parties/${encodeURIComponent(pseudo)}${query}`,
+    {
+      method: 'GET',
+      signal: AbortSignal.timeout(15000),
     }
+  );
 
-    return response.text();
+  if (!response.ok) {
+    throw new Error(`Erreur API: ${response.status} ${response.statusText}`);
+  }
+
+  return response.text();
 };
 
 // Recherche une partie par son ID sur Lichess
 export const searchGameById = async (id: string): Promise<string> => {
-    const response = await fetch(`${API_URL}/api/partie/${encodeURIComponent(id)}`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(10000),
-    });
+  const response = await fetch(`${API_URL}/api/partie/${encodeURIComponent(id)}`, {
+    method: 'GET',
+    signal: AbortSignal.timeout(10000),
+  });
 
-    if (!response.ok) {
-        throw new Error(`Erreur API: ${response.status} ${response.statusText}`);
-    }
+  if (!response.ok) {
+    throw new Error(`Erreur API: ${response.status} ${response.statusText}`);
+  }
 
-    return response.text();
+  return response.text();
 };
 
 // Récupère toutes les parties
 export const getAllParties = async () => {
-    return fetchWithAuth('/parties');
+  return fetchWithAuth('/parties');
 };
 
 // Récupère une partie par son ID
 export const getPartieById = async (id: number) => {
-    return fetchWithAuth(`/parties/${id}`);
+  return fetchWithAuth(`/parties/${id}`);
 };
 
 // Récupère les joueurs d'une partie
 export const getPartieJoueurs = async (id: number) => {
-    return fetchWithAuth(`/parties/${id}/joueurs`);
+  return fetchWithAuth(`/parties/${id}/joueurs`);
 };
 
 // Récupère un joueur par son ID
 export const getJoueurById = async (id: number) => {
-    return fetchWithAuth(`/joueurs/${id}`);
+  return fetchWithAuth(`/joueurs/${id}`);
+};
+
+// Récupère toutes les parties jouées
+export const getAllPartiesJouees = async () => {
+  return fetchWithAuth('/parties-jouees');
+};
+
+// Récupère une partie jouée par son ID
+export const getPartieJoueeById = async (id: number) => {
+  return fetchWithAuth(`/parties-jouees/${id}`);
+};
+
+// Crée une partie jouée
+export const createPartieJouee = async (payload: {
+  titre: string;
+  joueurBlanc: string;
+  joueurNoir: string;
+  resultat: string;
+  variant: string;
+  ouverture: string;
+  source: string;
+  vainqueur: string;
+  nombreCoups: number;
+  pgn: string;
+  resumeAnalyse: string;
+}) => {
+  return fetchWithAuth('/parties-jouees', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 };
 
 // Stockfish - Obtenir le meilleur coup
 export const getStockfishBestMove = async (
-    moves: string,
-    mode: 'depth' | 'movetime' = 'depth',
-    color: 'white' | 'black' = 'black',
-    depth: number = 15,
-    movetime: number = 1000
+  moves: string,
+  mode: 'depth' | 'movetime' = 'depth',
+  color: 'white' | 'black' = 'black',
+  depth: number = 15,
+  movetime: number = 1000
 ): Promise<string> => {
-    try {
-        const params = new URLSearchParams({
-            moves: moves || '', // Handle empty moves
-            mode,
-            color,
-            depth: depth.toString(),
-            movetime: movetime.toString(),
-        });
+  try {
+    const params = new URLSearchParams({
+      moves: moves || '',
+      mode,
+      color,
+      depth: depth.toString(),
+      movetime: movetime.toString(),
+    });
 
-        console.log('API Call:', `${API_URL}/api/chess/bestmove?${params}`);
+    console.log('API Call:', `${API_URL}/api/chess/bestmove?${params}`);
 
-        const response = await fetch(`${API_URL}/api/chess/bestmove?${params}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            signal: AbortSignal.timeout(10000), // 10 second timeout
-        });
+    const response = await fetch(`${API_URL}/api/chess/bestmove?${params}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
 
-        if (!response.ok) {
-            console.error('API Response Error:', response.status, response.statusText);
-            throw new Error(`Stockfish API Error: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        console.log('API Response:', data);
-        return data.bestmove || 'e2e4'; // Return bestmove from JSON response
-    } catch (error) {
-        console.error('Stockfish API Error:', error);
-
-        if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-            throw new Error('Backend server not responding. Please ensure the backend is running on port 8080.');
-        }
-
-        throw error;
+    if (!response.ok) {
+      console.error('API Response Error:', response.status, response.statusText);
+      throw new Error(`Stockfish API Error: ${response.status} ${response.statusText}`);
     }
+
+    const data = await response.json();
+    console.log('API Response:', data);
+    return data.bestmove || 'e2e4';
+  } catch (error) {
+    console.error('Stockfish API Error:', error);
+
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      throw new Error(
+        'Backend server not responding. Please ensure the backend is running on port 8080.'
+      );
+    }
+
+    throw error;
+  }
 };
 
-// Stockfish - Évaluer une position (retourne le score en centipawns)
+// Stockfish - Évaluer une position
 export const evaluatePosition = async (
-    moves: string,
-    depth: number = 15
+  moves: string,
+  depth: number = 15
 ): Promise<{ score: number; isMate: boolean; bestMove: string }> => {
-    try {
-        const params = new URLSearchParams({
-            moves: moves || '',
-            depth: depth.toString(),
-        });
+  try {
+    const params = new URLSearchParams({
+      moves: moves || '',
+      depth: depth.toString(),
+    });
 
-        const response = await fetch(`${API_URL}/api/chess/evaluate?${params}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            signal: AbortSignal.timeout(10000),
-        });
+    const response = await fetch(`${API_URL}/api/chess/evaluate?${params}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
 
-        if (!response.ok) {
-            throw new Error(`Evaluate API Error: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        return {
-            score: data.score || 0,
-            isMate: data.isMate || false,
-            bestMove: data.bestMove || 'e2e4',
-        };
-    } catch (error) {
-        console.error('Evaluate API Error:', error);
-        throw error;
+    if (!response.ok) {
+      throw new Error(`Evaluate API Error: ${response.status} ${response.statusText}`);
     }
+
+    const data = await response.json();
+    return {
+      score: data.score || 0,
+      isMate: data.isMate || false,
+      bestMove: data.bestMove || 'e2e4',
+    };
+  } catch (error) {
+    console.error('Evaluate API Error:', error);
+    throw error;
+  }
 };
 
-// Stockfish - Analyser une position (wrapper legacy)
+// Stockfish - Analyser une position
 export const analyzePosition = async (
-    moves: string,
-    depth: number = 20
+  moves: string,
+  depth: number = 20
 ): Promise<{ bestmove: string; evaluation: number }> => {
-    try {
-        const result = await evaluatePosition(moves, depth);
-        return {
-            bestmove: result.bestMove,
-            evaluation: result.score,
-        };
-    } catch (error) {
-        console.error('Erreur analyse:', error);
-        throw error;
-    }
+  try {
+    const result = await evaluatePosition(moves, depth);
+    return {
+      bestmove: result.bestMove,
+      evaluation: result.score,
+    };
+  } catch (error) {
+    console.error('Erreur analyse:', error);
+    throw error;
+  }
 };
