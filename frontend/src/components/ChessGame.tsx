@@ -5,6 +5,11 @@ import {
   createPartieJouee,
   getStockfishBestMove,
 } from '../services/api';
+import { useVoiceAccessibility } from '../hooks/useVoiceAccessibility';
+import { useASR } from '../hooks/useASR';
+import { VoiceToggle } from './VoiceToggle';
+import { MicButton } from './MicButton';
+import { parseWithAlternatives, type PieceType } from '../services/chessCommandParser';
 
 interface ChessGameProps {
   mode: 'human' | 'bot';
@@ -46,6 +51,20 @@ const INITIAL_BOARD: string[][] = [
 
 const WHITE_PIECES = ['♙', '♖', '♘', '♗', '♕', '♔'];
 const BLACK_PIECES = ['♟', '♜', '♞', '♝', '♛', '♚'];
+
+/**
+ * Correspondance type de pièce → symbole Unicode par couleur.
+ * Utilisé par le résolveur de commandes vocales pour localiser les pièces
+ * sur le plateau sans dépendre de l'état interne du composant.
+ */
+const PIECE_SYMBOLS_BY_TYPE: Record<PieceType, { white: string; black: string }> = {
+  pawn:   { white: '\u2659', black: '\u265F' },
+  knight: { white: '\u2658', black: '\u265E' },
+  bishop: { white: '\u2657', black: '\u265D' },
+  rook:   { white: '\u2656', black: '\u265C' },
+  queen:  { white: '\u2655', black: '\u265B' },
+  king:   { white: '\u2654', black: '\u265A' },
+};
 
 function cloneBoard(board: string[][]) {
   return board.map((row) => [...row]);
@@ -96,10 +115,6 @@ function pieceToNotation(piece: string) {
   return notationMap[piece] || '';
 }
 
-function squareToText(row: number, col: number) {
-  const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-  return `${files[col]}${8 - row}`;
-}
 
 function isPathClear(
   board: string[][],
@@ -281,6 +296,307 @@ export function ChessGame({
 
   const uciMovesRef = useRef<string[]>([]);
   const botMoveInProgress = useRef(false);
+
+  // ── Module d'accessibilité vocale (Mode 1 — Suivi vocal) ─────────────────
+  // Persistance de la préférence utilisateur dans localStorage
+  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('chess_voice_enabled') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const { isSupported: voiceSupported, liveText, speak } = useVoiceAccessibility({
+    isEnabled: voiceEnabled,
+    moveHistory,
+    gameStatus,
+    winner,
+  });
+
+  const handleVoiceToggle = (enabled: boolean) => {
+    setVoiceEnabled(enabled);
+    try {
+      localStorage.setItem('chess_voice_enabled', String(enabled));
+    } catch {
+      // localStorage peut être indisponible en navigation privée
+    }
+  };
+
+  // ── Module d'accessibilité vocale (Mode 2 — Saisie vocale des coups) ──────
+
+  /** Texte de feedback affiché sous le bouton micro. */
+  const [micFeedback, setMicFeedback] = useState('');
+
+  /**
+   * Résolveur de coup vocal — v2 (robuste)
+   *
+   * Cas gérés :
+   * 1. Case complète "e4" → recherche directe
+   * 2. Case partielle "pion 4" → cherche le pion du joueur courant qui peut aller sur rang 4
+   * 3. Case partielle "pion e" → cherche le pion sur la colonne e ou qui peut y aller
+   * 4. Ambiguïté → si 2+ candidats, retourne 'ambiguous'
+   * 5. Meilleur candidat si 2+ pions sur même rang → prend le plus avancé
+   */
+  const resolveVoiceMove = (
+    intent: import('../services/chessCommandParser').ChessIntent,
+  ):
+    | { ok: true; fromRow: number; fromCol: number; toRow: number; toCol: number }
+    | { ok: false; error: 'illegal' | 'ambiguous' | 'partial' } => {
+
+    if (!intent) return { ok: false, error: 'illegal' };
+
+    // ── Roque ────────────────────────────────────────────────────────────
+    if (intent.type === 'castle-short' || intent.type === 'castle-long') {
+      const kingRow = currentTurn === 'white' ? 7 : 0;
+      const toCol   = intent.type === 'castle-short' ? 6 : 2;
+      if (isLegalMove(board, kingRow, 4, kingRow, toCol)) {
+        return { ok: true, fromRow: kingRow, fromCol: 4, toRow: kingRow, toCol };
+      }
+      return { ok: false, error: 'illegal' };
+    }
+
+    if (intent.type !== 'move') return { ok: false, error: 'illegal' };
+
+    const pieceSymbol = PIECE_SYMBOLS_BY_TYPE[intent.piece]?.[currentTurn];
+    if (!pieceSymbol) return { ok: false, error: 'illegal' };
+
+    // ── Cas case partielle : rang ou colonne manquant ─────────────────────
+    const hasPartial = intent.toSquare.includes('?');
+    const partialFile = intent.partialFile;  // 'e', 'd', etc. ou undefined
+    const partialRank = intent.partialRank;  // '4', '3', etc. ou undefined
+
+    if (hasPartial) {
+      // Collecte tous les candidats pouvant jouer
+      const allCandidates: { fromRow: number; fromCol: number; toRow: number; toCol: number }[] = [];
+
+      for (let fromR = 0; fromR < 8; fromR++) {
+        for (let fromC = 0; fromC < 8; fromC++) {
+          if (board[fromR][fromC] !== pieceSymbol) continue;
+
+          for (let toR = 0; toR < 8; toR++) {
+            for (let toC = 0; toC < 8; toC++) {
+              // Filtre par rang partiel
+              if (partialRank !== undefined) {
+                const expectedRank = 8 - parseInt(partialRank, 10);
+                if (toR !== expectedRank) continue;
+              }
+              // Filtre par colonne partielle
+              if (partialFile !== undefined) {
+                const expectedCol = partialFile.charCodeAt(0) - 'a'.charCodeAt(0);
+                if (toC !== expectedCol) continue;
+              }
+              if (isLegalMove(board, fromR, fromC, toR, toC)) {
+                allCandidates.push({ fromRow: fromR, fromCol: fromC, toRow: toR, toCol: toC });
+              }
+            }
+          }
+        }
+      }
+
+      if (allCandidates.length === 0) return { ok: false, error: 'illegal' };
+
+      // Si un unique candidat, on le joue directement
+      if (allCandidates.length === 1) {
+        return { ok: true, ...allCandidates[0] };
+      }
+
+      // Plusieurs candidats : pour les pions, on préfère le plus avancé (rangée la plus haute pour blanc)
+      if (intent.piece === 'pawn') {
+        const sorted = [...allCandidates].sort((a, b) =>
+          currentTurn === 'white'
+            ? a.fromRow - b.fromRow   // blanc : rang fromRow bas = plus avancé
+            : b.fromRow - a.fromRow   // noir : rang fromRow haut = plus avancé
+        );
+        // Si candidat unique le plus avancé (ex: pion en e4 peut aller en e5 et e6, pas e3)
+        // On prend le coup le plus court (avance d'une case de préférence)
+        const oneStep = sorted.filter(c => Math.abs(c.toRow - c.fromRow) === 1);
+        if (oneStep.length === 1) return { ok: true, ...oneStep[0] };
+        // Sinon prend le premier (le plus avancé)
+        const best = sorted[0];
+        const sameCandidates = sorted.filter(c => c.fromRow === best.fromRow && c.fromCol === best.fromCol);
+        if (sameCandidates.length === 1 || (partialRank && allCandidates.length <= 2)) {
+          return { ok: true, ...sorted[0] };
+        }
+      }
+
+      return { ok: false, error: 'ambiguous' };
+    }
+
+    // ── Cas case complète ─────────────────────────────────────────────────
+    const fileChar = intent.toSquare[0];
+    const rankChar = intent.toSquare[1];
+    const toCol = fileChar.charCodeAt(0) - 'a'.charCodeAt(0);
+    const toRow = 8 - parseInt(rankChar, 10);
+
+    if (toCol < 0 || toCol > 7 || toRow < 0 || toRow > 7) {
+      return { ok: false, error: 'illegal' };
+    }
+
+    const candidates: { fromRow: number; fromCol: number }[] = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (board[r][c] === pieceSymbol && isLegalMove(board, r, c, toRow, toCol)) {
+          candidates.push({ fromRow: r, fromCol: c });
+        }
+      }
+    }
+
+    if (candidates.length === 1) {
+      return { ok: true, ...candidates[0], toRow, toCol };
+    }
+
+    // Ambiguïté : si la pièce par défaut est 'pawn' (commande genre "e4"),
+    // essayer les autres pièces du joueur sur cette case pour lever l'ambiguïté
+    if (candidates.length > 1 && intent.piece === 'pawn') {
+      // L'ASR a dit "e4" sans préciser : on préfère le pion unique
+      const uniquePawnCandidates = candidates; // déjà filtrés sur pieceSymbol
+      if (uniquePawnCandidates.length > 0) {
+        // Prend le pion le plus proche de la destination (avance d'une case)
+        const oneStep = uniquePawnCandidates.filter(c => Math.abs(toRow - c.fromRow) === 1);
+        if (oneStep.length === 1) return { ok: true, ...oneStep[0], toRow, toCol };
+        // Prend le pion sur la même colonne
+        const sameFile = uniquePawnCandidates.filter(c => c.fromCol === toCol);
+        if (sameFile.length === 1) return { ok: true, ...sameFile[0], toRow, toCol };
+      }
+      return { ok: false, error: 'ambiguous' };
+    }
+
+    if (candidates.length > 1) return { ok: false, error: 'ambiguous' };
+    return { ok: false, error: 'illegal' };
+  };
+
+  /**
+   * Gestionnaire principal d'une commande vocale — v3 (diagnostic avancé)
+   *
+   * Appelé par useASR avec primary, alternatives[], confidence.
+   * Tente plusieurs stratégies avant d'échouer.
+   * Affiche un feedback riche pour diagnostiquer les erreurs.
+   */
+  const handleVoiceCommand = (primary: string, alternatives: string[], _confidence?: number) => {
+    // ── Gardes de sécurité ─────────────────────────────────────────────────
+    if (winner) {
+      setMicFeedback('⚠ Partie terminée.');
+      speak('La partie est terminée.');
+      return;
+    }
+    if (thinking) {
+      setMicFeedback('⚠ Stockfish réfléchit…');
+      speak('Attendez la réponse de Stockfish.');
+      return;
+    }
+    // En mode bot, seul le tour blanc (joueur humain) peut jouer vocalement
+    if (mode === 'bot' && currentTurn !== 'white') {
+      setMicFeedback("⚠ Ce n'est pas votre tour.");
+      speak("Ce n'est pas votre tour de jouer.");
+      return;
+    }
+
+    // ── Log complet ASR pour diagnostic ───────────────────────────────────
+    console.info('[Voice] Transcription ASR :', primary);
+    if (alternatives.length > 0) console.info('[Voice] Alternatives ASR :', alternatives);
+
+    // ── Parsing multi-stratégie ────────────────────────────────────────────
+    const parsed = parseWithAlternatives(primary, alternatives);
+
+    if (!parsed) {
+      // Afficher ce qui a réellement été entendu pour aider le diagnostic
+      const allHeard = [primary, ...alternatives].filter(Boolean).join(' | ');
+      const heard = primary || alternatives[0] || '(rien)';
+      console.warn('[Voice] Parsing échoué. ASR a entendu :', allHeard);
+      setMicFeedback(`❌ Entendu: « ${heard} » — non compris`);
+      if (voiceEnabled) speak('Non compris. Répétez en disant par exemple : e quatre, ou cavalier f trois.');
+      return;
+    }
+
+    const { intent, transcript: usedTranscript, confidence } = parsed;
+
+    // ── Log de l'intention décodée ──────────────────────────────────────────
+    console.info('[Voice] Intention parsée :', intent, '(depuis « ' + usedTranscript + '»)');
+
+    // ── Résolution du coup sur le plateau ─────────────────────────────────
+    const resolution = resolveVoiceMove(intent);
+
+    if (!resolution.ok) {
+      // Construire un message utile qui dit EXACTEMENT ce qui était demandé
+      const intentDesc = intent.type === 'move'
+        ? `${intent.piece} → ${intent.toSquare}`
+        : intent.type;
+      console.warn('[Voice] Résolution échouée :', resolution.error, 'pour intent :', intentDesc);
+
+      switch (resolution.error) {
+        case 'ambiguous':
+          setMicFeedback(`⚠ Ambigu : plusieurs pièces peuvent aller là. Précisez (ex: cavalier f3 au lieu de f3)`);
+          if (voiceEnabled) speak('Ambiguïté. Précisez quelle pièce vous voulez jouer.');
+          break;
+        case 'partial':
+          setMicFeedback(`⚠ Case incomplète — dites pièce ET case (ex: pion e4, cavalier f3)`);
+          if (voiceEnabled) speak('Case incomplète. Dites la pièce et la case, par exemple pion e quatre.');
+          break;
+        default: {
+          // Essayer de donner un message utile selon ce qui était demandé
+          const sq = intent.type === 'move' ? intent.toSquare : '?';
+          setMicFeedback(`❌ « ${usedTranscript} » → coup illégal (case ${sq} impossible pour ce tour)`);
+          if (voiceEnabled) speak('Coup impossible. Vérifiez que ce coup est légal dans la position actuelle.');
+        }
+      }
+      return;
+    }
+
+    const { fromRow, fromCol, toRow, toCol } = resolution;
+
+    // ── Exécution réelle du coup ───────────────────────────────────────────
+    const moveResult = applyMoveOnBoard(board, fromRow, fromCol, toRow, toCol);
+    const nextTurn: Color = currentTurn === 'white' ? 'black' : 'white';
+
+    setBoard(moveResult.board);
+    setMoveHistory((prev) => [...prev, moveResult.moveText]);
+    setPgnMoves((prev) => [...prev, moveResult.pgnMove]);
+    setSelectedSquare(null);
+    uciMovesRef.current = [...uciMovesRef.current, moveResult.uciMove];
+
+    if (currentTurn === 'white') {
+      setWhiteTime((prev) => prev + (timeControl?.increment ?? 0));
+    } else {
+      setBlackTime((prev) => prev + (timeControl?.increment ?? 0));
+    }
+
+    setCurrentTurn(nextTurn);
+    finalizePositionAfterMove(moveResult.board, nextTurn);
+
+    // Feedback enrichi selon la confiance
+    const confidenceLabel = confidence === 'low' ? ' (interprété)' : '';
+    const altLabel = usedTranscript !== primary ? ` (alt: « ${usedTranscript} »)` : '';
+    console.info('[Voice] Coup joué :', moveResult.moveText);
+    setMicFeedback(`✅ ${moveResult.moveText}${altLabel}${confidenceLabel}`);
+
+    if (voiceEnabled) speak(`Coup joué : ${moveResult.moveText}`);
+
+    setTimeout(() => setMicFeedback(''), 5000);
+  };
+
+  const { isListening, isSupported: asrSupported, startListening, stopListening, interimText: _interimText } = useASR({
+    // useASR envoie (primary, alternatives, confidence) — on ignore confidence ici
+    onResult: (primary, alternatives) => handleVoiceCommand(primary, alternatives),
+    onInterim: (text) => {
+      if (text.trim()) setMicFeedback(`🎤 « ${text} »…`);
+    },
+    onError: (err) => {
+      setMicFeedback(`❌ ${err}`);
+      if (voiceEnabled) speak(err);
+    },
+    lang: 'fr-FR',
+  });
+
+  const handleMicToggle = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      setMicFeedback('');
+      startListening();
+    }
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const engineSettings = useMemo(() => {
     if (!passedEngineSettings) {
@@ -1004,6 +1320,42 @@ export function ChessGame({
                 <Save className="w-5 h-5" />
                 Sauvegarder
               </button>
+
+              {/* ── Module vocal Mode 1 — Suivi vocal ── */}
+              <VoiceToggle
+                enabled={voiceEnabled}
+                onToggle={handleVoiceToggle}
+                isSupported={voiceSupported}
+              />
+
+              {/* ── Module vocal Mode 2 — Saisie vocale des coups ── */}
+              <MicButton
+                isListening={isListening}
+                onToggle={handleMicToggle}
+                isSupported={asrSupported}
+                feedback={micFeedback}
+                disabled={!!winner || thinking || (mode === 'bot' && currentTurn === 'black')}
+              />
+            </div>
+
+            {/* ── Zone aria-live pour les lecteurs d'écran système ── */}
+            {/* Visuellement cachée, mais lue par NVDA, VoiceOver, etc. */}
+            <div
+              aria-live="polite"
+              aria-atomic="true"
+              style={{
+                position: 'absolute',
+                width: '1px',
+                height: '1px',
+                padding: 0,
+                margin: '-1px',
+                overflow: 'hidden',
+                clip: 'rect(0,0,0,0)',
+                whiteSpace: 'nowrap',
+                borderWidth: 0,
+              }}
+            >
+              {liveText}
             </div>
           </div>
         </div>
