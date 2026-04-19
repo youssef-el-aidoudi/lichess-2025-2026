@@ -1,0 +1,267 @@
+﻿docker : time="2026-03-28T2
+3:31:55+01:00" 
+level=warning msg="The 
+\"POSTGRES_TELEGRAF_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+At line:1 char:1
++ docker compose exec 
+ai_engine python -c 
+"import tensorflow as tf; 
+pri ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (tim  
+  e="2026-03-2... blank    
+ string.":String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+time="2026-03-28T23:31:55+0
+1:00" level=warning 
+msg="The \"POSTGRES_TELEGRA
+F_PASSWORD\" variable is 
+not set. Defaulting to a 
+blank string."
+time="2026-03-28T23:31:55+0
+1:00" level=warning 
+msg="The 
+\"POSTGRES_TELEGRAF_DB\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:31:55+0
+1:00" level=warning 
+msg="The \"POSTGRES_TELEGRA
+F_PASSWORD\" variable is 
+not set. Defaulting to a 
+blank string."
+time="2026-03-28T23:31:55+0
+1:00" level=warning 
+msg="The 
+\"POSTGRES_TELEGRAF_DB\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:31:55+0
+1:00" level=warning 
+msg="The 
+\"GF_SECURITY_ADMIN_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:31:55+0
+1:00" level=warning 
+msg="The \"GF_SECURITY_ADMI
+N_PASSWORD\" variable is 
+not set. Defaulting to a 
+blank string."
+time="2026-03-28T23:31:55+0
+1:00" level=warning 
+msg="The 
+\"POSTGRES_TELEGRAF_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:31:55+0
+1:00" level=warning 
+msg="The 
+\"GF_SECURITY_ADMIN_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:31:55+0
+1:00" level=warning 
+msg="The \"GF_SECURITY_ADMI
+N_PASSWORD\" variable is 
+not set. Defaulting to a 
+blank string."
+time="2026-03-28T23:31:55+0
+1:00" level=warning 
+msg="The \"GRAFANA_HOST\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:31:55+0
+1:00" level=warning 
+msg="The \"GRAFANA_HOST\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+WARNING: All log messages 
+before 
+absl::InitializeLog() is 
+called are written to 
+STDERR
+I0000 
+00:00:1774737117.039537    
+  38 cudart_stub.cc:31] 
+Could not find cuda 
+drivers on your machine, 
+GPU will not be used.
+I0000 
+00:00:1774737117.184383    
+  38 
+cpu_feature_guard.cc:227] 
+This TensorFlow binary is 
+optimized to use available 
+CPU instructions in 
+performance-critical 
+operations.
+To enable the following 
+instructions: AVX2 FMA, in 
+other operations, rebuild 
+TensorFlow with the 
+appropriate compiler flags.
+WARNING: All log messages 
+before 
+absl::InitializeLog() is 
+called are written to 
+STDERR
+I0000 
+00:00:1774737124.810358    
+  38 cudart_stub.cc:31] 
+Could not find cuda 
+drivers on your machine, 
+GPU will not be used.
+E0000 
+00:00:1774737125.165914    
+  38 cuda_platform.cc:52] 
+failed call to cuInit: 
+INTERNAL: CUDA error: 
+Failed call to cuInit: 
+UNKNOWN ERROR (303)
+Traceback (most recent 
+call last):
+  File "/usr/local/lib/pyth
+on3.11/site-packages/tensor
+flow/python/training/py_che
+ckpoint_reader.py", line 
+92, in NewCheckpointReader
+    return CheckpointReader
+(compat.as_bytes(filepatter
+n))
+           ^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^
+RuntimeError: Unsuccessful 
+TensorSliceReader 
+constructor: Failed to 
+find any matching files 
+for ./variables/variables
+
+During handling of the 
+above exception, another 
+exception occurred:
+
+Traceback (most recent 
+call last):
+  File "/usr/local/lib/pyth
+on3.11/site-packages/tensor
+flow/python/saved_model/loa
+d.py", line 1042, in 
+load_partial
+    loader = 
+Loader(object_graph_proto, 
+saved_model_proto, 
+export_dir,
+             ^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/pyth
+on3.11/site-packages/tensor
+flow/python/saved_model/loa
+d.py", line 226, in 
+__init__
+    
+self._restore_checkpoint()
+  File "/usr/local/lib/pyth
+on3.11/site-packages/tensor
+flow/python/saved_model/loa
+d.py", line 561, in 
+_restore_checkpoint
+    load_status = saver.res
+tore(variables_path, 
+self._checkpoint_options)
+                  ^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/pyth
+on3.11/site-packages/tensor
+flow/python/checkpoint/chec
+kpoint.py", line 1456, in 
+restore
+    reader = py_checkpoint_
+reader.NewCheckpointReader(
+save_path)
+             ^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+  File "/usr/local/lib/pyth
+on3.11/site-packages/tensor
+flow/python/training/py_che
+ckpoint_reader.py", line 
+96, in NewCheckpointReader
+    error_translator(e)
+  File "/usr/local/lib/pyth
+on3.11/site-packages/tensor
+flow/python/training/py_che
+ckpoint_reader.py", line 
+31, in error_translator
+    raise errors_impl.NotFo
+undError(None, None, 
+error_message)
+tensorflow.python.framework
+.errors_impl.NotFoundError:
+ Unsuccessful 
+TensorSliceReader 
+constructor: Failed to 
+find any matching files 
+for ./variables/variables
+
+During handling of the 
+above exception, another 
+exception occurred:
+
+Traceback (most recent 
+call last):
+  File "<string>", line 1, 
+in <module>
+  File "/usr/local/lib/pyth
+on3.11/site-packages/tensor
+flow/python/saved_model/loa
+d.py", line 912, in load
+    result = 
+load_partial(export_dir, 
+None, tags, 
+options)["root"]
+             ^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^
+  File "/usr/local/lib/pyth
+on3.11/site-packages/tensor
+flow/python/saved_model/loa
+d.py", line 1045, in 
+load_partial
+    raise 
+FileNotFoundError(
+FileNotFoundError: 
+Unsuccessful 
+TensorSliceReader 
+constructor: Failed to 
+find any matching files 
+for ./variables/variables
+ You may be trying to load 
+on a different device from 
+the computational device. 
+Consider setting the 
+`experimental_io_device` 
+option in `tf.saved_model.L
+oadOptions` to the 
+io_device such as 
+'/job:localhost'.
+TF version: 2.21.0

@@ -1,11 +1,17 @@
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.docker.localhost';
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+// When running on localhost, we hit the services directly to bypass Traefik/CORS/WS issues
+const BACKEND_API_URL = import.meta.env.VITE_API_URL || (isLocalhost ? 'http://localhost:8080' : 'https://api.docker.localhost');
+const ML_BOT_API_URL = import.meta.env.VITE_ML_API_URL || (isLocalhost ? 'http://localhost:8002' : 'https://api.docker.localhost');
+const STOCKFISH_API_URL = import.meta.env.VITE_STOCKFISH_API_URL || (isLocalhost ? 'http://localhost:8001' : 'https://api.docker.localhost');
+const WS_API_URL = isLocalhost ? 'ws://localhost:8002' : 'wss://api.docker.localhost';
 
 // Helper pour récupérer le token JWT du localStorage
 const getAuthToken = (): string | null => {
-    return localStorage.getItem('token');
+    return localStorage.getItem('jwt_token');
 };
 
-// Helper pour les requêtes authentifiées
+// Helper pour les requêtes authentifiées (Backend)
 const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
     const token = getAuthToken();
 
@@ -15,44 +21,63 @@ const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
         ...options.headers,
     };
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await fetch(`${BACKEND_API_URL}${endpoint}`, {
         ...options,
         headers,
     });
 
     if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        if (response.status === 401) {
+            window.dispatchEvent(new Event('auth:expired'));
+        }
+        let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorData || errorMessage;
+        } catch (e) {
+            try {
+                const textError = await response.text();
+                if (textError) errorMessage = textError;
+            } catch (e2) {}
+        }
+        throw new Error(errorMessage);
     }
 
-    return response.json();
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+        return response.json();
+    }
+    return response.text();
 };
 
-// Récupère un joueur par son pseudo
+// =========================================================
+// JOUEURS & PARTIES
+// =========================================================
+
 export const getJoueurByPseudo = async (pseudo: string) => {
-    return fetchWithAuth(`/joueurs/search?pseudo=${encodeURIComponent(pseudo)}`);
+    return fetchWithAuth(`/api/joueurs/search?pseudo=${encodeURIComponent(pseudo)}`);
 };
 
-// Récupère toutes les parties
 export const getAllParties = async () => {
-    return fetchWithAuth('/parties');
+    return fetchWithAuth('/api/parties');
 };
 
-// Récupère une partie par son ID
 export const getPartieById = async (id: number) => {
-    return fetchWithAuth(`/parties/${id}`);
+    return fetchWithAuth(`/api/parties/${id}`);
 };
 
-// Récupère les joueurs d'une partie
 export const getPartieJoueurs = async (id: number) => {
-    return fetchWithAuth(`/parties/${id}/joueurs`);
+    return fetchWithAuth(`/api/parties/${id}/joueurs`);
 };
 
-// Récupère un joueur par son ID
 export const getJoueurById = async (id: number) => {
-    return fetchWithAuth(`/joueurs/${id}`);
+    return fetchWithAuth(`/api/joueurs/${id}`);
 };
 
-// Stockfish - Obtenir le meilleur coup
+// =========================================================
+// STOCKFISH
+// =========================================================
+
 export const getStockfishBestMove = async (
     moves: string,
     mode: 'depth' | 'movetime' = 'depth',
@@ -62,55 +87,199 @@ export const getStockfishBestMove = async (
 ): Promise<string> => {
     try {
         const params = new URLSearchParams({
-            moves: moves || '', // Handle empty moves
+            moves: moves || '',
             mode,
             color,
             depth: depth.toString(),
             movetime: movetime.toString(),
         });
 
-        console.log('🔗 API Call:', `${API_URL}/api/chess/bestmove?${params}`);
-
-        const response = await fetch(`${API_URL}/api/chess/bestmove?${params}`, {
+        // Use STOCKFISH_API_URL and direct endpoint (Stockfish service doesn't need /api/chess prefix internally if using direct port)
+        // But for Traefik consistency, we keep the /api/chess/bestmove path structure.
+        const response = await fetch(`${STOCKFISH_API_URL}/api/chess/bestmove?${params}`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            signal: AbortSignal.timeout(10000), // 10 second timeout
+            headers: { 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(10000),
         });
 
         if (!response.ok) {
-            console.error('❌ API Response Error:', response.status, response.statusText);
             throw new Error(`Stockfish API Error: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
-        console.log('✅ API Response:', data);
-        return data.bestmove || 'e2e4'; // Return bestmove from JSON response
+        return data.bestmove || 'e2e4';
     } catch (error) {
         console.error('❌ Stockfish API Error:', error);
-
-        if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-            throw new Error('Backend server not responding. Please ensure the backend is running on port 8080.');
-        }
-
         throw error;
     }
 };
 
-// Stockfish - Analyser une position
 export const analyzePosition = async (
     moves: string,
     depth: number = 20
 ): Promise<{ bestmove: string; evaluation: number }> => {
+    const bestMove = await getStockfishBestMove(moves, 'depth', 'black', depth, 3000);
+    return { bestmove: bestMove, evaluation: 0 };
+};
+
+// =========================================================
+// ML BOT
+// =========================================================
+
+export const getCustomBotMove = async (
+    moves: string,
+    color: 'white' | 'black' = 'black'
+): Promise<string> => {
     try {
-        const bestMove = await getStockfishBestMove(moves, 'depth', 'black', depth, 3000);
-        return {
-            bestmove: bestMove,
-            evaluation: 0, // Backend ne retourne que bestmove pour maintenant
-        };
+        const params = new URLSearchParams({ moves: moves || '', color });
+
+        const response = await fetch(`${ML_BOT_API_URL}/api/chess/custom-bot?${params}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(30000),
+        });
+
+        if (!response.ok) {
+            throw new Error(`ML Bot API Error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.bestmove || 'e2e4';
     } catch (error) {
-        console.error('Erreur analyse:', error);
+        console.error('❌ ML Bot API Error:', error);
         throw error;
     }
+};
+
+// =========================================================
+// FRIENDS
+// =========================================================
+
+export const searchPlayers = async (query: string) => {
+    return fetchWithAuth(`/api/friends/search?query=${encodeURIComponent(query)}`);
+};
+
+export const sendFriendRequest = async (pseudo: string) => {
+    return fetchWithAuth('/api/friends/request', {
+        method: 'POST',
+        body: JSON.stringify({ pseudo }),
+    });
+};
+
+export const acceptFriendRequest = async (id: number) => {
+    return fetchWithAuth(`/api/friends/accept/${id}`, { method: 'POST' });
+};
+
+export const declineFriendRequest = async (id: number) => {
+    return fetchWithAuth(`/api/friends/decline/${id}`, { method: 'POST' });
+};
+
+export const getFriends = async () => {
+    return fetchWithAuth('/api/friends');
+};
+
+export const getPendingRequests = async () => {
+    return fetchWithAuth('/api/friends/pending');
+};
+
+// =========================================================
+// CHAT (REST)
+// =========================================================
+
+export const getChatHistory = async (pseudo: string) => {
+    return fetchWithAuth(`/api/chat/history/${encodeURIComponent(pseudo)}`);
+};
+
+export const sendChatMessage = async (to: string, content: string) => {
+    return fetchWithAuth('/api/chat/send', {
+        method: 'POST',
+        body: JSON.stringify({ to, content }),
+    });
+};
+
+export const getUnreadCount = async () => {
+    return fetchWithAuth('/api/chat/unread');
+};
+
+export const markMessagesAsRead = async (pseudo: string) => {
+    return fetchWithAuth(`/api/chat/read/${encodeURIComponent(pseudo)}`, { method: 'POST' });
+};
+
+// =========================================================
+// MULTIPLAYER
+// =========================================================
+
+export const createMultiplayerGame = async (username: string, timeMinutes: number, increment: number) => {
+    const response = await fetch(`${ML_BOT_API_URL}/api/chess/multiplayer/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, timeMinutes, increment }),
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Erreur API');
+    }
+    return response.json();
+};
+
+export const joinMultiplayerGame = async (gameId: string, username: string) => {
+    const response = await fetch(`${ML_BOT_API_URL}/api/chess/multiplayer/join/${gameId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Erreur API');
+    }
+    return response.json();
+};
+
+export const joinMatchmaking = async (username: string, timeMinutes: number, increment: number) => {
+    const response = await fetch(`${ML_BOT_API_URL}/api/chess/multiplayer/matchmaking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, timeMinutes, increment }),
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Erreur de matchmaking');
+    }
+    return response.json();
+};
+
+export const cancelMatchmaking = async (username: string) => {
+    const response = await fetch(`${ML_BOT_API_URL}/api/chess/multiplayer/cancel-matchmaking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+    });
+    return response.json();
+};
+
+export const checkMatch = async (username: string) => {
+    const response = await fetch(`${ML_BOT_API_URL}/api/chess/multiplayer/check-match?username=${encodeURIComponent(username)}`);
+    return response.json();
+};
+
+export const getGameStatus = async (gameId: string) => {
+    const response = await fetch(`${ML_BOT_API_URL}/api/chess/multiplayer/status/${gameId}`);
+    return response.json();
+};
+
+export const getPlayerOnlineGames = async (pseudo: string) => {
+    const response = await fetch(`${BACKEND_API_URL}/api/online-parties/player/${encodeURIComponent(pseudo)}`);
+    return response.json();
+};
+
+// =========================================================
+// WEBSOCKET HELPERS
+// =========================================================
+
+export const connectGameWebSocket = (gameId: string): WebSocket => {
+    return new WebSocket(`${WS_API_URL}/api/chess/ws/game/${gameId}`);
+};
+
+export const connectChatWebSocket = (): WebSocket => {
+    return new WebSocket(`${WS_API_URL}/api/chess/ws/chat`);
 };

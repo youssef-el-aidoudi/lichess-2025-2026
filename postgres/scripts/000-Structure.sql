@@ -209,3 +209,45 @@ CREATE TABLE IF NOT EXISTS Position_Stats_Stage (
     nb_victoires_noir BIGINT NOT NULL,
     nb_nulles BIGINT NOT NULL
 );
+-- ============================================================================
+-- MULTIPLAYER & SOCIAL
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS Online_Partie (
+    id SERIAL PRIMARY KEY,
+    game_id VARCHAR(100) NOT NULL UNIQUE,
+    id_joueur_blanc INT NOT NULL,
+    id_joueur_noir INT NOT NULL,
+    resultat SMALLINT,
+    result_type VARCHAR(50),
+    pgn TEXT,
+    time_control VARCHAR(20),
+    total_moves INT,
+    played_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_joueur_blanc) REFERENCES Joueur(id),
+    FOREIGN KEY (id_joueur_noir) REFERENCES Joueur(id)
+);
+
+CREATE TABLE IF NOT EXISTS Friendship (
+    id SERIAL PRIMARY KEY,
+    id_joueur_from INT NOT NULL,
+    id_joueur_to INT NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_joueur_from) REFERENCES Joueur(id),
+    FOREIGN KEY (id_joueur_to) REFERENCES Joueur(id),
+    UNIQUE (id_joueur_from, id_joueur_to),
+    CHECK (id_joueur_from != id_joueur_to)
+);
+
+CREATE TABLE IF NOT EXISTS Chat_Message (
+    id SERIAL PRIMARY KEY,
+    id_sender INT NOT NULL,
+    id_receiver INT NOT NULL,
+    content TEXT NOT NULL,
+    sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    game_id VARCHAR(100),
+    is_read BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (id_sender) REFERENCES Joueur(id),
+    FOREIGN KEY (id_receiver) REFERENCES Joueur(id)
+);

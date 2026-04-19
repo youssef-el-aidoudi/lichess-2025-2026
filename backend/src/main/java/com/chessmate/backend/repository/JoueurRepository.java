@@ -18,4 +18,6 @@ public interface JoueurRepository extends JpaRepository<Joueur, Long>{
     @Query("SELECT j FROM Joueur j WHERE j.elo = :elo")
     List<Joueur> findByElo(@Param("elo")int elo);  // recherche par elo
 
+    List<Joueur> findByPseudonymeContainingIgnoreCase(String pseudo);
+
 }

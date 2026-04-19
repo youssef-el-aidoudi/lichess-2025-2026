@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Download, Brain, Circle } from 'lucide-react';
-import { getStockfishBestMove, analyzePosition } from '../services/api';
+import { getStockfishBestMove, analyzePosition, getCustomBotMove } from '../services/api';
 
 interface ChessGameProps {
-  mode: 'human' | 'bot';
+  mode: 'human' | 'bot' | 'bot_ml';
   timeControl?: {
     minutes: number;
     increment: number;
@@ -43,6 +43,9 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   useEffect(() => { if (backendStatus) { } }, [backendStatus]);
   const [thinking, setThinking] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
+
+  const [lastMove, setLastMove] = useState<{from: [number, number], to: [number, number]} | null>(null);
+  const [markedSquares, setMarkedSquares] = useState<string[]>([]);
 
   const [whiteTime, setWhiteTime] = useState((timeControl?.minutes || 5) * 60);
   const [blackTime, setBlackTime] = useState((timeControl?.minutes || 5) * 60);
@@ -206,27 +209,28 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     return true;
   };
 
-  // Check backend connectivity
-  const checkBackendStatus = async () => {
-    try {
-      setBackendStatus('checking');
-      const API_URL = import.meta.env.VITE_API_URL || 'https://api.docker.localhost';
-      const response = await fetch(`${API_URL}/api/chess/bestmove?moves=&mode=depth&color=black&depth=1&movetime=100`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000),
-      });
+  const [mlStatus, setMlStatus] = useState<'checking' | 'ok' | 'fail'>('checking');
+  const [stockfishStatus, setStockfishStatus] = useState<'checking' | 'ok' | 'fail'>('checking');
 
-      if (response.ok) {
-        setBackendStatus('connected');
-        if (gameStatus.includes('❌ Erreur')) {
-          setGameStatus('En cours'); // Clear error status when backend reconnects
-        }
-      } else {
-        setBackendStatus('disconnected');
-      }
-    } catch (error) {
-      console.log('Backend check failed:', error);
-      setBackendStatus('disconnected');
+  const checkBackendStatus = async () => {
+    // Check ML Bot
+    try {
+      setMlStatus('checking');
+      const ML_URL = import.meta.env.VITE_ML_API_URL || 'http://localhost:8002';
+      const response = await fetch(`${ML_URL}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
+      setMlStatus(response.ok ? 'ok' : 'fail');
+    } catch {
+      setMlStatus('fail');
+    }
+
+    // Check Stockfish
+    try {
+      setStockfishStatus('checking');
+      const SF_URL = import.meta.env.VITE_STOCKFISH_API_URL || 'http://localhost:8001';
+      const response = await fetch(`${SF_URL}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
+      setStockfishStatus(response.ok ? 'ok' : 'fail');
+    } catch {
+      setStockfishStatus('fail');
     }
   };
 
@@ -613,6 +617,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       setBoard(newBoard);
       setMoveHistory(updatedMoveHistory);
       setPgnMoves([...pgnMoves, pgnMove]);
+      setLastMove({ from: [selectedSquare.row, selectedSquare.col], to: [row, col] });
       setSelectedSquare(null);
 
       // Track pieces that have moved (for castling validation)
@@ -742,7 +747,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     console.log('Current UCI moves when bot turn starts:', uciMovesRef.current.join(' '));
 
     // Early exit conditions - must be bot mode, black's turn, not thinking, no winner, and bot not in progress
-    if (mode !== 'bot' || currentTurn !== 'black' || thinking || winner || botMoveInProgress.current) {
+    if (!['bot', 'bot_ml'].includes(mode) || currentTurn !== 'black' || thinking || winner || botMoveInProgress.current) {
       console.log('Bot move skipped due to conditions');
       return;
     }
@@ -770,19 +775,26 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
         console.log('Sending UCI moves to Stockfish:', uciMoves.join(' '));
 
-        // Use movetime if set, otherwise use depth
-        const mode = engineSettings.movetime && engineSettings.movetime > 0 ? 'movetime' : 'depth';
-        const depthValue = engineSettings.depth || 15;
-        const movetimeValue = engineSettings.movetime || 1000;
+        let bestMove = "";
+        
+        if (mode === 'bot_ml') {
+          console.log('Appel de votre Bot ML TensorFlow personnalisé...');
+          bestMove = await getCustomBotMove(uciMoves.join(' '), 'black');
+        } else {
+          // Use movetime if set, otherwise use depth
+          const modeVal = engineSettings.movetime && engineSettings.movetime > 0 ? 'movetime' : 'depth';
+          const depthValue = engineSettings.depth || 15;
+          const movetimeValue = engineSettings.movetime || 1000;
 
-        // Appeler Stockfish via l'API backend
-        const bestMove = await getStockfishBestMove(
-          uciMoves.join(' '),
-          mode,
-          'black',
-          depthValue,
-          movetimeValue
-        );
+          // Appeler Stockfish via l'API backend
+          bestMove = await getStockfishBestMove(
+            uciMoves.join(' '),
+            modeVal,
+            'black',
+            depthValue,
+            movetimeValue
+          );
+        }
 
         // Parser le coup retourné par Stockfish (format: "e7e5" ou "e7e8q" pour promotion)
         if (bestMove && bestMove.length >= 4) {
@@ -914,7 +926,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           if (capturedPiece) {
             moveStr += ` (capture ${capturedPiece})`;
           }
-          moveStr += ' (Stockfish)';
+          moveStr += mode === 'bot_ml' ? ' (Bot ML)' : ' (Stockfish)';
 
           // Construire la notation PGN
           const pieceNotation = pieceToNotation(movingPiece);
@@ -954,6 +966,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           setBoard(newBoard);
           setMoveHistory((prev: string[]) => [...prev, moveStr]);
           setPgnMoves((prev: string[]) => [...prev, pgnMove]);
+          setLastMove({ from: [fromRow, fromCol], to: [toRow, toCol] });
 
           // Track pieces that have moved (for castling validation)
           const newMovedPieces = new Set(movedPieces);
@@ -1056,7 +1069,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 [Date "${new Date().toISOString().split('T')[0]}"]
 [Round "1"]
 [White "Joueur"]
-[Black "${mode === 'bot' ? 'Stockfish Bot' : 'Joueur 2'}"]
+[Black "${mode === 'bot' ? 'Stockfish Bot' : mode === 'bot_ml' ? 'ML Bot' : 'Joueur 2'}"]
 [Result "${result}"]
 
 ${formattedMoves}${result}`;
@@ -1184,15 +1197,37 @@ ${formattedMoves}${result}`;
                           const isLight = (rowIndex + colIndex) % 2 === 0;
                           const isSelected = selectedSquare?.row === rowIndex && selectedSquare?.col === colIndex;
                           const isLegalMove = legalMoves.some(move => move.row === rowIndex && move.col === colIndex);
+                          const isLastMove = lastMove && (
+                            (lastMove.from[0] === rowIndex && lastMove.from[1] === colIndex) ||
+                            (lastMove.to[0] === rowIndex && lastMove.to[1] === colIndex)
+                          );
+                          const squareId = `${rowIndex}-${colIndex}`;
+                          const isMarked = markedSquares.includes(squareId);
+
+                          const handleRightClick = (e: React.MouseEvent) => {
+                            e.preventDefault();
+                            setMarkedSquares(prev => 
+                              prev.includes(squareId) ? prev.filter(id => id !== squareId) : [...prev, squareId]
+                            );
+                          };
 
                           return (
                             <button
                               key={`${rowIndex}-${colIndex}`}
-                              onClick={() => handleSquareClick(rowIndex, colIndex)}
+                              onClick={() => {
+                                // If nothing selected and clicking empty square, mark it as requested by "click gauche" constraint
+                                if (!selectedSquare && !piece) {
+                                  setMarkedSquares(prev => prev.includes(squareId) ? prev.filter(id => id !== squareId) : [...prev, squareId]);
+                                } else {
+                                  handleSquareClick(rowIndex, colIndex);
+                                }
+                              }}
+                              onContextMenu={handleRightClick}
                               disabled={thinking}
-                              className={`w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-5xl sm:text-6xl transition-all duration-200 relative ${isLight
-                                ? 'bg-gradient-to-br from-amber-50 to-amber-100'
-                                : 'bg-gradient-to-br from-amber-600 to-amber-800'
+                              className={`w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-5xl sm:text-6xl transition-all duration-200 relative ${
+                                isLight
+                                  ? isLastMove ? 'bg-amber-100/80 saturate-150' : 'bg-gradient-to-br from-amber-50 to-amber-100'
+                                  : isLastMove ? 'bg-amber-700/80 saturate-150' : 'bg-gradient-to-br from-amber-600 to-amber-800'
                                 } ${isSelected
                                   ? 'ring-4 ring-blue-500 ring-inset scale-95 shadow-inner'
                                   : ''
@@ -1201,21 +1236,32 @@ ${formattedMoves}${result}`;
                                 }`}
                             >
                               {piece && (
-                                <span className={`drop-shadow-2xl transition-transform filter ${isSelected ? 'scale-110' : ''
-                                  }`} style={{
-                                    filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
-                                    textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                                    color: isBlackPiece(piece) ? '#1f2937' : '#f9fafb'
-                                  }}>
-                                  {piece}
-                                </span>
+                                (() => {
+                                  const imageMap: { [key: string]: string } = {
+                                    '♔': 'wK', '♕': 'wQ', '♖': 'wR', '♗': 'wB', '♘': 'wN', '♙': 'wP',
+                                    '♚': 'bK', '♛': 'bQ', '♜': 'bR', '♝': 'bB', '♞': 'bN', '♟': 'bP',
+                                  };
+                                  const code = imageMap[piece];
+                                  if (!code) return <span className="text-4xl">{piece}</span>;
+                                  return (
+                                    <img 
+                                      src={`https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/cburnett/${code}.svg`} 
+                                      alt={piece} 
+                                      className={`absolute inset-0 m-auto w-[85%] h-[85%] object-contain drop-shadow-xl pointer-events-none select-none transition-transform ${isSelected ? 'scale-110' : ''}`}
+                                      draggable={false}
+                                    />
+                                  );
+                                })()
+                              )}
+                              {isMarked && (
+                                <div className="absolute inset-0 ring-4 ring-green-500 ring-inset bg-green-500/20 pointer-events-none rounded-lg" />
                               )}
                               {isLegalMove && (
                                 <div className={`absolute inset-0 flex items-center justify-center pointer-events-none`}>
                                   {board[rowIndex][colIndex] === '' ? (
-                                    <div className="w-4 h-4 bg-green-500/60 rounded-full shadow-lg" />
+                                    <div className="w-6 h-6 bg-red-600/70 rounded-full shadow-lg" />
                                   ) : (
-                                    <div className="absolute inset-0 bg-red-500/30 rounded-sm ring-2 ring-red-500/60 ring-inset" />
+                                    <div className="absolute inset-0 bg-transparent rounded-sm ring-4 ring-red-600/70 ring-inset" />
                                   )}
                                 </div>
                               )}
@@ -1307,6 +1353,20 @@ ${formattedMoves}${result}`;
             )}
 
             {/* Statut de la partie */}
+            <div className="mt-8 flex items-center justify-center gap-6">
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${mlStatus === 'ok' ? 'bg-green-500' : mlStatus === 'checking' ? 'bg-amber-500' : 'bg-red-500'}`} />
+              <span className="text-xs text-gray-500 uppercase tracking-widest font-mono">
+                ML Bot: {mlStatus === 'ok' ? 'Online' : mlStatus === 'checking' ? 'Connecting...' : 'Offline'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${stockfishStatus === 'ok' ? 'bg-green-500' : stockfishStatus === 'checking' ? 'bg-amber-500' : 'bg-red-500'}`} />
+              <span className="text-xs text-gray-500 uppercase tracking-widest font-mono">
+                Stockfish: {stockfishStatus === 'ok' ? 'Online' : stockfishStatus === 'checking' ? 'Connecting...' : 'Offline'}
+              </span>
+            </div>
+          </div>
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className={`px-6 py-3 rounded-xl transition-all duration-300 ${winner
                 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 shadow-lg ring-2 ring-yellow-600 scale-105'
@@ -1329,7 +1389,9 @@ ${formattedMoves}${result}`;
               {thinking && (
                 <div className="flex items-center gap-3 px-5 py-3 bg-purple-100 rounded-xl shadow-md border border-purple-200">
                   <Brain className="w-5 h-5 text-purple-600 animate-pulse" />
-                  <span className="text-purple-800">Stockfish réfléchit...</span>
+                  <span className="text-purple-800">
+                    {mode === 'bot_ml' ? 'Le Bot ML réfléchit...' : 'Stockfish réfléchit...'}
+                  </span>
                 </div>
               )}
             </div>

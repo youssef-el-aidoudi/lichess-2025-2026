@@ -7,6 +7,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      BACKEND_URL: http://host.docker.internal:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -96,6 +99,50 @@ services:
       - traefik.docker.network=chessmate_proxy
       - traefik.http.routers.backend.rule=Host(`${BACKEND_HOST}`)
       - traefik.http.routers.backend.middlewares=securityheaders
+
+  # ML Bot Engine (TensorFlow)
+  ml_bot_engine:
+    build:
+      context: ./ai_engine
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8002:8000"
+    networks:
+      - internal
+      - public
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.mlbot.entrypoints=websecure
+      - traefik.http.routers.mlbot.tls=true
+      - traefik.http.services.mlbot.loadbalancer.server.port=8000
+      - traefik.docker.network=chessmate_proxy
+      - traefik.http.routers.mlbot.rule=Host(`${BACKEND_HOST}`) && PathPrefix(`/api/chess/custom-bot`)
+      - traefik.http.routers.mlbot.priority=100
+      - traefik.http.routers.mlbot.middlewares=securityheaders
+
+  # Stockfish Engine (Analysis)
+  stockfish_engine:
+    build:
+      context: ./stockfish_engine
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    networks:
+      - internal
+      - public
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.stockfish.entrypoints=websecure
+      - traefik.http.routers.stockfish.tls=true
+      - traefik.http.services.stockfish.loadbalancer.server.port=8000
+      - traefik.docker.network=chessmate_proxy
+      - traefik.http.routers.stockfish.rule=Host(`${BACKEND_HOST}`) && PathPrefix(`/api/chess/bestmove`)
+      - traefik.http.routers.stockfish.priority=100
+      - traefik.http.routers.stockfish.middlewares=securityheaders
 
   etl:
     # Pas lancé au démarrage.

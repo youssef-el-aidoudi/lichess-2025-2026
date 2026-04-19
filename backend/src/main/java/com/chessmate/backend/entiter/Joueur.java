@@ -57,6 +57,10 @@ public class Joueur {
 
     // ---------------- Getters ----------------
 
+    public Long getId() {
+        return this.id;
+    }
+
     public String getPseudo() {
         return this.pseudonyme;
     }

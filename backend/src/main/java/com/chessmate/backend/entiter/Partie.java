@@ -36,7 +36,7 @@ public class Partie {
     private String titreNoir;  // Titre du joueur noir
     private String typeResultat; // Type de résultat (normal, abandon, etc.)
     @Column(name = "\"round\"")
-    private int round; // Numéro du round dans un tournoi
+    private String round; // Numéro du round dans un tournoi (stored as string)
     
     @Column(columnDefinition = "TEXT")
     private String broadcastUrl; // URL de diffusion de la partie
@@ -93,7 +93,7 @@ public class Partie {
     public String getTitre_blanc() { return this.titreBlanc; }
     public String getTitre_noir() { return this.titreNoir; }
     public String getType_Resultat() { return this.typeResultat; }
-    public int getRound() { return this.round; }
+    public String getRound() { return this.round; }
     public Short getElo_Blanc() { return this.eloBlanc; }
     public Short getElo_Noir() { return this.eloNoir; }
     public LocalDateTime getDateHeurePartie() { return this.dateHeureUTC; }

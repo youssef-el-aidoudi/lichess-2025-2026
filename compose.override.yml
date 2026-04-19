@@ -30,12 +30,28 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DEVTOOLS_RESTART_ENABLED: true
-      SPRING_DATASOURCE_URL: jdbc:h2:mem:chessmate
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
-      SPRING_DATASOURCE_USERNAME: sa
-      SPRING_DATASOURCE_PASSWORD: ""
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/chessmate
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_DATASOURCE_USERNAME: oussama
+      SPRING_DATASOURCE_PASSWORD: password
     volumes:
       - ./backend:/app
+
+  ml_bot_engine:
+    volumes:
+      - ./ai_engine:/app
+    working_dir: /app
+    ports:
+      - "8002:8000"
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000
+
+  stockfish_engine:
+    volumes:
+      - ./stockfish_engine:/app
+    working_dir: /app
+    ports:
+      - "8001:8000"
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000
 
   etl:
     # Pas lancé au démarrage.

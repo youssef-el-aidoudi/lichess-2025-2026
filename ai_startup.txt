@@ -1,0 +1,106 @@
+﻿docker : time="2026-03-28T2
+3:36:07+01:00" 
+level=warning msg="The \"PO
+STGRES_TELEGRAF_PASSWORD\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+At line:1 char:26
++ ... eep -Seconds 15; 
+docker compose logs 
+ai_engine --tail 30 2>&1 | 
+Out-F ...
++                      ~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (tim  
+  e="2026-03-2... blank    
+ string.":String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+time="2026-03-28T23:36:07+0
+1:00" level=warning 
+msg="The 
+\"POSTGRES_TELEGRAF_DB\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:36:07+0
+1:00" level=warning 
+msg="The 
+\"GF_SECURITY_ADMIN_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:36:07+0
+1:00" level=warning 
+msg="The \"GF_SECURITY_ADMI
+N_PASSWORD\" variable is 
+not set. Defaulting to a 
+blank string."
+time="2026-03-28T23:36:07+0
+1:00" level=warning 
+msg="The 
+\"POSTGRES_TELEGRAF_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:36:07+0
+1:00" level=warning 
+msg="The 
+\"POSTGRES_TELEGRAF_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:36:07+0
+1:00" level=warning 
+msg="The \"POSTGRES_TELEGRA
+F_PASSWORD\" variable is 
+not set. Defaulting to a 
+blank string."
+time="2026-03-28T23:36:07+0
+1:00" level=warning 
+msg="The 
+\"POSTGRES_TELEGRAF_DB\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:36:07+0
+1:00" level=warning 
+msg="The 
+\"GF_SECURITY_ADMIN_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:36:07+0
+1:00" level=warning 
+msg="The \"GF_SECURITY_ADMI
+N_PASSWORD\" variable is 
+not set. Defaulting to a 
+blank string."
+time="2026-03-28T23:36:07+0
+1:00" level=warning 
+msg="The \"GRAFANA_HOST\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:36:07+0
+1:00" level=warning 
+msg="The \"GRAFANA_HOST\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+ai_engine-1  | WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+ai_engine-1  | I0000 00:00:1774737332.891543       1 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+ai_engine-1  | I0000 00:00:1774737333.454207       1 cpu_feature_guard.cc:227] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+ai_engine-1  | To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+ai_engine-1  | WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+ai_engine-1  | I0000 00:00:1774737342.768183       1 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+ai_engine-1  | E0000 00:00:1774737346.712260       1 cuda_platform.cc:52] failed call to cuInit: INTERNAL: CUDA error: Failed call to cuInit: UNKNOWN ERROR (303)
+ai_engine-1  | INFO:     Started server process [1]
+ai_engine-1  | INFO:     Waiting for application startup.
+ai_engine-1  | INFO:     Application startup complete.
+ai_engine-1  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)

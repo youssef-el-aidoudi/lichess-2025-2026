@@ -2,7 +2,7 @@
 FROM maven:eclipse-temurin AS build
 WORKDIR /app
 COPY . .
-RUN mvn -q clean package -DskipTests
+RUN mvn -q clean package -Dmaven.test.skip=true
 
 # Étape 2 : runtime Java propre avec Stockfish
 FROM eclipse-temurin:21-jre

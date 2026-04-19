@@ -17,7 +17,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-@Component // Déclare ce filtre comme un composant Spring, il sera géré automatiquement
+@Component // Spring bean — auto-registration disabled by FilterRegistrationBean in SecurityConfig
 public class JwtFilter extends OncePerRequestFilter {
     // Champs finaux pour l'injection de dépendances
     private final CustomUserDetailsService customUserDetailsService;
@@ -42,21 +42,28 @@ public class JwtFilter extends OncePerRequestFilter {
         }
         
         final String authHeader = request.getHeader("Authorization");
-        String username = null;
-        String jwt = null;
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            jwt = authHeader.substring(7);
-            username = jwtUtils.extractUsername(jwt);
-        }
-
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
-            if (jwtUtils.validateToken(jwt, userDetails)) {
-                UsernamePasswordAuthenticationToken authenticationToken =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+            String jwt = authHeader.substring(7);
+            try {
+                String username = jwtUtils.extractUsername(jwt);
+                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
+                    if (jwtUtils.validateToken(jwt, userDetails)) {
+                        UsernamePasswordAuthenticationToken authenticationToken =
+                                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                        authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+                    } else {
+                        // Token invalid — clear context so permitAll() routes still work
+                        SecurityContextHolder.clearContext();
+                    }
+                }
+            } catch (Exception e) {
+                // Token expired, malformed, user deleted, etc.
+                // IMPORTANT: clear context so Spring Security treats this as anonymous
+                // Without this, ExceptionTranslationFilter converts it to a 403 even on permitAll() routes
+                SecurityContextHolder.clearContext();
             }
         }
 

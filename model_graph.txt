@@ -1,0 +1,175 @@
+﻿docker : time="2026-03-28T2
+3:32:51+01:00" 
+level=warning msg="The 
+\"GF_SECURITY_ADMIN_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+At line:1 char:1
++ docker compose exec 
+ai_engine python -c "
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (tim  
+  e="2026-03-2... blank    
+ string.":String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+time="2026-03-28T23:32:51+0
+1:00" level=warning 
+msg="The \"GF_SECURITY_ADMI
+N_PASSWORD\" variable is 
+not set. Defaulting to a 
+blank string."
+time="2026-03-28T23:32:51+0
+1:00" level=warning 
+msg="The \"GRAFANA_HOST\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:32:51+0
+1:00" level=warning 
+msg="The \"GRAFANA_HOST\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:32:51+0
+1:00" level=warning 
+msg="The 
+\"GF_SECURITY_ADMIN_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:32:51+0
+1:00" level=warning 
+msg="The \"GF_SECURITY_ADMI
+N_PASSWORD\" variable is 
+not set. Defaulting to a 
+blank string."
+time="2026-03-28T23:32:51+0
+1:00" level=warning 
+msg="The 
+\"POSTGRES_TELEGRAF_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:32:51+0
+1:00" level=warning 
+msg="The \"POSTGRES_TELEGRA
+F_PASSWORD\" variable is 
+not set. Defaulting to a 
+blank string."
+time="2026-03-28T23:32:51+0
+1:00" level=warning 
+msg="The 
+\"POSTGRES_TELEGRAF_DB\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:32:51+0
+1:00" level=warning 
+msg="The 
+\"POSTGRES_TELEGRAF_USER\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+time="2026-03-28T23:32:51+0
+1:00" level=warning 
+msg="The \"POSTGRES_TELEGRA
+F_PASSWORD\" variable is 
+not set. Defaulting to a 
+blank string."
+time="2026-03-28T23:32:51+0
+1:00" level=warning 
+msg="The 
+\"POSTGRES_TELEGRAF_DB\" 
+variable is not set. 
+Defaulting to a blank 
+string."
+WARNING: All log messages 
+before 
+absl::InitializeLog() is 
+called are written to 
+STDERR
+I0000 
+00:00:1774737173.846612    
+  52 cudart_stub.cc:31] 
+Could not find cuda 
+drivers on your machine, 
+GPU will not be used.
+I0000 
+00:00:1774737173.994125    
+  52 
+cpu_feature_guard.cc:227] 
+This TensorFlow binary is 
+optimized to use available 
+CPU instructions in 
+performance-critical 
+operations.
+To enable the following 
+instructions: AVX2 FMA, in 
+other operations, rebuild 
+TensorFlow with the 
+appropriate compiler flags.
+WARNING: All log messages 
+before 
+absl::InitializeLog() is 
+called are written to 
+STDERR
+I0000 
+00:00:1774737179.277632    
+  52 cudart_stub.cc:31] 
+Could not find cuda 
+drivers on your machine, 
+GPU will not be used.
+Meta graphs: 1
+MetaGraph 0 tags: ['serve']
+  Nodes count: 39
+  Node: count op=VarHandleOp
+  Node: count/Read/ReadVariableOp op=ReadVariableOp
+  Node: total op=VarHandleOp
+  Node: total/Read/ReadVariableOp op=ReadVariableOp
+  Node: RMSprop/velocity/dense_2/bias op=VarHandleOp
+  Node: RMSprop/velocity/dense_2/bias/Read/ReadVariableOp op=ReadVariableOp
+  Node: RMSprop/velocity/dense_2/kernel op=VarHandleOp
+  Node: RMSprop/velocity/dense_2/kernel/Read/ReadVariableOp op=ReadVariableOp
+  Node: RMSprop/velocity/dense_1/bias op=VarHandleOp
+  Node: RMSprop/velocity/dense_1/bias/Read/ReadVariableOp op=ReadVariableOp
+  Node: RMSprop/velocity/dense_1/kernel op=VarHandleOp
+  Node: RMSprop/velocity/dense_1/kernel/Read/ReadVariableOp op=ReadVariableOp
+  Node: RMSprop/velocity/dense/bias op=VarHandleOp
+  Node: RMSprop/velocity/dense/bias/Read/ReadVariableOp op=ReadVariableOp
+  Node: RMSprop/velocity/dense/kernel op=VarHandleOp
+  Node: RMSprop/velocity/dense/kernel/Read/ReadVariableOp op=ReadVariableOp
+  Node: learning_rate op=VarHandleOp
+  Node: learning_rate/Read/ReadVariableOp op=ReadVariableOp
+  Node: iteration op=VarHandleOp
+  Node: iteration/Read/ReadVariableOp op=ReadVariableOp
+  ...
+  Signature: serving_default
+    Input: flatten_input -> serving_default_flatten_input:0 shape=dim {
+  size: -1
+}
+dim {
+  size: 8
+}
+dim {
+  size: 8
+}
+dim {
+  size: 13
+}
+
+    Output: dense_2 -> StatefulPartitionedCall:0 shape=dim {
+  size: -1
+}
+dim {
+  size: 1
+}
+
+  Signature: __saved_model_init_op
+    Output: __saved_model_init_op -> NoOp shape=unknown_rank: true
+

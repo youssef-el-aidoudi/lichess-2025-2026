@@ -72,33 +72,10 @@ public class StockfishWrapper {
 
     @PostConstruct
     public void start() {
-        try {
-            String stockfishPath = getStockfishPath();
-            System.out.println(">>> Tentative de démarrage de Stockfish depuis: " + stockfishPath);
-            
-            ProcessBuilder builder = new ProcessBuilder(stockfishPath);
-            builder.redirectErrorStream(true);
-
-            process = builder.start();
-            writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
-            reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-
-            // Initialize UCI
-            sendCommand("uci");
-            waitFor("uciok", 3000);
-
-            // Verify engine is ready
-            sendCommand("isready");
-            waitFor("readyok", 3000);
-
-            isAvailable = true;
-            System.out.println(">>> Stockfish est prêt et en cours d'exécution!");
-        } catch (Exception e) {
-            System.err.println("ERREUR: Impossible de démarrer Stockfish. " + e.getMessage());
-            e.printStackTrace();
-            isAvailable = false;
-            // Don't throw - let the application continue without Stockfish
-        }
+        // Le démarrage de Stockfish est désormais géré par le microservice ai_engine (Python)
+        // Ce wrapper Java est donc désactivé pour éviter les erreurs FileNotFoundError inutiles.
+        isAvailable = false;
+        System.out.println(">>> Le StockfishWrapper natif Java est désactivé. ai_engine est utilisé à la place.");
     }
 
     public void setDepth(int depth) {
