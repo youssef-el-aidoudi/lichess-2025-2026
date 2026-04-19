@@ -253,6 +253,12 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   const isValidMove = (boardState: string[][], fromRow: number, fromCol: number, toRow: number, toCol: number, isAttackCheck: boolean = false): boolean => {
     const piece = boardState[fromRow][fromCol];
     const targetPiece = boardState[toRow][toCol];
+
+    //pour ne pas bouffer ses pieces
+    if (targetPiece !== '' && (isWhitePiece(piece) === isWhitePiece(targetPiece))) {
+      return false;
+    }
+
     const rowDiff = toRow - fromRow;
     const colDiff = toCol - fromCol;
     const absRowDiff = Math.abs(rowDiff);
@@ -626,54 +632,56 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       const moveFrom = { row: selectedSquare.row, col: selectedSquare.col };
       const moveTo = { row, col };
 
-      // Run evaluation asynchronously (don't block the game)
-      (async () => {
-        try {
-          // Get eval before and after this move
-          const [evalBefore, evalAfter] = await Promise.all([
-            lastEvalRef.current !== null
-              ? Promise.resolve({ score: lastEvalRef.current, isMate: false, bestMove: '' })
-              : evaluatePosition(movesBeforeThis, 12),
-            evaluatePosition(movesAfterThis, 12),
-          ]);
+      // Run evaluation asynchronously (don't block the game, stagger by 500ms to allow bot to fetch its move)
+      setTimeout(() => {
+        (async () => {
+          try {
+            // Get eval before and after this move
+            const [evalBefore, evalAfter] = await Promise.all([
+              lastEvalRef.current !== null
+                ? Promise.resolve({ score: lastEvalRef.current, isMate: false, bestMove: '' })
+                : evaluatePosition(movesBeforeThis, 10),
+              evaluatePosition(movesAfterThis, 10),
+            ]);
 
-          // Score is from the side to move's perspective, so we need to negate
-          // after white moves, the eval is from black's perspective
-          const scoreBefore = evalBefore.score;
-          const scoreAfter = -evalAfter.score; // Negate because perspective flips
+            // Score is from the side to move's perspective, so we need to negate
+            // after white moves, the eval is from black's perspective
+            const scoreBefore = evalBefore.score;
+            const scoreAfter = -evalAfter.score; // Negate because perspective flips
 
-          lastEvalRef.current = evalAfter.score;
+            lastEvalRef.current = evalAfter.score;
 
-          const evalDrop = scoreBefore - scoreAfter;
-          console.log(`Eval avant: ${scoreBefore}cp, après: ${scoreAfter}cp, chute: ${evalDrop}cp`);
+            const evalDrop = scoreBefore - scoreAfter;
+            console.log(`Eval avant: ${scoreBefore}cp, après: ${scoreAfter}cp, chute: ${evalDrop}cp`);
 
-          let severity: 'inaccuracy' | 'mistake' | 'blunder' | null = null;
-          if (evalDrop >= 200) {
-            severity = 'blunder';
-          } else if (evalDrop >= 100) {
-            severity = 'mistake';
-          } else if (evalDrop >= 50) {
-            severity = 'inaccuracy';
+            let severity: 'inaccuracy' | 'mistake' | 'blunder' | null = null;
+            if (evalDrop >= 200) {
+              severity = 'blunder';
+            } else if (evalDrop >= 100) {
+              severity = 'mistake';
+            } else if (evalDrop >= 50) {
+              severity = 'inaccuracy';
+            }
+
+            if (severity) {
+              const blunderInfo: BlunderInfo = {
+                moveIndex: moveIdx,
+                severity,
+                evalDrop,
+                fromSquare: moveFrom,
+                toSquare: moveTo,
+              };
+              setBlunders(prev => [...prev, blunderInfo]);
+              setLastBlunderSquares({ from: moveFrom, to: moveTo, severity });
+
+              // Clear highlight after 3 seconds
+              setTimeout(() => setLastBlunderSquares(null), 3000);
+            }
+          } catch (err) {
+            console.error('Erreur détection blunder:', err);
           }
-
-          if (severity) {
-            const blunderInfo: BlunderInfo = {
-              moveIndex: moveIdx,
-              severity,
-              evalDrop,
-              fromSquare: moveFrom,
-              toSquare: moveTo,
-            };
-            setBlunders(prev => [...prev, blunderInfo]);
-            setLastBlunderSquares({ from: moveFrom, to: moveTo, severity });
-
-            // Clear highlight after 3 seconds
-            setTimeout(() => setLastBlunderSquares(null), 3000);
-          }
-        } catch (err) {
-          console.error('Erreur détection blunder:', err);
-        }
-      })();
+        })();
+      }, 500);
 
       const updatedMoveHistory = [...moveHistory, move];
       setBoard(newBoard);
@@ -838,7 +846,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
         // Use movetime if set, otherwise use depth
         const mode = engineSettings.movetime && engineSettings.movetime > 0 ? 'movetime' : 'depth';
-        const depthValue = engineSettings.depth || 15;
+        const depthValue = engineSettings.depth || 10;
         const movetimeValue = engineSettings.movetime || 1000;
 
         // Appeler Stockfish via l'API backend
@@ -1276,13 +1284,21 @@ ${formattedMoves}${result}`;
                                 }`}
                             >
                               {piece && (
-                                <span className={`drop-shadow-2xl transition-transform filter ${isSelected ? 'scale-110' : ''
+                                <span className={`drop-shadow-2xl transition-transform filter font-chess ${isSelected ? 'scale-110' : ''
                                   }`} style={{
                                     filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
                                     textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
                                     color: isBlackPiece(piece) ? '#1f2937' : '#f9fafb'
                                   }}>
-                                  {piece}
+                                  {
+                                    ((): string => {
+                                      const solidMap: Record<string, string> = {
+                                        '♙': '♟', '♖': '♜', '♘': '♞', '♗': '♝', '♕': '♛', '♔': '♚'
+                                      };
+                                      // Using \uFE0E to force text rendering instead of OS emoji
+                                      return (solidMap[piece] || piece) + '\uFE0E';
+                                    })()
+                                  }
                                 </span>
                               )}
                               {isLegalMove && (

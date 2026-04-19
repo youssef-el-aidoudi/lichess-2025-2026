@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
 import { PlayPage } from './components/PlayPage';
+import { PlayPage3D } from './components/PlayPage3D';
 import { Stats } from './components/Stats';
 import { PlayerSearch } from './components/PlayerSearch';
 
@@ -64,7 +65,13 @@ export default function App() {
                   onClick={() => setCurrentPage('play')}
                   className={navButtonClass('play')}
                 >
-                  Jouer
+                  Jouer (2D)
+                </button>
+                <button
+                  onClick={() => setCurrentPage('play3d')}
+                  className={navButtonClass('play3d')}
+                >
+                  Échecs 3D
                 </button>
                 <button
                   onClick={() => setCurrentPage('stats')}
@@ -96,6 +103,7 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {currentPage === 'dashboard' && <Dashboard />}
         {currentPage === 'play' && <PlayPage />}
+        {currentPage === 'play3d' && <PlayPage3D />}
         {currentPage === 'stats' && <Stats />}
         {currentPage === 'search' && <PlayerSearch />}
       </main>

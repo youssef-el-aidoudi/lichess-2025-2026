@@ -113,6 +113,25 @@ public class StockfishWrapper {
         this.movetime = movetime;
     }
 
+    private void clearBufferAndStop() throws IOException {
+        sendCommand("stop");
+        sendCommand("isready");
+        
+        long startTime = System.currentTimeMillis();
+        String line;
+        // Check ready() to avoid blocking indefinitely if process died
+        while (System.currentTimeMillis() - startTime < 1000) {
+            if (reader.ready()) {
+                line = reader.readLine();
+                if (line == null || line.equals("readyok")) {
+                    break;
+                }
+            } else {
+                try { Thread.sleep(10); } catch (Exception e) {}
+            }
+        }
+    }
+
     public synchronized String getBestMove(String moves, String mode) {
         if (!isAvailable || process == null || !process.isAlive()) {
             System.err.println("Stockfish is not available. Returning default move.");
@@ -120,6 +139,8 @@ public class StockfishWrapper {
         }
 
         try {
+            clearBufferAndStop();
+
             // Handle empty moves - starting position
             String positionCmd = moves == null || moves.isEmpty()
                     ? "position startpos"
@@ -175,6 +196,8 @@ public class StockfishWrapper {
         }
 
         try {
+            clearBufferAndStop();
+
             String positionCmd = moves == null || moves.isEmpty()
                     ? "position startpos"
                     : "position startpos moves " + moves;
