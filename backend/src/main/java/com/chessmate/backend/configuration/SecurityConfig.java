@@ -60,7 +60,7 @@ public class SecurityConfig {
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
+        configuration.setMaxAge(3600L); // Cache preflight for 1 hour
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -80,6 +80,9 @@ public class SecurityConfig {
                         // Public game endpoints
                         .requestMatchers("/api/chess/**").permitAll()
                         .requestMatchers("/api/stats/**").permitAll()
+                        // Lichess API endpoints
+                        .requestMatchers("/api/parties/**").permitAll()
+                        .requestMatchers("/api/partie/**").permitAll()
                         // Friends & Chat: completely public — controllers handle auth internally
                         .requestMatchers("/api/friends/**").permitAll()
                         .requestMatchers("/api/chat/**").permitAll()

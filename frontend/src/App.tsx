@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
 import { PlayPage } from './components/PlayPage';
+import { PlayPage3D } from './components/PlayPage3D';
 import { Stats } from './components/Stats';
 import { FriendsPage } from './components/FriendsPage';
 import { MultiplayerGame } from './components/MultiplayerGame';
+import { PlayerSearch } from './components/PlayerSearch';
 import { Users } from 'lucide-react';
 
 export default function App() {
@@ -84,7 +86,13 @@ export default function App() {
                   onClick={() => setCurrentPage('play')}
                   className={navButtonClass('play')}
                 >
-                  Jouer
+                  Jouer (2D)
+                </button>
+                <button
+                  onClick={() => setCurrentPage('play3d')}
+                  className={navButtonClass('play3d')}
+                >
+                  Échecs 3D
                 </button>
                 <button
                   onClick={() => setCurrentPage('friends')}
@@ -100,6 +108,12 @@ export default function App() {
                   className={navButtonClass('stats')}
                 >
                   Statistiques
+                </button>
+                <button
+                  onClick={() => setCurrentPage('search')}
+                  className={navButtonClass('search')}
+                >
+                  Recherche
                 </button>
               </div>
             </div>
@@ -119,6 +133,7 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {currentPage === 'dashboard' && <Dashboard />}
         {currentPage === 'play' && <PlayPage username={user?.username || 'anonymous'} />}
+        {currentPage === 'play3d' && <PlayPage3D />}
         {currentPage === 'friends' && (
           <FriendsPage
             username={user?.username || 'anonymous'}
@@ -126,6 +141,7 @@ export default function App() {
           />
         )}
         {currentPage === 'stats' && <Stats />}
+        {currentPage === 'search' && <PlayerSearch />}
         {currentPage === 'challenge' && challengeGameId && (
           <MultiplayerGame
             gameId={challengeGameId}

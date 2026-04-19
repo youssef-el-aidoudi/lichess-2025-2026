@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Download, Brain, Circle } from 'lucide-react';
-import { getStockfishBestMove, analyzePosition, getCustomBotMove } from '../services/api';
+import { getStockfishBestMove, analyzePosition, getCustomBotMove, evaluatePosition } from '../services/api';
 
 interface ChessGameProps {
   mode: 'human' | 'bot' | 'bot_ml';
@@ -18,6 +18,14 @@ interface ChessGameProps {
 interface EngineSettings {
   depth: number | null;
   movetime: number | null;
+}
+
+interface BlunderInfo {
+  moveIndex: number;
+  severity: 'inaccuracy' | 'mistake' | 'blunder';
+  evalDrop: number;
+  fromSquare: { row: number; col: number };
+  toSquare: { row: number; col: number };
 }
 
 const INITIAL_BOARD = [
@@ -59,6 +67,11 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
   // Track UCI moves for Stockfish (more reliable than parsing moveHistory)
   const uciMovesRef = useRef<string[]>([]);
+
+  // Blunder detection state
+  const [blunders, setBlunders] = useState<BlunderInfo[]>([]);
+  const [lastBlunderSquares, setLastBlunderSquares] = useState<{ from: { row: number; col: number }; to: { row: number; col: number }; severity: string } | null>(null);
+  const lastEvalRef = useRef<number | null>(null);
 
   const [engineSettings] = useState<EngineSettings>(() => {
     if (passedEngineSettings) {
@@ -244,6 +257,12 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   const isValidMove = (boardState: string[][], fromRow: number, fromCol: number, toRow: number, toCol: number, isAttackCheck: boolean = false): boolean => {
     const piece = boardState[fromRow][fromCol];
     const targetPiece = boardState[toRow][toCol];
+
+    //pour ne pas bouffer ses pieces
+    if (targetPiece !== '' && (isWhitePiece(piece) === isWhitePiece(targetPiece))) {
+      return false;
+    }
+
     const rowDiff = toRow - fromRow;
     const colDiff = toCol - fromCol;
     const absRowDiff = Math.abs(rowDiff);
@@ -607,11 +626,66 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       const uciMove = `${fromFile}${fromRank}${toFile}${toRank}`;
       uciMovesRef.current = [...uciMovesRef.current, uciMove];
       console.log('=== PLAYER MOVE TRACKING ===');
-      console.log('Player move:', `${movingPiece} ${files[selectedSquare.col]}${8 - selectedSquare.row} → ${files[col]}${8 - row}`);
       console.log('Player UCI move:', uciMove);
       console.log('All UCI moves:', uciMovesRef.current.join(' '));
-      console.log('Updated board will be sent to Stockfish');
-      console.log('================================');
+
+      // Blunder detection: evaluate position after the move
+      const movesBeforeThis = uciMovesRef.current.slice(0, -1).join(' ');
+      const movesAfterThis = uciMovesRef.current.join(' ');
+      const moveIdx = uciMovesRef.current.length - 1;
+      const moveFrom = { row: selectedSquare.row, col: selectedSquare.col };
+      const moveTo = { row, col };
+
+      // Run evaluation asynchronously (don't block the game, stagger by 500ms to allow bot to fetch its move)
+      setTimeout(() => {
+        (async () => {
+          try {
+            // Get eval before and after this move
+            const [evalBefore, evalAfter] = await Promise.all([
+              lastEvalRef.current !== null
+                ? Promise.resolve({ score: lastEvalRef.current, isMate: false, bestMove: '' })
+                : evaluatePosition(movesBeforeThis, 10),
+              evaluatePosition(movesAfterThis, 10),
+            ]);
+
+            // Score is from the side to move's perspective, so we need to negate
+            // after white moves, the eval is from black's perspective
+            const scoreBefore = evalBefore.score;
+            const scoreAfter = -evalAfter.score; // Negate because perspective flips
+
+            lastEvalRef.current = evalAfter.score;
+
+            const evalDrop = scoreBefore - scoreAfter;
+            console.log(`Eval avant: ${scoreBefore}cp, après: ${scoreAfter}cp, chute: ${evalDrop}cp`);
+
+            let severity: 'inaccuracy' | 'mistake' | 'blunder' | null = null;
+            if (evalDrop >= 200) {
+              severity = 'blunder';
+            } else if (evalDrop >= 100) {
+              severity = 'mistake';
+            } else if (evalDrop >= 50) {
+              severity = 'inaccuracy';
+            }
+
+            if (severity) {
+              const blunderInfo: BlunderInfo = {
+                moveIndex: moveIdx,
+                severity,
+                evalDrop,
+                fromSquare: moveFrom,
+                toSquare: moveTo,
+              };
+              setBlunders(prev => [...prev, blunderInfo]);
+              setLastBlunderSquares({ from: moveFrom, to: moveTo, severity });
+
+              // Clear highlight after 3 seconds
+              setTimeout(() => setLastBlunderSquares(null), 3000);
+            }
+          } catch (err) {
+            console.error('Erreur détection blunder:', err);
+          }
+        })();
+      }, 500);
 
       const updatedMoveHistory = [...moveHistory, move];
       setBoard(newBoard);
@@ -840,7 +914,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           // Check if the coordinates are valid first
           if (fromRow < 0 || fromRow >= 8 || fromCol < 0 || fromCol >= 8 ||
             toRow < 0 || toRow >= 8 || toCol < 0 || toCol >= 8) {
-            console.error('❌ Invalid coordinates:', { fromRow, fromCol, toRow, toCol });
+            console.error('Invalid coordinates:', { fromRow, fromCol, toRow, toCol });
             setThinking(false);
             botMoveInProgress.current = false;
             return;
@@ -848,7 +922,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
           // Check if there's actually a piece at the source
           if (!piece || piece === '') {
-            console.error('❌ No piece at source position');
+            console.error('No piece at source position');
             setThinking(false);
             botMoveInProgress.current = false;
             return;
@@ -856,7 +930,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
           // Check if it's a black piece (bot should only move black pieces)
           if (isWhitePiece(piece)) {
-            console.error('❌ Bot trying to move white piece');
+            console.error('Bot trying to move white piece');
             setThinking(false);
             botMoveInProgress.current = false;
             return;
@@ -864,7 +938,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
           // Valider le coup
           if (!isValidMove(currentBoard, fromRow, fromCol, toRow, toCol)) {
-            console.error('❌ Invalid move returned by Stockfish:', bestMove);
+            console.error('Invalid move returned by Stockfish:', bestMove);
             console.error('Move validation failed for:', { fromRow, fromCol, toRow, toCol, piece, targetPiece });
             console.error('Expected move format: UCI notation (e.g., e7e5)');
             setThinking(false);
@@ -997,16 +1071,16 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           }
         }
       } catch (error) {
-        console.error('❌ Bot move failed:', error);
+        console.error('Bot move failed:', error);
 
         const errorMessage = error instanceof Error ? error.message : String(error);
 
         if (errorMessage.includes('Backend server not responding')) {
-          setGameStatus('❌ Erreur: Le serveur backend n\'est pas disponible. Veuillez le redémarrer.');
+          setGameStatus('Erreur: Le serveur backend n\'est pas disponible. Veuillez le redémarrer.');
         } else if (errorMessage.includes('Failed to fetch')) {
-          setGameStatus('❌ Erreur: Connexion au serveur interrompue.');
+          setGameStatus('Erreur: Connexion au serveur interrompue.');
         } else {
-          setGameStatus(`❌ Erreur Stockfish: ${errorMessage}`);
+          setGameStatus(`Erreur Stockfish: ${errorMessage}`);
         }
 
         // Don't show alert for network errors, just update game status
@@ -1042,6 +1116,9 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     setPromotionState(null);
     setMovedPieces(new Set());
     setLastEnPassantFile(null);
+    setBlunders([]);
+    setLastBlunderSquares(null);
+    lastEvalRef.current = null;
   };
 
   const exportPGN = () => {
@@ -1085,26 +1162,22 @@ ${formattedMoves}${result}`;
 
   const analyzeWithStockfish = async () => {
     try {
-      // Obtenir l'historique des coups en notation UCI
-      // const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-      const uciMoves: string[] = [];
+      const uciMoves = uciMovesRef.current.join(' ');
+      const result = await analyzePosition(uciMoves, 20);
 
-      moveHistory.forEach((move: string) => {
-        const match = move.match(/([a-h])(\d) → ([a-h])(\d)/);
-        if (match) {
-          const fromSquare = match[1] + match[2];
-          const toSquare = match[3] + match[4];
-          uciMoves.push(fromSquare + toSquare);
-        }
-      });
-
-      // Appeler l'analyse Stockfish
-      const result = await analyzePosition(uciMoves.join(' '), 20);
+      const blunderCount = blunders.filter(b => b.severity === 'blunder').length;
+      const mistakeCount = blunders.filter(b => b.severity === 'mistake').length;
+      const inaccuracyCount = blunders.filter(b => b.severity === 'inaccuracy').length;
 
       alert(
         `Analyse Stockfish complétée!\n\n` +
+        `Évaluation: ${result.evaluation > 0 ? '+' : ''}${(result.evaluation / 100).toFixed(2)}\n` +
         `Meilleur coup: ${result.bestmove}\n` +
-        `Position: ${moveHistory.length} coups joués`
+        `Position: ${moveHistory.length} coups joués\n\n` +
+        `--- Résumé des erreurs ---\n` +
+        `🔴 Blunders: ${blunderCount}\n` +
+        `🟠 Erreurs: ${mistakeCount}\n` +
+        `🟡 Imprécisions: ${inaccuracyCount}`
       );
     } catch (error) {
       console.error('Erreur analyse Stockfish:', error);
@@ -1203,6 +1276,15 @@ ${formattedMoves}${result}`;
                           );
                           const squareId = `${rowIndex}-${colIndex}`;
                           const isMarked = markedSquares.includes(squareId);
+                          const isBlunderSquare = lastBlunderSquares && (
+                            (lastBlunderSquares.from.row === rowIndex && lastBlunderSquares.from.col === colIndex) ||
+                            (lastBlunderSquares.to.row === rowIndex && lastBlunderSquares.to.col === colIndex)
+                          );
+                          const blunderColor = isBlunderSquare
+                            ? lastBlunderSquares?.severity === 'blunder' ? 'ring-red-500 bg-red-500/20'
+                              : lastBlunderSquares?.severity === 'mistake' ? 'ring-orange-500 bg-orange-400/20'
+                                : 'ring-yellow-500 bg-yellow-400/20'
+                            : '';
 
                           const handleRightClick = (e: React.MouseEvent) => {
                             e.preventDefault();
@@ -1231,6 +1313,7 @@ ${formattedMoves}${result}`;
                                 } ${isSelected
                                   ? 'ring-4 ring-blue-500 ring-inset scale-95 shadow-inner'
                                   : ''
+                                } ${isBlunderSquare ? `ring-4 ring-inset ${blunderColor} animate-pulse` : ''
                                 } ${!winner && !thinking ? 'hover:brightness-110 active:scale-95' : 'cursor-default'
                                 } ${thinking ? 'opacity-60' : ''
                                 }`}
@@ -1457,6 +1540,18 @@ ${formattedMoves}${result}`;
                           {Math.floor(index / 2) + 1}.{index % 2 === 0 ? '' : '..'}
                         </span>
                         <span className="text-gray-900 flex-1">{move}</span>
+                        {blunders.find(b => b.moveIndex === index) && (
+                          <span className={`mt-0.5 px-1.5 py-0.5 rounded text-xs font-bold ${blunders.find(b => b.moveIndex === index)?.severity === 'blunder'
+                            ? 'bg-red-100 text-red-700'
+                            : blunders.find(b => b.moveIndex === index)?.severity === 'mistake'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                            {blunders.find(b => b.moveIndex === index)?.severity === 'blunder' ? '🔴 Blunder'
+                              : blunders.find(b => b.moveIndex === index)?.severity === 'mistake' ? '🟠 Erreur'
+                                : '🟡 Imprécis'}
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}

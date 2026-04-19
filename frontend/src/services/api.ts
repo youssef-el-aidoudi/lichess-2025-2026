@@ -58,6 +58,47 @@ export const getJoueurByPseudo = async (pseudo: string) => {
     return fetchWithAuth(`/api/joueurs/search?pseudo=${encodeURIComponent(pseudo)}`);
 };
 
+// Recherche les parties d'un joueur sur Lichess via l'API proxy backend
+export const searchPlayerGames = async (
+    pseudo: string,
+    options?: { debut?: number; fin?: number; max?: number }
+): Promise<string> => {
+    const params = new URLSearchParams();
+    if (options?.debut) params.append('debut', options.debut.toString());
+    if (options?.fin) params.append('fin', options.fin.toString());
+    if (options?.max) params.append('max', options.max.toString());
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await fetch(
+        `${BACKEND_API_URL}/api/parties/${encodeURIComponent(pseudo)}${query}`,
+        {
+            method: 'GET',
+            signal: AbortSignal.timeout(15000),
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Erreur API: ${response.status} ${response.statusText}`);
+    }
+
+    return response.text();
+};
+
+// Recherche une partie par son ID sur Lichess
+export const searchGameById = async (id: string): Promise<string> => {
+    const response = await fetch(`${BACKEND_API_URL}/api/partie/${encodeURIComponent(id)}`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Erreur API: ${response.status} ${response.statusText}`);
+    }
+
+    return response.text();
+};
+
+// Récupère toutes les parties
 export const getAllParties = async () => {
     return fetchWithAuth('/api/parties');
 };
@@ -94,8 +135,6 @@ export const getStockfishBestMove = async (
             movetime: movetime.toString(),
         });
 
-        // Use STOCKFISH_API_URL and direct endpoint (Stockfish service doesn't need /api/chess prefix internally if using direct port)
-        // But for Traefik consistency, we keep the /api/chess/bestmove path structure.
         const response = await fetch(`${STOCKFISH_API_URL}/api/chess/bestmove?${params}`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
@@ -114,6 +153,42 @@ export const getStockfishBestMove = async (
     }
 };
 
+// Stockfish - Évaluer une position (retourne le score en centipawns)
+export const evaluatePosition = async (
+    moves: string,
+    depth: number = 15
+): Promise<{ score: number; isMate: boolean; bestMove: string }> => {
+    try {
+        const params = new URLSearchParams({
+            moves: moves || '',
+            depth: depth.toString(),
+        });
+
+        const response = await fetch(`${STOCKFISH_API_URL}/api/chess/evaluate?${params}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            signal: AbortSignal.timeout(10000),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Evaluate API Error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return {
+            score: data.score || 0,
+            isMate: data.isMate || false,
+            bestMove: data.bestMove || 'e2e4',
+        };
+    } catch (error) {
+        console.error('Evaluate API Error:', error);
+        throw error;
+    }
+};
+
+// Stockfish - Analyser une position (wrapper legacy)
 export const analyzePosition = async (
     moves: string,
     depth: number = 20
