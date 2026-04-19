@@ -30,10 +30,12 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DEVTOOLS_RESTART_ENABLED: true
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/chessmate
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
-      SPRING_DATASOURCE_USERNAME: oussama
-      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_DATASOURCE_URL: jdbc:h2:mem:chessmate
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: ""
+    ports:
+      - "8080:8080"
     volumes:
       - ./backend:/app
 
