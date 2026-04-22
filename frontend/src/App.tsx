@@ -144,7 +144,7 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {currentPage === 'dashboard' && <Dashboard onNavigate={(page) => setCurrentPage(page)} />}
         {currentPage === 'play' && <PlayPage username={user?.username || 'anonymous'} />}
-        {currentPage === 'play3d' && <PlayPage3D />}
+        {currentPage === 'play3d' && <PlayPage3D username={user?.username || 'anonymous'} />}
         {currentPage === 'friends' && (
           <FriendsPage
             username={user?.username || 'anonymous'}

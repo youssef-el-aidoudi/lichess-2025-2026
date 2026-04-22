@@ -217,22 +217,19 @@ export function MultiplayerGame3D({ gameId, username, onBack, fromChallenge = fa
     if (!gameState || !gameState.started || gameState.finished || !myColor || gameState.turn !== myColor) return;
 
     const board = fenToBoard(gameState.fen);
-    const isFlipped = myColor === 'black';
-    // In 3D, the board is NOT flipped visually — the camera handles perspective.
-    // So row/col from ChessBoard3D are actual board coordinates.
-    const actualRow = isFlipped ? 7 - row : row;
-    const actualCol = isFlipped ? 7 - col : col;
+    // In 3D, the board is NOT visually flipped — the camera handles perspective.
+    // So row/col from ChessBoard3D are always direct board coordinates.
 
     if (selectedSquare) {
       const fromFile = String.fromCharCode(97 + selectedSquare.col);
       const fromRank = (8 - selectedSquare.row).toString();
-      const toFile = String.fromCharCode(97 + actualCol);
-      const toRank = (8 - actualRow).toString();
+      const toFile = String.fromCharCode(97 + col);
+      const toRank = (8 - row).toString();
       const uci = `${fromFile}${fromRank}${toFile}${toRank}`;
 
       // Check for pawn promotion
       const piece = board[selectedSquare.row][selectedSquare.col];
-      const isPawnPromo = (piece === '♙' && actualRow === 0) || (piece === '♟' && actualRow === 7);
+      const isPawnPromo = (piece === '♙' && row === 0) || (piece === '♟' && row === 7);
       const finalUci = isPawnPromo ? uci + 'q' : uci;
 
       if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -241,11 +238,11 @@ export function MultiplayerGame3D({ gameId, username, onBack, fromChallenge = fa
       setSelectedSquare(null);
     } else {
       // Select a piece
-      const piece = board[actualRow][actualCol];
+      const piece = board[row][col];
       if (!piece) return;
       const isPieceWhite = isWhitePiece(piece);
       if ((myColor === 'white' && isPieceWhite) || (myColor === 'black' && !isPieceWhite)) {
-        setSelectedSquare({ row: actualRow, col: actualCol });
+        setSelectedSquare({ row, col });
       }
     }
   };
