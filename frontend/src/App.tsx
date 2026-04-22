@@ -7,7 +7,9 @@ import { Stats } from './components/Stats';
 import { FriendsPage } from './components/FriendsPage';
 import { MultiplayerGame } from './components/MultiplayerGame';
 import { PlayerSearch } from './components/PlayerSearch';
-import { Users } from 'lucide-react';
+import CheatAnalysis from './components/CheatAnalysis';
+import { CheatHistory } from './components/CheatHistory';
+import { Users, ShieldAlert } from 'lucide-react';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -115,6 +117,15 @@ export default function App() {
                 >
                   Recherche
                 </button>
+                <button
+                  onClick={() => setCurrentPage('cheat')}
+                  className={navButtonClass('cheat')}
+                >
+                  <span className="flex items-center gap-1">
+                    <ShieldAlert className="w-4 h-4" />
+                    Détection triche
+                  </span>
+                </button>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -131,7 +142,7 @@ export default function App() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {currentPage === 'dashboard' && <Dashboard />}
+        {currentPage === 'dashboard' && <Dashboard onNavigate={(page) => setCurrentPage(page)} />}
         {currentPage === 'play' && <PlayPage username={user?.username || 'anonymous'} />}
         {currentPage === 'play3d' && <PlayPage3D />}
         {currentPage === 'friends' && (
@@ -142,6 +153,8 @@ export default function App() {
         )}
         {currentPage === 'stats' && <Stats />}
         {currentPage === 'search' && <PlayerSearch />}
+        {currentPage === 'cheat' && <CheatAnalysis onNavigate={(page) => setCurrentPage(page)} />}
+        {currentPage === 'cheatHistory' && <CheatHistory />}
         {currentPage === 'challenge' && challengeGameId && (
           <MultiplayerGame
             gameId={challengeGameId}

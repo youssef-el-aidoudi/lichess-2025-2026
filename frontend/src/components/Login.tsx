@@ -77,11 +77,11 @@ export function Login({ onLogin }: LoginProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+      <div className="glass-panel rounded-lg shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="text-4xl mb-2">♟</div>
-          <h1 className="text-gray-900 text-xl font-semibold">Chess Analytics Platform</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-slate-100 text-xl font-semibold">Chess Analytics Platform</h1>
+          <p className="text-slate-400 mt-2">
             Analysez vos parties avec Lichess et Stockfish
           </p>
         </div>
@@ -95,7 +95,7 @@ export function Login({ onLogin }: LoginProps) {
             className={
               !isSignup
                 ? 'flex-1 py-2 px-4 rounded-md bg-blue-600 text-white'
-                : 'flex-1 py-2 px-4 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'flex-1 py-2 px-4 rounded-md bg-slate-800 text-slate-300 hover:hover:bg-slate-700'
             }
           >
             <LogIn className="inline-block w-4 h-4 mr-2" />
@@ -110,7 +110,7 @@ export function Login({ onLogin }: LoginProps) {
             className={
               isSignup
                 ? 'flex-1 py-2 px-4 rounded-md bg-blue-600 text-white'
-                : 'flex-1 py-2 px-4 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'flex-1 py-2 px-4 rounded-md bg-slate-800 text-slate-300 hover:hover:bg-slate-700'
             }
           >
             <UserPlus className="inline-block w-4 h-4 mr-2" />
@@ -122,41 +122,41 @@ export function Login({ onLogin }: LoginProps) {
 
           {isSignup && (
             <div>
-              <label className="block text-gray-700 mb-2">
+              <label className="block text-slate-300 mb-2">
                 Nom utilisateur (Pseudo)
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
           )}
 
           <div>
-            <label className="block text-gray-700 mb-2">
+            <label className="block text-slate-300 mb-2">
               Email
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 mb-2">
+            <label className="block text-slate-300 mb-2">
               Mot de passe
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -179,7 +179,7 @@ export function Login({ onLogin }: LoginProps) {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-sm text-gray-600">
+        <div className="mt-6 text-center text-sm text-slate-400">
           <p>Assurez-vous que le backend tourne sur {API_URL}</p>
         </div>
       </div>

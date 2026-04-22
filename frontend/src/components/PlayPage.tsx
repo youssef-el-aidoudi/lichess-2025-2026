@@ -113,11 +113,11 @@ export function PlayPage({ username }: PlayPageProps) {
   if (isMatchmaking) {
     return (
       <div className="max-w-md mx-auto mt-20">
-        <div className="bg-white rounded-2xl shadow-xl p-10 text-center border border-gray-100">
-          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Matchmaking</h3>
-          <p className="text-gray-600 mb-6">{matchmakingMessage}</p>
-          <div className="text-sm text-gray-500 mb-6">
+        <div className="glass-panel rounded-2xl shadow-xl p-10 text-center border border-gray-100">
+          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-slate-100 mb-2">Matchmaking</h3>
+          <p className="text-slate-400 mb-6">{matchmakingMessage}</p>
+          <div className="text-sm text-slate-500 mb-6">
             Cadence: {gameSettings?.timeMinutes}+{gameSettings?.increment}
           </div>
           <button
@@ -151,7 +151,7 @@ export function PlayPage({ username }: PlayPageProps) {
     <div className="space-y-4">
       <button
         onClick={handleBackToSetup}
-        className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+        className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
         Retour
