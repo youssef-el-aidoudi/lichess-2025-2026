@@ -55,7 +55,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/tls.yml:/etc/traefik/tls.yml:ro
     ports:
-      - "80:80"
+      - "8086:80"
       - "443:443"
       - "8085:8080"
     networks:
@@ -84,7 +84,7 @@ services:
         VITE_STOCKFISH_API_URL: http://172.31.60.32:8001
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "80:80"
     networks:
       - internal
       - public
