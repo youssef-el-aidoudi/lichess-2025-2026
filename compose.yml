@@ -100,6 +100,20 @@ services:
       - traefik.http.routers.backend.rule=Host(`${BACKEND_HOST}`)
       - traefik.http.routers.backend.middlewares=securityheaders
 
+  # Trichebot - Cheat Detection ML Service
+  trichebot:
+    build:
+      context: ./trichebot
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8003:5000"
+    networks:
+      - internal
+      - public
+    labels:
+      - traefik.enable=false
+
   # ML Bot Engine (TensorFlow)
   ml_bot_engine:
     build:
