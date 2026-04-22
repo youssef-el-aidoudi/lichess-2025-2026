@@ -102,7 +102,7 @@ export function GameSetup({ onStartGame }: GameSetupProps) {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-2xl p-8 border border-slate-200">
+      <div className="glass-panel p-8">
         <div className="text-center mb-8">
           <h2 className="text-slate-100 mb-2 text-2xl font-bold">Nouvelle partie</h2>
           <p className="text-slate-400">Configurez votre partie</p>
@@ -263,7 +263,7 @@ export function GameSetup({ onStartGame }: GameSetupProps) {
 
         {/* Summary & Start */}
         <div className="border-t border-slate-200 pt-6">
-          <div className="bg-slate-50 rounded-xl p-4 mb-6">
+          <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl p-4 mb-6">
             <div className="text-sm text-slate-400 mb-2">Résumé de la partie</div>
             <div className="flex flex-wrap gap-3">
               <span className="px-3 py-1 bg-cyan-500/20 text-cyan-300 rounded-lg text-sm">
@@ -287,7 +287,7 @@ export function GameSetup({ onStartGame }: GameSetupProps) {
             className={`w-full py-4 rounded-xl transition-all duration-200 shadow-lg flex items-center justify-center gap-3 text-white font-semibold ${
               (opponent === 'bot' && ((useDepth && !depth) || (!useDepth && !movetime))) ||
               (opponent === 'friend_join' && !joinCode.trim())
-                ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                ? 'bg-slate-700 cursor-not-allowed opacity-50'
                 : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl'
             }`}
           >

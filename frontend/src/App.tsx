@@ -63,20 +63,20 @@ export default function App() {
   }
 
   const navButtonClass = (page: string) => {
-    const baseClass = 'px-3 py-2 rounded-md transition-colors text-sm font-medium';
+    const baseClass = 'px-3 py-2 rounded-md transition-colors text-sm font-medium flex items-center gap-2';
     if (currentPage === page) {
-      return baseClass + ' bg-blue-50 text-blue-600';
+      return baseClass + ' bg-cyan-500/20 text-cyan-400 shadow-sm shadow-cyan-500/20 border border-cyan-500/30';
     }
-    return baseClass + ' text-gray-600 hover:bg-gray-50';
+    return baseClass + ' text-slate-400 hover:bg-slate-800 hover:text-slate-200';
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-cyan-500/30">
+      <nav className="bg-slate-900 shadow-lg border-b border-white/5 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
-              <h1 className="text-xl text-gray-900 font-bold">♟ Chess Analytics</h1>
+              <h1 className="text-xl text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 font-bold tracking-tight">♟ Chess Analytics</h1>
               <div className="flex gap-2">
                 <button
                   onClick={() => setCurrentPage('dashboard')}
@@ -129,7 +129,7 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-gray-700 text-sm">👤 {user?.username}</span>
+              <span className="text-slate-300 font-medium text-sm">👤 {user?.username}</span>
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm"

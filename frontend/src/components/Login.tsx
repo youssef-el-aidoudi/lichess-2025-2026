@@ -76,7 +76,7 @@ export function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="glass-panel rounded-lg shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="text-4xl mb-2">♟</div>
@@ -95,7 +95,7 @@ export function Login({ onLogin }: LoginProps) {
             className={
               !isSignup
                 ? 'flex-1 py-2 px-4 rounded-md bg-blue-600 text-white'
-                : 'flex-1 py-2 px-4 rounded-md bg-slate-800 text-slate-300 hover:hover:bg-slate-700'
+                : 'flex-1 py-2 px-4 rounded-md bg-slate-800 text-slate-300 hover:bg-slate-700'
             }
           >
             <LogIn className="inline-block w-4 h-4 mr-2" />
@@ -110,7 +110,7 @@ export function Login({ onLogin }: LoginProps) {
             className={
               isSignup
                 ? 'flex-1 py-2 px-4 rounded-md bg-blue-600 text-white'
-                : 'flex-1 py-2 px-4 rounded-md bg-slate-800 text-slate-300 hover:hover:bg-slate-700'
+                : 'flex-1 py-2 px-4 rounded-md bg-slate-800 text-slate-300 hover:bg-slate-700'
             }
           >
             <UserPlus className="inline-block w-4 h-4 mr-2" />
@@ -129,7 +129,7 @@ export function Login({ onLogin }: LoginProps) {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 bg-slate-900 text-white border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
@@ -143,7 +143,7 @@ export function Login({ onLogin }: LoginProps) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 bg-slate-900 text-white border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -156,15 +156,15 @@ export function Login({ onLogin }: LoginProps) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 bg-slate-900 text-white border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
 
           {error && (
             <div className={`border px-4 py-3 rounded-md ${error.includes('réussie')
-                ? 'bg-green-50 border-green-200 text-green-700'
-                : 'bg-red-50 border-red-200 text-red-700'
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
               }`}>
               {error}
             </div>
