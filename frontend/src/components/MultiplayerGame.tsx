@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, Send, Flag, Handshake, Wifi, WifiOff, MessageCircle } from 'lucide-react';
-import { connectGameWebSocket } from '../services/api';
+import { connectGameWebSocket, evaluatePosition } from '../services/api';
 
 interface MultiplayerGameProps {
   gameId: string;
@@ -29,6 +29,12 @@ interface ChatMsg {
   sender: string;
   content: string;
   timestamp: number;
+}
+
+interface BlunderInfo {
+  moveIndex: number;
+  severity: 'inaccuracy' | 'mistake' | 'blunder';
+  evalDrop: number;
 }
 
 // Premium SVG chess pieces
@@ -96,6 +102,9 @@ export function MultiplayerGame({ gameId, username, onBack, fromChallenge = fals
   const [displayBlackTime, setDisplayBlackTime] = useState(0);
   const [lastMove, setLastMove] = useState<{from: [number, number], to: [number, number]} | null>(null);
   const [markedSquares, setMarkedSquares] = useState<string[]>([]);
+  const [blunders, setBlunders] = useState<BlunderInfo[]>([]);
+  const lastEvalRef = useRef<number | null>(null);
+  const evaluatedMoveCountRef = useRef<number>(0);
 
   // Connect WebSocket
   useEffect(() => {
@@ -173,6 +182,45 @@ export function MultiplayerGame({ gameId, username, onBack, fromChallenge = fals
         const toCol = lastUci.charCodeAt(2) - 97;
         const toRow = 8 - parseInt(lastUci[3]);
         setLastMove({ from: [fromRow, fromCol], to: [toRow, toCol] });
+      }
+
+      // Blunder detection: evaluate every new move
+      const moveCount = data.moves.length;
+      if (moveCount > evaluatedMoveCountRef.current && moveCount >= 2) {
+        const moveIdx = moveCount - 1;
+        const movesBeforeThis = data.moves.slice(0, -1).join(' ');
+        const movesAfterThis = data.moves.join(' ');
+        evaluatedMoveCountRef.current = moveCount;
+
+        // Run asynchronously so it doesn't block the game
+        (async () => {
+          try {
+            const [evalBefore, evalAfter] = await Promise.all([
+              lastEvalRef.current !== null
+                ? Promise.resolve({ score: lastEvalRef.current, isMate: false, bestMove: '' })
+                : evaluatePosition(movesBeforeThis, 10),
+              evaluatePosition(movesAfterThis, 10),
+            ]);
+
+            const scoreBefore = evalBefore.score;
+            const scoreAfter = -evalAfter.score; // negate because perspective flips
+            lastEvalRef.current = evalAfter.score;
+
+            const evalDrop = scoreBefore - scoreAfter;
+            console.log(`[Multiplayer] Move ${moveIdx}: eval avant=${scoreBefore}cp, après=${scoreAfter}cp, chute=${evalDrop}cp`);
+
+            let severity: 'inaccuracy' | 'mistake' | 'blunder' | null = null;
+            if (evalDrop >= 200) severity = 'blunder';
+            else if (evalDrop >= 100) severity = 'mistake';
+            else if (evalDrop >= 50) severity = 'inaccuracy';
+
+            if (severity) {
+              setBlunders(prev => [...prev, { moveIndex: moveIdx, severity, evalDrop }]);
+            }
+          } catch (err) {
+            console.error('Erreur détection blunder (multiplayer):', err);
+          }
+        })();
       }
     }
 
@@ -606,12 +654,21 @@ export function MultiplayerGame({ gameId, username, onBack, fromChallenge = fals
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {gameState.moves.map((move, index) => (
+                      {gameState.moves.map((move, index) => {
+                        const blunder = blunders.find(b => b.moveIndex === index);
+                        return (
                         <div
                           key={index}
-                          className={`px-3 py-2 rounded-lg text-sm transition-all duration-200 flex items-center gap-3 ${index === gameState.moves.length - 1
-                            ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-200'
-                            : 'bg-slate-800/50 text-slate-300'
+                          className={`px-3 py-2 rounded-lg text-sm transition-all duration-200 flex items-center gap-3 ${
+                            blunder
+                              ? blunder.severity === 'blunder'
+                                ? 'bg-red-500/15 border border-red-500/40 text-red-200'
+                                : blunder.severity === 'mistake'
+                                  ? 'bg-orange-500/15 border border-orange-500/40 text-orange-200'
+                                  : 'bg-yellow-500/15 border border-yellow-500/40 text-yellow-200'
+                              : index === gameState.moves.length - 1
+                                ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-200'
+                                : 'bg-slate-800/50 text-slate-300'
                             }`}
                         >
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${index % 2 === 0
@@ -620,9 +677,23 @@ export function MultiplayerGame({ gameId, username, onBack, fromChallenge = fals
                             }`}>
                             {Math.floor(index / 2) + 1}.{index % 2 === 0 ? '' : '..'}
                           </span>
-                          <span className="font-mono">{move}</span>
+                          <span className="font-mono flex-1">{move}</span>
+                          {blunder && (
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider animate-pulse ${
+                              blunder.severity === 'blunder'
+                                ? 'bg-red-500/30 text-red-300'
+                                : blunder.severity === 'mistake'
+                                  ? 'bg-orange-500/30 text-orange-300'
+                                  : 'bg-yellow-500/30 text-yellow-300'
+                            }`}>
+                              {blunder.severity === 'blunder' ? '🔴 Blunder'
+                                : blunder.severity === 'mistake' ? '🟠 Erreur'
+                                  : '🟡 Imprécis'}
+                            </span>
+                          )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

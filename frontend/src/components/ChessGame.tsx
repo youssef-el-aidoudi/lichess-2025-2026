@@ -52,7 +52,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   const [thinking, setThinking] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
 
-  const [lastMove, setLastMove] = useState<{from: [number, number], to: [number, number]} | null>(null);
+  const [lastMove, setLastMove] = useState<{ from: [number, number], to: [number, number] } | null>(null);
   const [markedSquares, setMarkedSquares] = useState<string[]>([]);
 
   const [whiteTime, setWhiteTime] = useState((timeControl?.minutes || 5) * 60);
@@ -614,7 +614,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
         move += ' (échec)';
         setGameStatus('Échec !');
       }
-      // Check for pawn double move (for en passant on next move)
+      // Vérifier si le pion avance de deux cases (pour la prise en passant au prochain coup)
       const isPawnDoubleMoveWhite = movingPiece === '♙' && selectedSquare.row === 6 && row === 4;
       const isPawnDoubleMoveBlack = movingPiece === '♟' && selectedSquare.row === 1 && row === 3;
 
@@ -629,31 +629,29 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       console.log('Player UCI move:', uciMove);
       console.log('All UCI moves:', uciMovesRef.current.join(' '));
 
-      // Blunder detection: evaluate position after the move
+      // Détection de blunder: on évalue la position après le coup
       const movesBeforeThis = uciMovesRef.current.slice(0, -1).join(' ');
       const movesAfterThis = uciMovesRef.current.join(' ');
       const moveIdx = uciMovesRef.current.length - 1;
       const moveFrom = { row: selectedSquare.row, col: selectedSquare.col };
       const moveTo = { row, col };
 
-      // Run evaluation asynchronously (don't block the game, stagger by 500ms to allow bot to fetch its move)
+      // on évalue les deux positions de manière asynchrone (on bloque pas le jeu, on décale de 500ms pour permettre au bot de récupérer son coup)
       setTimeout(() => {
         (async () => {
           try {
-            // Get eval before and after this move
+            // on évalue les deux positions
             const [evalBefore, evalAfter] = await Promise.all([
-              lastEvalRef.current !== null
-                ? Promise.resolve({ score: lastEvalRef.current, isMate: false, bestMove: '' })
-                : evaluatePosition(movesBeforeThis, 10),
+              evaluatePosition(movesBeforeThis, 10),
               evaluatePosition(movesAfterThis, 10),
             ]);
 
-            // Score is from the side to move's perspective, so we need to negate
-            // after white moves, the eval is from black's perspective
+            //en francais
+            // les scores sont calculés du point de vue du joueur qui doit jouer.
+            // avant notre coup : c'est notre tour, donc un score positif = bon pour nous.
+            // après notre coup : c'est le tour de l'adversaire, donc on inverse le score pour le comparer de notre point de vue.
             const scoreBefore = evalBefore.score;
-            const scoreAfter = -evalAfter.score; // Negate because perspective flips
-
-            lastEvalRef.current = evalAfter.score;
+            const scoreAfter = -evalAfter.score; // on inverse le score car c'est le tour de l'adversaire
 
             const evalDrop = scoreBefore - scoreAfter;
             console.log(`Eval avant: ${scoreBefore}cp, après: ${scoreAfter}cp, chute: ${evalDrop}cp`);
@@ -850,7 +848,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
         console.log('Sending UCI moves to Stockfish:', uciMoves.join(' '));
 
         let bestMove = "";
-        
+
         if (mode === 'bot_ml') {
           console.log('Appel de votre Bot ML TensorFlow personnalisé...');
           bestMove = await getCustomBotMove(uciMoves.join(' '), 'black');
@@ -1288,7 +1286,7 @@ ${formattedMoves}${result}`;
 
                           const handleRightClick = (e: React.MouseEvent) => {
                             e.preventDefault();
-                            setMarkedSquares(prev => 
+                            setMarkedSquares(prev =>
                               prev.includes(squareId) ? prev.filter(id => id !== squareId) : [...prev, squareId]
                             );
                           };
@@ -1306,8 +1304,7 @@ ${formattedMoves}${result}`;
                               }}
                               onContextMenu={handleRightClick}
                               disabled={thinking}
-                              className={`w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-5xl sm:text-6xl transition-all duration-200 relative ${
-                                isLight
+                              className={`w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-5xl sm:text-6xl transition-all duration-200 relative ${isLight
                                   ? isLastMove ? 'bg-amber-100/80 saturate-150' : 'bg-gradient-to-br from-amber-50 to-amber-100'
                                   : isLastMove ? 'bg-amber-700/80 saturate-150' : 'bg-gradient-to-br from-amber-600 to-amber-800'
                                 } ${isSelected
@@ -1327,9 +1324,9 @@ ${formattedMoves}${result}`;
                                   const code = imageMap[piece];
                                   if (!code) return <span className="text-4xl">{piece}</span>;
                                   return (
-                                    <img 
-                                      src={`https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/cburnett/${code}.svg`} 
-                                      alt={piece} 
+                                    <img
+                                      src={`https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/cburnett/${code}.svg`}
+                                      alt={piece}
                                       className={`absolute inset-0 m-auto w-[85%] h-[85%] object-contain drop-shadow-xl pointer-events-none select-none transition-transform ${isSelected ? 'scale-110' : ''}`}
                                       draggable={false}
                                     />
@@ -1437,19 +1434,19 @@ ${formattedMoves}${result}`;
 
             {/* Statut de la partie */}
             <div className="mt-8 flex items-center justify-center gap-6">
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${mlStatus === 'ok' ? 'bg-green-500' : mlStatus === 'checking' ? 'bg-amber-500' : 'bg-red-500'}`} />
-              <span className="text-xs text-gray-500 uppercase tracking-widest font-mono">
-                ML Bot: {mlStatus === 'ok' ? 'Online' : mlStatus === 'checking' ? 'Connecting...' : 'Offline'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${mlStatus === 'ok' ? 'bg-green-500' : mlStatus === 'checking' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                <span className="text-xs text-gray-500 uppercase tracking-widest font-mono">
+                  ML Bot: {mlStatus === 'ok' ? 'Online' : mlStatus === 'checking' ? 'Connecting...' : 'Offline'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${stockfishStatus === 'ok' ? 'bg-green-500' : stockfishStatus === 'checking' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                <span className="text-xs text-gray-500 uppercase tracking-widest font-mono">
+                  Stockfish: {stockfishStatus === 'ok' ? 'Online' : stockfishStatus === 'checking' ? 'Connecting...' : 'Offline'}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${stockfishStatus === 'ok' ? 'bg-green-500' : stockfishStatus === 'checking' ? 'bg-amber-500' : 'bg-red-500'}`} />
-              <span className="text-xs text-gray-500 uppercase tracking-widest font-mono">
-                Stockfish: {stockfishStatus === 'ok' ? 'Online' : stockfishStatus === 'checking' ? 'Connecting...' : 'Offline'}
-              </span>
-            </div>
-          </div>
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className={`px-6 py-3 rounded-xl transition-all duration-300 ${winner
                 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 shadow-lg ring-2 ring-yellow-600 scale-105'

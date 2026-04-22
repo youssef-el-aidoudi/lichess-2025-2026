@@ -37,8 +37,8 @@ public class StockfishWrapper {
 
         try {
             String[] cmd = isUnix
-                    ? new String[]{"sh", "-c", "which stockfish"}
-                    : new String[]{"cmd", "/c", "where stockfish"};
+                    ? new String[] { "sh", "-c", "which stockfish" }
+                    : new String[] { "cmd", "/c", "where stockfish" };
 
             Process p = new ProcessBuilder(cmd).start();
             try (BufferedReader br = new BufferedReader(
@@ -54,7 +54,7 @@ public class StockfishWrapper {
         }
 
         if (isUnix) {
-            String[] candidates = {"/usr/games/stockfish", "/usr/bin/stockfish", "/bin/stockfish"};
+            String[] candidates = { "/usr/games/stockfish", "/usr/bin/stockfish", "/bin/stockfish" };
             for (String c : candidates) {
                 if (Files.exists(Paths.get(c))) {
                     System.out.println(">>> Found Stockfish at: " + c);
@@ -77,8 +77,7 @@ public class StockfishWrapper {
 
         throw new FileNotFoundException(
                 "Stockfish executable not found. OS=" + os +
-                        ". Install it (Mac: brew install stockfish, Linux: apt install stockfish) or put it in PATH."
-        );
+                        ". Install it (Mac: brew install stockfish, Linux: apt install stockfish) or put it in PATH.");
     }
 
     // -------------------- LIFECYCLE --------------------
@@ -102,7 +101,7 @@ public class StockfishWrapper {
             // Set deterministic options
             sendCommand("setoption name Threads value 1");
             sendCommand("setoption name Hash value 16");
-            
+
             sendCommand("isready");
             waitFor("readyok", 3000);
 
@@ -133,7 +132,8 @@ public class StockfishWrapper {
             }
             if (process != null) {
                 process.waitFor(2, TimeUnit.SECONDS);
-                if (process.isAlive()) process.destroy();
+                if (process.isAlive())
+                    process.destroy();
             }
         } catch (Exception e) {
             System.err.println("Error stopping Stockfish: " + e.getMessage());
@@ -207,7 +207,8 @@ public class StockfishWrapper {
             sendCommand("go depth " + Math.max(1, depth));
 
             // Map from multipv rank (1..N) -> best move at that rank
-            // Overwritten at each depth, so we keep only the FINAL depth result → deterministic
+            // Overwritten at each depth, so we keep only the FINAL depth result →
+            // deterministic
             Map<Integer, String> multipvMoves = new LinkedHashMap<>();
             String best = null;
 
@@ -228,7 +229,8 @@ public class StockfishWrapper {
                             if (pvParts.length > 0 && !pvParts[0].isEmpty()) {
                                 multipvMoves.put(rank, pvParts[0].trim());
                             }
-                        } catch (NumberFormatException ignored) {}
+                        } catch (NumberFormatException ignored) {
+                        }
                     }
                 } else if (line.startsWith("info") && line.contains(" pv ") && !line.contains(" multipv ")) {
                     // SinglePV fallback
@@ -244,7 +246,8 @@ public class StockfishWrapper {
 
                 if (line.startsWith("bestmove")) {
                     String[] parts = line.split("\\s+");
-                    if (parts.length > 1) best = parts[1];
+                    if (parts.length > 1)
+                        best = parts[1];
                     break;
                 }
 
@@ -257,11 +260,14 @@ public class StockfishWrapper {
             List<String> list = new ArrayList<>();
             for (int i = 1; i <= n; i++) {
                 String move = multipvMoves.get(i);
-                if (move != null) list.add(move);
+                if (move != null)
+                    list.add(move);
             }
 
-            if (best == null) best = list.isEmpty() ? "e2e4" : list.get(0);
-            if (list.isEmpty()) list = List.of(best);
+            if (best == null)
+                best = list.isEmpty() ? "e2e4" : list.get(0);
+            if (list.isEmpty())
+                list = List.of(best);
 
             return new EngineMoveAnalysis(best, list);
 
@@ -276,7 +282,12 @@ public class StockfishWrapper {
         }
 
         try {
-            sendCommand("position fen " + fen);
+            // si fen commence par "startpos", utiliser "position startpos [moves ...]"
+            // Sinon traiter comme une chaîne FEN: "position fen <fen>"
+            String posCmd = fen.trim().startsWith("startpos")
+                    ? "position " + fen
+                    : "position fen " + fen;
+            sendCommand(posCmd);
             sendCommand("go depth " + depth);
 
             Integer lastCp = 0;
@@ -327,7 +338,8 @@ public class StockfishWrapper {
     // -------------------- INTERNAL --------------------
 
     private void sendCommand(String command) throws IOException {
-        if (writer == null) return;
+        if (writer == null)
+            return;
         writer.write(command);
         writer.write("\n");
         writer.flush();
@@ -337,8 +349,10 @@ public class StockfishWrapper {
         long startTime = System.currentTimeMillis();
         String line;
         while ((line = reader.readLine()) != null) {
-            if (line.contains(expected)) return;
-            if (System.currentTimeMillis() - startTime > timeoutMs) return;
+            if (line.contains(expected))
+                return;
+            if (System.currentTimeMillis() - startTime > timeoutMs)
+                return;
         }
     }
 }
