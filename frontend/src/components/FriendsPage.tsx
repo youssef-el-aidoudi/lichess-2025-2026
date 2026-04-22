@@ -14,36 +14,36 @@ interface FriendsPageProps {
   username: string;
   onChallengeFriend?: (gameId: string) => void;
 }
-interface Friend      { pseudo: string; elo: number; friendshipId: number }
-interface PendingReq  { id: number; from: string; createdAt: string }
-interface ChatMsg     { id?: number; sender: string; content: string; sentAt?: string; timestamp?: number }
+interface Friend { pseudo: string; elo: number; friendshipId: number }
+interface PendingReq { id: number; from: string; createdAt: string }
+interface ChatMsg { id?: number; sender: string; content: string; sentAt?: string; timestamp?: number }
 interface InChallenge { from: string; gameId: string; timeControl: string }
-interface Toast       { id: number; message: string; type: 'success' | 'error' | 'info' }
+interface Toast { id: number; message: string; type: 'success' | 'error' | 'info' }
 
 // ─── Toast icons ──────────────────────────────────────────────────────────────
 const ToastIcon = ({ type }: { type: Toast['type'] }) => {
   if (type === 'success') return <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />;
-  if (type === 'error')   return <AlertCircle  className="w-5 h-5 text-red-500   flex-shrink-0" />;
-  return                         <Info         className="w-5 h-5 text-blue-500  flex-shrink-0" />;
+  if (type === 'error') return <AlertCircle className="w-5 h-5 text-red-500   flex-shrink-0" />;
+  return <Info className="w-5 h-5 text-blue-500  flex-shrink-0" />;
 };
 
 export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
-  const [friends,          setFriends]          = useState<Friend[]>([]);
-  const [pending,          setPending]          = useState<PendingReq[]>([]);
-  const [searchQuery,      setSearchQuery]      = useState('');
-  const [searchResults,    setSearchResults]    = useState<{ pseudo: string; elo: number }[]>([]);
-  const [searching,        setSearching]        = useState(false);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [pending, setPending] = useState<PendingReq[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ pseudo: string; elo: number }[]>([]);
+  const [searching, setSearching] = useState(false);
   const [activeChatFriend, setActiveChatFriend] = useState<string | null>(null);
-  const [chatMessages,     setChatMessages]     = useState<ChatMsg[]>([]);
-  const [chatInput,        setChatInput]        = useState('');
-  const [loadingFriends,   setLoadingFriends]   = useState(true);
-  const [inChallenge,      setInChallenge]      = useState<InChallenge | null>(null);
-  const [challengingFriend,setChallengingFriend]= useState<string | null>(null);
-  const [toasts,           setToasts]           = useState<Toast[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [loadingFriends, setLoadingFriends] = useState(true);
+  const [inChallenge, setInChallenge] = useState<InChallenge | null>(null);
+  const [challengingFriend, setChallengingFriend] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const wsRef      = useRef<WebSocket | null>(null);
-  const toastId    = useRef(0);
+  const wsRef = useRef<WebSocket | null>(null);
+  const toastId = useRef(0);
 
   // ── Floating toasts ────────────────────────────────────────────────────────
   const showToast = useCallback((message: string, type: Toast['type'] = 'info') => {
@@ -73,14 +73,14 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
           // but activeChatFriend is in the dependency array or captured in closure.
           // Since this effect runs on [username], we need to be careful with stale closures.
           // Better approach: use a ref for activeChatFriend or check outside.
-          
+
           setChatMessages(prev => {
             // We'll use a data property to check the sender later or handle notifications
             return [...prev, {
               sender: data.from, content: data.content, timestamp: data.timestamp,
             }];
           });
-          
+
           // Show a toast if it's not the current active chat
           const isCurrentChat = document.querySelector('[data-active-chat]')?.getAttribute('data-active-chat') === data.from;
           if (!isCurrentChat) {
@@ -166,7 +166,7 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
     try {
       const history = await getChatHistory(pseudo);
       setChatMessages(Array.isArray(history) ? history : []);
-      try { await markMessagesAsRead(pseudo); } catch {}
+      try { await markMessagesAsRead(pseudo); } catch { }
     } catch { setChatMessages([]); }
   };
 
@@ -177,7 +177,7 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
     setChatMessages(prev => [...prev, { sender: username, content, timestamp: Date.now() }]);
     if (wsRef.current?.readyState === WebSocket.OPEN)
       wsRef.current.send(JSON.stringify({ type: 'dm', to: activeChatFriend, content }));
-    try { await sendChatMessage(activeChatFriend, content); } catch {}
+    try { await sendChatMessage(activeChatFriend, content); } catch { }
   };
 
   const handleChallenge = async (friendPseudo: string) => {
@@ -248,7 +248,7 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
               <span className="font-bold text-blue-600">{inChallenge.from}</span> vous défie.
             </p>
             <div className="flex items-center justify-center gap-3 mb-8 text-sm font-bold text-gray-500 bg-gray-50 py-3 rounded-xl border border-gray-100">
-              <Clock className="w-4 h-4 text-blue-500" /> 
+              <Clock className="w-4 h-4 text-blue-500" />
               <span>Cadence : <span className="text-gray-900">{inChallenge.timeControl}</span></span>
             </div>
             <div className="flex flex-col gap-3">
@@ -265,8 +265,8 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
 
       {/* ── HEADER ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-3xl font-extrabold text-gray-900 tracking-tight">
-          <Users className="w-8 h-8 text-blue-600" />
+        <h2 className="flex items-center gap-2 text-3xl font-extrabold text-white tracking-tight">
+          <Users className="w-8 h-8 text-cyan-400" />
           Communauté
         </h2>
         <div className="flex items-center gap-3">
@@ -277,7 +277,7 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
             </span>
           )}
           <button onClick={() => { loadFriends(); loadPending(); }}
-                  className="p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-600 transition-colors shadow-sm" title="Actualiser">
+            className="p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-600 transition-colors shadow-sm" title="Actualiser">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
@@ -289,8 +289,8 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
           {/* SEARCH */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-4 bg-gray-50 border-b border-gray-100">
-              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                <Search className="w-4 h-4 text-gray-500" /> Trouver des joueurs
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Search className="w-4 h-4 text-gray-600" /> Trouver des joueurs
               </h3>
             </div>
             <div className="p-4 space-y-4">
@@ -301,7 +301,7 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
                   onChange={e => setSearchQuery(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSearch()}
                   placeholder="Pseudo..."
-                  className="w-full px-4 py-2 bg-gray-100 border-transparent rounded-xl text-sm focus:border-blue-500 focus:bg-white focus:ring-0 transition-colors"
+                  className="w-full px-4 py-2 bg-gray-100 border-transparent rounded-xl text-sm text-gray-900 focus:border-blue-500 focus:bg-white focus:ring-0 transition-colors placeholder:text-gray-400"
                 />
                 <button
                   onClick={handleSearch}
@@ -337,7 +337,7 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
           {/* PENDING REQUESTS */}
           {pending.length > 0 && (
             <div className="bg-white rounded-2xl shadow-sm border border-orange-200 overflow-hidden">
-               <div className="p-4 bg-orange-50 border-b border-orange-100">
+              <div className="p-4 bg-orange-50 border-b border-orange-100">
                 <h3 className="font-semibold text-orange-800 flex items-center gap-2">
                   <Bell className="w-4 h-4" /> Invitations
                 </h3>
@@ -431,8 +431,8 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
       {/* ── FLOATING CHAT PANEL ───────────────────────────────────────────── */}
       {activeChatFriend && (
         <div className="fixed bottom-0 right-4 sm:right-8 w-full max-w-[340px] bg-white rounded-t-2xl shadow-[0_0_40px_rgba(0,0,0,0.15)] border border-gray-200 z-50 flex flex-col h-[480px] max-h-[80vh] overflow-hidden transform animate-slideUp"
-             data-active-chat={activeChatFriend}>
-          
+          data-active-chat={activeChatFriend}>
+
           {/* Header */}
           <div className="bg-white px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0 cursor-pointer" onClick={() => setActiveChatFriend(null)}>
             <div className="flex items-center gap-3">
@@ -459,18 +459,17 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
                 <p className="text-xs text-gray-500 font-medium">Dites bonjour à {activeChatFriend} !</p>
               </div>
             )}
-            
+
             {chatMessages
               .filter(m => m.sender === activeChatFriend || m.sender === username)
               .map((msg, i) => {
                 const isMe = msg.sender === username;
                 return (
                   <div key={i} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[75%] px-3.5 py-2 rounded-2xl relative group ${
-                      isMe 
-                        ? 'bg-blue-600 text-white rounded-br-sm shadow-md' 
-                        : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm'
-                    }`}>
+                    <div className={`max-w-[75%] px-3.5 py-2 rounded-2xl relative group ${isMe
+                      ? 'bg-blue-600 text-white rounded-br-sm shadow-md'
+                      : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm'
+                      }`}>
                       <p className="text-[13px] leading-relaxed break-words">{msg.content}</p>
                       <span className={`text-[9px] font-medium uppercase mt-1 block opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? 'text-blue-200 text-right' : 'text-gray-400 text-left'}`}>
                         {msg.sentAt
@@ -499,11 +498,10 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
             <button
               onClick={handleSendChat}
               disabled={!chatInput.trim()}
-              className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
-                chatInput.trim() 
-                  ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700 hover:scale-105' 
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              }`}
+              className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${chatInput.trim()
+                ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700 hover:scale-105'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
             >
               <Send className="w-4 h-4 ml-0.5" />
             </button>
