@@ -21,7 +21,7 @@ const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
         ...options.headers,
     };
 
-    const response = await fetch(`${STOCKFISH_API_URL}${endpoint}`, {
+    const response = await fetch(`${BACKEND_API_URL}${endpoint}`, {
         ...options,
         headers,
     });
