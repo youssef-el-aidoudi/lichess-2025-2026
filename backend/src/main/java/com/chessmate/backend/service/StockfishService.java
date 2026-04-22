@@ -1,7 +1,10 @@
 package com.chessmate.backend.service;
 
+import com.chessmate.backend.cheat.engine.EngineEvaluation;
+import com.chessmate.backend.cheat.engine.EngineMoveAnalysis;
 import org.springframework.stereotype.Service;
 import java.util.Map;
+import java.util.HashMap;
 
 @Service
 public class StockfishService {
@@ -17,7 +20,12 @@ public class StockfishService {
     }
 
     public Map<String, Object> evaluatePosition(String moves, int depth) {
-        return stockfish.getEvaluation(moves, depth);
+        EngineEvaluation eval = stockfish.evaluateFen("startpos", depth);
+        Map<String, Object> result = new HashMap<>();
+        result.put("score", eval.getEvaluationCp());
+        result.put("isMate", eval.isMateScore());
+        result.put("bestMove", eval.getBestMove());
+        return result;
     }
 
     public void setDepth(int depth) {

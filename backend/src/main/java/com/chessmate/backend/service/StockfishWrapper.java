@@ -1,86 +1,146 @@
 package com.chessmate.backend.service;
 
-import org.springframework.stereotype.Component;
+import com.chessmate.backend.cheat.engine.EngineEvaluation;
+import com.chessmate.backend.cheat.engine.EngineMoveAnalysis;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Component;
 
 import java.io.*;
-import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
+@Profile("!test")
 @Component
 public class StockfishWrapper {
 
     private Process process;
     private BufferedWriter writer;
     private BufferedReader reader;
-    private static final long COMMAND_TIMEOUT_MS = 5000; // 5 second timeout
 
-    // Get Stockfish path - tries multiple locations
-    private String getStockfishPath() throws Exception {
-        String os = System.getProperty("os.name").toLowerCase();
-        boolean isLinux = os.contains("linux");
-
-        // Try 1: Check if stockfish is in system PATH (works on both Linux and Windows)
-        try {
-            String[] cmd = isLinux ? new String[] { "sh", "-c", "which stockfish" }
-                    : new String[] { "cmd", "/c", "where stockfish" };
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            Process p = pb.start();
-            BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            String line = br.readLine();
-            if (line != null && !line.isEmpty()) {
-                System.out.println(">>> Found Stockfish in PATH: " + line);
-                return line.trim();
-            }
-        } catch (Exception e) {
-            System.err.println("Could not find stockfish in PATH: " + e.getMessage());
-        }
-
-        // Try 2: /app directory (Docker container Linux)
-        if (isLinux) {
-            String dockerPath = "/usr/games/stockfish";
-            if (Files.exists(Paths.get(dockerPath))) {
-                System.out.println(">>> Found Stockfish at: " + dockerPath);
-                return dockerPath;
-            }
-
-            String dockerPath2 = "/usr/bin/stockfish";
-            if (Files.exists(Paths.get(dockerPath2))) {
-                System.out.println(">>> Found Stockfish at: " + dockerPath2);
-                return dockerPath2;
-            }
-        }
-
-        // Try 3: Windows local exe
-        String currentDir = System.getProperty("user.dir");
-        String devPath = currentDir + File.separator + "src" + File.separator + "main" + File.separator +
-                "java" + File.separator + "com" + File.separator + "chessmate" + File.separator +
-                "backend" + File.separator + "service" + File.separator + "stockfish-windows-x86-64-avx2.exe";
-
-        if (Files.exists(Paths.get(devPath)) && !isLinux) {
-            System.out.println(">>> Found Stockfish at: " + devPath);
-            return devPath;
-        }
-
-        throw new FileNotFoundException("Stockfish executable not found. OS: " + os
-                + ". Tried PATH, /usr/games/stockfish, /usr/bin/stockfish, and dev paths");
-    }
+    private static final long COMMAND_TIMEOUT_MS = 5000;
 
     private int depth = 15;
     private int movetime = 1000;
     private boolean isAvailable = false;
 
+    // -------------------- PATH RESOLUTION --------------------
+
+    private String getStockfishPath() throws Exception {
+        String os = System.getProperty("os.name").toLowerCase();
+        boolean isWindows = os.contains("win");
+        boolean isUnix = !isWindows;
+
+        try {
+            String[] cmd = isUnix
+                    ? new String[]{"sh", "-c", "which stockfish"}
+                    : new String[]{"cmd", "/c", "where stockfish"};
+
+            Process p = new ProcessBuilder(cmd).start();
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+                String line = br.readLine();
+                if (line != null && !line.isBlank()) {
+                    System.out.println(">>> Found Stockfish in PATH: " + line.trim());
+                    return line.trim();
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Could not find stockfish in PATH: " + e.getMessage());
+        }
+
+        if (isUnix) {
+            String[] candidates = {"/usr/games/stockfish", "/usr/bin/stockfish", "/bin/stockfish"};
+            for (String c : candidates) {
+                if (Files.exists(Paths.get(c))) {
+                    System.out.println(">>> Found Stockfish at: " + c);
+                    return c;
+                }
+            }
+        }
+
+        if (isWindows) {
+            String currentDir = System.getProperty("user.dir");
+            String devPath = currentDir + File.separator + "src" + File.separator + "main" + File.separator +
+                    "java" + File.separator + "com" + File.separator + "chessmate" + File.separator +
+                    "backend" + File.separator + "service" + File.separator + "stockfish-windows-x86-64-avx2.exe";
+
+            if (Files.exists(Paths.get(devPath))) {
+                System.out.println(">>> Found Stockfish at: " + devPath);
+                return devPath;
+            }
+        }
+
+        throw new FileNotFoundException(
+                "Stockfish executable not found. OS=" + os +
+                        ". Install it (Mac: brew install stockfish, Linux: apt install stockfish) or put it in PATH."
+        );
+    }
+
+    // -------------------- LIFECYCLE --------------------
+
     @PostConstruct
     public void start() {
-        // Le démarrage de Stockfish est désormais géré par le microservice ai_engine (Python)
-        // Ce wrapper Java est donc désactivé pour éviter les erreurs FileNotFoundError inutiles.
-        isAvailable = false;
-        System.out.println(">>> Le StockfishWrapper natif Java est désactivé. ai_engine est utilisé à la place.");
+        try {
+            String stockfishPath = getStockfishPath();
+            System.out.println(">>> Starting Stockfish: " + stockfishPath);
+
+            ProcessBuilder builder = new ProcessBuilder(stockfishPath);
+            builder.redirectErrorStream(true);
+
+            process = builder.start();
+            writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
+            reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+
+            sendCommand("uci");
+            waitFor("uciok", 3000);
+
+            // Set deterministic options
+            sendCommand("setoption name Threads value 1");
+            sendCommand("setoption name Hash value 16");
+            
+            sendCommand("isready");
+            waitFor("readyok", 3000);
+
+            isAvailable = true;
+            System.out.println(">>> Stockfish ready!");
+        } catch (Exception e) {
+            System.err.println("ERREUR: Stockfish not available: " + e.getMessage());
+            e.printStackTrace();
+            isAvailable = false;
+        }
     }
+
+    public synchronized void reset() {
+        try {
+            sendCommand("ucinewgame");
+            sendCommand("isready");
+            waitFor("readyok", 2000);
+        } catch (IOException e) {
+            System.err.println("Error resetting Stockfish: " + e.getMessage());
+        }
+    }
+
+    @PreDestroy
+    public void stop() {
+        try {
+            if (writer != null) {
+                sendCommand("quit");
+            }
+            if (process != null) {
+                process.waitFor(2, TimeUnit.SECONDS);
+                if (process.isAlive()) process.destroy();
+            }
+        } catch (Exception e) {
+            System.err.println("Error stopping Stockfish: " + e.getMessage());
+        }
+    }
+
+    // -------------------- PUBLIC API --------------------
 
     public void setDepth(int depth) {
         this.depth = depth;
@@ -90,25 +150,6 @@ public class StockfishWrapper {
         this.movetime = movetime;
     }
 
-    private void clearBufferAndStop() throws IOException {
-        sendCommand("stop");
-        sendCommand("isready");
-        
-        long startTime = System.currentTimeMillis();
-        String line;
-        // Check ready() to avoid blocking indefinitely if process died
-        while (System.currentTimeMillis() - startTime < 1000) {
-            if (reader.ready()) {
-                line = reader.readLine();
-                if (line == null || line.equals("readyok")) {
-                    break;
-                }
-            } else {
-                try { Thread.sleep(10); } catch (Exception e) {}
-            }
-        }
-    }
-
     public synchronized String getBestMove(String moves, String mode) {
         if (!isAvailable || process == null || !process.isAlive()) {
             System.err.println("Stockfish is not available. Returning default move.");
@@ -116,10 +157,7 @@ public class StockfishWrapper {
         }
 
         try {
-            clearBufferAndStop();
-
-            // Handle empty moves - starting position
-            String positionCmd = moves == null || moves.isEmpty()
+            String positionCmd = (moves == null || moves.isBlank())
                     ? "position startpos"
                     : "position startpos moves " + moves;
 
@@ -133,21 +171,15 @@ public class StockfishWrapper {
             } else {
                 goCommand = "go movetime 1000";
             }
-
             sendCommand(goCommand);
 
-            // Wait for bestmove with timeout
             long startTime = System.currentTimeMillis();
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith("bestmove")) {
-                    String[] parts = line.split(" ");
-                    if (parts.length > 1) {
-                        return parts[1];
-                    }
-                    break;
+                    String[] parts = line.split("\\s+");
+                    return (parts.length > 1) ? parts[1] : "e2e4";
                 }
-
                 if (System.currentTimeMillis() - startTime > COMMAND_TIMEOUT_MS) {
                     System.err.println("Timeout waiting for Stockfish bestmove");
                     return "e2e4";
@@ -155,63 +187,125 @@ public class StockfishWrapper {
             }
         } catch (Exception e) {
             System.err.println("Erreur Stockfish (getBestMove): " + e.getMessage());
-            e.printStackTrace();
         }
-
         return "e2e4";
     }
 
-    public synchronized Map<String, Object> getEvaluation(String moves, int depth) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("score", 0);
-        result.put("isMate", false);
-        result.put("bestMove", "e2e4");
-
+    public synchronized EngineMoveAnalysis analyzeFen(String fen, int depth, int topN) {
         if (!isAvailable || process == null || !process.isAlive()) {
-            System.err.println("Stockfish n'est pas disponible pour l'évaluation.");
-            return result;
+            return new EngineMoveAnalysis("e2e4", List.of("e2e4"));
         }
 
         try {
-            clearBufferAndStop();
+            int n = Math.max(1, topN);
 
-            String positionCmd = moves == null || moves.isEmpty()
-                    ? "position startpos"
-                    : "position startpos moves " + moves;
+            sendCommand("setoption name MultiPV value " + n);
+            sendCommand("isready");
+            waitFor("readyok", 1500);
 
-            sendCommand(positionCmd);
-            sendCommand("go depth " + depth);
+            sendCommand("position fen " + fen);
+            sendCommand("go depth " + Math.max(1, depth));
 
-            int lastScore = 0;
-            boolean lastIsMate = false;
-            String bestMove = "e2e4";
+            // Map from multipv rank (1..N) -> best move at that rank
+            // Overwritten at each depth, so we keep only the FINAL depth result → deterministic
+            Map<Integer, String> multipvMoves = new LinkedHashMap<>();
+            String best = null;
 
             long startTime = System.currentTimeMillis();
             String line;
+
             while ((line = reader.readLine()) != null) {
-                // Parse info lines for score
-                if (line.contains("score cp ")) {
-                    try {
-                        int idx = line.indexOf("score cp ") + 9;
-                        String scoreStr = line.substring(idx).split(" ")[0];
-                        lastScore = Integer.parseInt(scoreStr);
-                        lastIsMate = false;
-                    } catch (Exception e) {
-                        // Ignore parse errors
+                if (line.startsWith("info") && line.contains(" pv ") && line.contains(" multipv ")) {
+                    // Parse the multipv rank
+                    int multipvIdx = line.indexOf(" multipv ");
+                    int pvIdx = line.indexOf(" pv ");
+                    if (multipvIdx >= 0 && pvIdx >= 0) {
+                        try {
+                            String afterMultipv = line.substring(multipvIdx + 9).trim();
+                            int rank = Integer.parseInt(afterMultipv.split("\\s+")[0]);
+                            String pv = line.substring(pvIdx + 4).trim();
+                            String[] pvParts = pv.split("\\s+");
+                            if (pvParts.length > 0 && !pvParts[0].isEmpty()) {
+                                multipvMoves.put(rank, pvParts[0].trim());
+                            }
+                        } catch (NumberFormatException ignored) {}
                     }
-                } else if (line.contains("score mate ")) {
-                    try {
-                        int idx = line.indexOf("score mate ") + 11;
-                        String mateStr = line.substring(idx).split(" ")[0];
-                        lastScore = Integer.parseInt(mateStr);
-                        lastIsMate = true;
-                    } catch (Exception e) {
-                        // Ignore parse errors
+                } else if (line.startsWith("info") && line.contains(" pv ") && !line.contains(" multipv ")) {
+                    // SinglePV fallback
+                    int pvIdx = line.indexOf(" pv ");
+                    if (pvIdx >= 0) {
+                        String pv = line.substring(pvIdx + 4).trim();
+                        String[] pvParts = pv.split("\\s+");
+                        if (pvParts.length > 0 && !pvParts[0].isEmpty()) {
+                            multipvMoves.put(1, pvParts[0].trim());
+                        }
                     }
                 }
 
                 if (line.startsWith("bestmove")) {
-                    String[] parts = line.split(" ");
+                    String[] parts = line.split("\\s+");
+                    if (parts.length > 1) best = parts[1];
+                    break;
+                }
+
+                if (System.currentTimeMillis() - startTime > COMMAND_TIMEOUT_MS) {
+                    break;
+                }
+            }
+
+            // Build ordered list from rank 1..N
+            List<String> list = new ArrayList<>();
+            for (int i = 1; i <= n; i++) {
+                String move = multipvMoves.get(i);
+                if (move != null) list.add(move);
+            }
+
+            if (best == null) best = list.isEmpty() ? "e2e4" : list.get(0);
+            if (list.isEmpty()) list = List.of(best);
+
+            return new EngineMoveAnalysis(best, list);
+
+        } catch (Exception e) {
+            return new EngineMoveAnalysis("e2e4", List.of("e2e4"));
+        }
+    }
+
+    public synchronized EngineEvaluation evaluateFen(String fen, int depth) {
+        if (!isAvailable || process == null || !process.isAlive()) {
+            return new EngineEvaluation("0000", 0, false);
+        }
+
+        try {
+            sendCommand("position fen " + fen);
+            sendCommand("go depth " + depth);
+
+            Integer lastCp = 0;
+            boolean mate = false;
+            String bestMove = "0000";
+
+            long startTime = System.currentTimeMillis();
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+
+                if (line.startsWith("info") && line.contains(" score ")) {
+                    String[] parts = line.split("\\s+");
+                    for (int i = 0; i < parts.length - 2; i++) {
+                        if ("score".equals(parts[i])) {
+                            if ("cp".equals(parts[i + 1])) {
+                                lastCp = Integer.parseInt(parts[i + 2]);
+                                mate = false;
+                            } else if ("mate".equals(parts[i + 1])) {
+                                int mateValue = Integer.parseInt(parts[i + 2]);
+                                lastCp = mateValue > 0 ? 100000 : -100000;
+                                mate = true;
+                            }
+                        }
+                    }
+                }
+
+                if (line.startsWith("bestmove")) {
+                    String[] parts = line.split("\\s+");
                     if (parts.length > 1) {
                         bestMove = parts[1];
                     }
@@ -219,57 +313,32 @@ public class StockfishWrapper {
                 }
 
                 if (System.currentTimeMillis() - startTime > COMMAND_TIMEOUT_MS) {
-                    System.err.println("Timeout attendant l'évaluation de Stockfish");
                     break;
                 }
             }
 
-            result.put("score", lastScore);
-            result.put("isMate", lastIsMate);
-            result.put("bestMove", bestMove);
-        } catch (Exception e) {
-            System.err.println("Erreur Stockfish (getEvaluation): " + e.getMessage());
-            e.printStackTrace();
-        }
+            return new EngineEvaluation(bestMove, lastCp, mate);
 
-        return result;
+        } catch (Exception e) {
+            return new EngineEvaluation("0000", 0, false);
+        }
     }
 
+    // -------------------- INTERNAL --------------------
+
     private void sendCommand(String command) throws IOException {
-        if (writer != null) {
-            writer.write(command + "\n");
-            writer.flush();
-        }
+        if (writer == null) return;
+        writer.write(command);
+        writer.write("\n");
+        writer.flush();
     }
 
     private void waitFor(String expected, long timeoutMs) throws IOException {
         long startTime = System.currentTimeMillis();
         String line;
         while ((line = reader.readLine()) != null) {
-            if (line.contains(expected)) {
-                break;
-            }
-            if (System.currentTimeMillis() - startTime > timeoutMs) {
-                System.err.println("Timeout attendant: " + expected);
-                break;
-            }
-        }
-    }
-
-    @PreDestroy
-    public void stop() {
-        try {
-            if (writer != null) {
-                sendCommand("quit");
-            }
-            if (process != null) {
-                process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
-                if (process.isAlive()) {
-                    process.destroy();
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Error stopping Stockfish: " + e.getMessage());
+            if (line.contains(expected)) return;
+            if (System.currentTimeMillis() - startTime > timeoutMs) return;
         }
     }
 }
