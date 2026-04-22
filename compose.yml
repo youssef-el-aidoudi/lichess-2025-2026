@@ -74,6 +74,28 @@ services:
       - traefik.http.middlewares.securityheaders.headers.browserXssFilter=true
 
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://${BACKEND_HOST}
+        VITE_ML_API_URL: https://${BACKEND_HOST}
+        VITE_STOCKFISH_API_URL: https://${BACKEND_HOST}
+    restart: unless-stopped
+    networks:
+      - internal
+      - public
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.frontend.entrypoints=websecure
+      - traefik.http.routers.frontend.tls=true
+      - traefik.http.services.frontend.loadbalancer.server.port=80
+      - traefik.docker.network=chessmate_proxy
+      - traefik.http.routers.frontend.rule=Host(`${FRONTEND_HOST}`)
+      - traefik.http.routers.frontend.middlewares=securityheaders
+
   backend:
     build:
       context: ./backend

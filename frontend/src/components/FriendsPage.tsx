@@ -1,23 +1,23 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Search, UserPlus, Check, X, MessageCircle, Send,
-  Users, Bell, Swords, RefreshCw, Clock, CheckCircle, AlertCircle, Info,
+  Users, Bell, Swords, RefreshCw, CheckCircle, AlertCircle, Info,
 } from 'lucide-react';
 import {
   searchPlayers, sendFriendRequest, acceptFriendRequest, declineFriendRequest,
   getFriends, getPendingRequests, getChatHistory, sendChatMessage, markMessagesAsRead,
-  createMultiplayerGame, joinMultiplayerGame, connectChatWebSocket,
+  createMultiplayerGame,
 } from '../services/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface FriendsPageProps {
   username: string;
-  onChallengeFriend?: (gameId: string) => void;
+  onChallengeFriend?: (gameId: string, mode: '2d' | '3d') => void;
+  chatWsRef: React.RefObject<WebSocket | null>;
 }
 interface Friend { pseudo: string; elo: number; friendshipId: number }
 interface PendingReq { id: number; from: string; createdAt: string }
 interface ChatMsg { id?: number; sender: string; content: string; sentAt?: string; timestamp?: number }
-interface InChallenge { from: string; gameId: string; timeControl: string }
 interface Toast { id: number; message: string; type: 'success' | 'error' | 'info' }
 
 // ─── Toast icons ──────────────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ const ToastIcon = ({ type }: { type: Toast['type'] }) => {
   return <Info className="w-5 h-5 text-blue-500  flex-shrink-0" />;
 };
 
-export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
+export function FriendsPage({ username, onChallengeFriend, chatWsRef }: FriendsPageProps) {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [pending, setPending] = useState<PendingReq[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,12 +37,12 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [loadingFriends, setLoadingFriends] = useState(true);
-  const [inChallenge, setInChallenge] = useState<InChallenge | null>(null);
   const [challengingFriend, setChallengingFriend] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [modePickFriend, setModePickFriend] = useState<string | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const wsRef = chatWsRef; // Use the global WebSocket ref
   const toastId = useRef(0);
 
   // ── Floating toasts ────────────────────────────────────────────────────────
@@ -52,62 +52,30 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   }, []);
 
-  // ── WebSocket setup ────────────────────────────────────────────────────────
+  // ── Listen for DM events from global WebSocket (managed by App.tsx) ────────
   useEffect(() => {
     loadFriends();
     loadPending();
 
-    let ws: WebSocket;
-    try {
-      ws = connectChatWebSocket();
-      wsRef.current = ws;
+    const handleChatMessage = (ev: Event) => {
+      const data = (ev as CustomEvent).detail;
 
-      ws.onopen = () => ws.send(JSON.stringify({ username }));
-
-      ws.onmessage = (ev) => {
-        const data = JSON.parse(ev.data);
-
-        if (data.type === 'dm') {
-          // Only add to current chat if it's from the active friend
-          // Use a functional update to get the latest activeChatFriend if needed, 
-          // but activeChatFriend is in the dependency array or captured in closure.
-          // Since this effect runs on [username], we need to be careful with stale closures.
-          // Better approach: use a ref for activeChatFriend or check outside.
-
-          setChatMessages(prev => {
-            // We'll use a data property to check the sender later or handle notifications
-            return [...prev, {
-              sender: data.from, content: data.content, timestamp: data.timestamp,
-            }];
-          });
-
-          // Show a toast if it's not the current active chat
-          const isCurrentChat = document.querySelector('[data-active-chat]')?.getAttribute('data-active-chat') === data.from;
-          if (!isCurrentChat) {
-            showToast(`Nouveau message de ${data.from}`, 'info');
-          }
-        } else if (data.type === 'challenge') {
-          setInChallenge({ from: data.from, gameId: data.gameId, timeControl: data.timeControl });
-        } else if (data.type === 'challenge_response') {
-          if (data.accepted) {
-            showToast(`${data.from} a accepté votre défi !`, 'success');
-            if (onChallengeFriend) onChallengeFriend(data.gameId);
-          } else {
-            showToast(`${data.from} a refusé votre défi.`, 'error');
-          }
-          setChallengingFriend(null);
-        } else if (data.type === 'challenge_offline') {
-          showToast(`${data.to} n'est pas en ligne.`, 'error');
-          setChallengingFriend(null);
+      if (data.type === 'dm') {
+        setChatMessages(prev => [...prev, {
+          sender: data.from, content: data.content, timestamp: data.timestamp,
+        }]);
+        const isCurrentChat = document.querySelector('[data-active-chat]')?.getAttribute('data-active-chat') === data.from;
+        if (!isCurrentChat) {
+          showToast(`Nouveau message de ${data.from}`, 'info');
         }
-      };
+      } else if (data.type === 'challenge_offline') {
+        showToast(`${data.to} n'est pas en ligne.`, 'error');
+        setChallengingFriend(null);
+      }
+    };
 
-      ws.onerror = () => console.warn('Chat WS error');
-    } catch (e) {
-      console.warn('Cannot connect chat WS:', e);
-    }
-
-    return () => { ws?.close(); };
+    window.addEventListener('chat:message', handleChatMessage);
+    return () => window.removeEventListener('chat:message', handleChatMessage);
   }, [username]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
@@ -180,16 +148,17 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
     try { await sendChatMessage(activeChatFriend, content); } catch { }
   };
 
-  const handleChallenge = async (friendPseudo: string) => {
+  const handleChallenge = async (friendPseudo: string, mode: '2d' | '3d') => {
     if (challengingFriend) return;
+    setModePickFriend(null);
     setChallengingFriend(friendPseudo);
     try {
       const result = await createMultiplayerGame(username, 5, 0);
       const gameId: string = result.gameId;
       if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'challenge', to: friendPseudo, gameId, timeControl: '5+0' }));
-        showToast(`Défi envoyé à ${friendPseudo} !`, 'info');
-        if (onChallengeFriend) onChallengeFriend(gameId);
+        wsRef.current.send(JSON.stringify({ type: 'challenge', to: friendPseudo, gameId, timeControl: '5+0', mode }));
+        showToast(`Défi ${mode.toUpperCase()} envoyé à ${friendPseudo} !`, 'info');
+        if (onChallengeFriend) onChallengeFriend(gameId, mode);
       } else {
         showToast('WebSocket non connecté.', 'error');
         setChallengingFriend(null);
@@ -198,27 +167,6 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
       showToast('Erreur lors de la création de la partie', 'error');
       setChallengingFriend(null);
     }
-  };
-
-  const handleAcceptChallenge = async () => {
-    if (!inChallenge) return;
-    const { from, gameId } = inChallenge;
-    setInChallenge(null);
-    try {
-      await joinMultiplayerGame(gameId, username);
-      wsRef.current?.readyState === WebSocket.OPEN &&
-        wsRef.current.send(JSON.stringify({ type: 'challenge_response', to: from, gameId, accepted: true }));
-      if (onChallengeFriend) onChallengeFriend(gameId);
-    } catch (e: any) { showToast(`Erreur: ${e.message}`, 'error'); }
-  };
-
-  const handleDeclineChallenge = () => {
-    if (!inChallenge) return;
-    const { from, gameId } = inChallenge;
-    wsRef.current?.readyState === WebSocket.OPEN &&
-      wsRef.current.send(JSON.stringify({ type: 'challenge_response', to: from, gameId, accepted: false }));
-    setInChallenge(null);
-    showToast(`Défi de ${from} refusé.`, 'info');
   };
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -233,35 +181,6 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
           </div>
         ))}
       </div>
-
-      {/* ── INCOMING CHALLENGE MODAL ─────────────────────────────────────── */}
-      {inChallenge && (
-        <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.3)] p-8 w-full max-w-sm text-center transform animate-scaleUp border border-gray-100">
-            <div className="w-20 h-20 mx-auto bg-blue-600/10 text-blue-600 rounded-full flex items-center justify-center mb-6 shadow-inner ring-4 ring-blue-50">
-              <Swords className="w-10 h-10" />
-            </div>
-            <h3 className="text-2xl font-black text-gray-900 mb-2">
-              Défi Reçu !
-            </h3>
-            <p className="text-gray-600 mb-6 text-lg">
-              <span className="font-bold text-blue-600">{inChallenge.from}</span> vous défie.
-            </p>
-            <div className="flex items-center justify-center gap-3 mb-8 text-sm font-bold text-gray-500 bg-gray-50 py-3 rounded-xl border border-gray-100">
-              <Clock className="w-4 h-4 text-blue-500" />
-              <span>Cadence : <span className="text-gray-900">{inChallenge.timeControl}</span></span>
-            </div>
-            <div className="flex flex-col gap-3">
-              <button onClick={handleAcceptChallenge} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl transition-all shadow-lg shadow-blue-600/20 active:scale-95 text-lg cursor-pointer">
-                ACCEPTER
-              </button>
-              <button onClick={handleDeclineChallenge} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-xl transition-all active:scale-95 cursor-pointer">
-                Plus tard
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── HEADER ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
@@ -411,14 +330,32 @@ export function FriendsPage({ username, onChallengeFriend }: FriendsPageProps) {
                       >
                         <MessageCircle className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => handleChallenge(f.pseudo)}
-                        disabled={challengingFriend === f.pseudo}
-                        title="Défier"
-                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-green-100 text-green-700 hover:bg-green-600 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Swords className="w-4 h-4" />
-                      </button>
+                      <div className="relative">
+                        <button
+                          onClick={() => setModePickFriend(modePickFriend === f.pseudo ? null : f.pseudo)}
+                          disabled={challengingFriend === f.pseudo}
+                          title="Défier"
+                          className="w-9 h-9 flex items-center justify-center rounded-lg bg-green-100 text-green-700 hover:bg-green-600 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Swords className="w-4 h-4" />
+                        </button>
+                        {modePickFriend === f.pseudo && (
+                          <div className="absolute right-0 top-11 z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-2 flex flex-col gap-1 w-36 animate-scaleUp">
+                            <button
+                              onClick={() => handleChallenge(f.pseudo, '2d')}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-50 text-gray-800 text-sm font-medium transition-colors"
+                            >
+                              ♟️ Partie 2D
+                            </button>
+                            <button
+                              onClick={() => handleChallenge(f.pseudo, '3d')}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-indigo-50 text-gray-800 text-sm font-medium transition-colors"
+                            >
+                              🎮 Partie 3D
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
 import { PlayPage } from './components/PlayPage';
@@ -6,10 +6,12 @@ import { PlayPage3D } from './components/PlayPage3D';
 import { Stats } from './components/Stats';
 import { FriendsPage } from './components/FriendsPage';
 import { MultiplayerGame } from './components/MultiplayerGame';
+import { MultiplayerGame3D } from './components/MultiplayerGame3D';
 import { PlayerSearch } from './components/PlayerSearch';
 import CheatAnalysis from './components/CheatAnalysis';
 import { CheatHistory } from './components/CheatHistory';
-import { Users, ShieldAlert } from 'lucide-react';
+import { Users, ShieldAlert, Swords, Clock } from 'lucide-react';
+import { connectChatWebSocket, joinMultiplayerGame } from './services/api';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -17,6 +19,10 @@ export default function App() {
   const [user, setUser] = useState<{ username: string } | null>(null);
   // For challenge from friends page
   const [challengeGameId, setChallengeGameId] = useState<string | null>(null);
+  const [challengeMode, setChallengeMode] = useState<'2d' | '3d'>('2d');
+  // Global chat WebSocket (stays connected across all pages)
+  const chatWsRef = useRef<WebSocket | null>(null);
+  const [incomingChallenge, setIncomingChallenge] = useState<{ from: string; gameId: string; timeControl: string; mode: '2d' | '3d' } | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('jwt_token');
@@ -38,6 +44,42 @@ export default function App() {
     return () => window.removeEventListener('auth:expired', handleAuthExpired);
   }, []);
 
+  // Global Chat WebSocket – connect once when authenticated
+  useEffect(() => {
+    if (!isAuthenticated || !user?.username) {
+      chatWsRef.current?.close();
+      chatWsRef.current = null;
+      return;
+    }
+
+    let ws: WebSocket;
+    try {
+      ws = connectChatWebSocket();
+      chatWsRef.current = ws;
+
+      ws.onopen = () => ws.send(JSON.stringify({ username: user.username }));
+
+      ws.onmessage = (ev) => {
+        const data = JSON.parse(ev.data);
+        if (data.type === 'challenge') {
+          setIncomingChallenge({ from: data.from, gameId: data.gameId, timeControl: data.timeControl, mode: data.mode || '2d' });
+        } else if (data.type === 'challenge_response') {
+          if (data.accepted) {
+            handleChallengeFriend(data.gameId, data.mode || '2d');
+          }
+        }
+        // DM and other events are dispatched as custom events so FriendsPage can listen
+        window.dispatchEvent(new CustomEvent('chat:message', { detail: data }));
+      };
+
+      ws.onerror = () => console.warn('Chat WS error');
+    } catch (e) {
+      console.warn('Cannot connect chat WS:', e);
+    }
+
+    return () => { ws?.close(); chatWsRef.current = null; };
+  }, [isAuthenticated, user?.username]);
+
   const handleLogin = (token: string, username: string) => {
     localStorage.setItem('jwt_token', token);
     localStorage.setItem('username', username);
@@ -48,14 +90,41 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('jwt_token');
     localStorage.removeItem('username');
+    chatWsRef.current?.close();
+    chatWsRef.current = null;
     setIsAuthenticated(false);
     setUser(null);
     setCurrentPage('dashboard');
   };
 
-  const handleChallengeFriend = (gameId: string) => {
+  const handleChallengeFriend = (gameId: string, mode: '2d' | '3d' = '2d') => {
     setChallengeGameId(gameId);
+    setChallengeMode(mode);
     setCurrentPage('challenge');
+  };
+
+  const handleAcceptChallenge = async () => {
+    if (!incomingChallenge || !user) return;
+    const { from, gameId, mode } = incomingChallenge;
+    setIncomingChallenge(null);
+    try {
+      await joinMultiplayerGame(gameId, user.username);
+      if (chatWsRef.current?.readyState === WebSocket.OPEN) {
+        chatWsRef.current.send(JSON.stringify({ type: 'challenge_response', to: from, gameId, accepted: true, mode }));
+      }
+      handleChallengeFriend(gameId, mode);
+    } catch (e: any) {
+      alert(`Erreur: ${e.message}`);
+    }
+  };
+
+  const handleDeclineChallenge = () => {
+    if (!incomingChallenge) return;
+    const { from, gameId } = incomingChallenge;
+    if (chatWsRef.current?.readyState === WebSocket.OPEN) {
+      chatWsRef.current.send(JSON.stringify({ type: 'challenge_response', to: from, gameId, accepted: false }));
+    }
+    setIncomingChallenge(null);
   };
 
   if (!isAuthenticated) {
@@ -148,7 +217,8 @@ export default function App() {
         {currentPage === 'friends' && (
           <FriendsPage
             username={user?.username || 'anonymous'}
-            onChallengeFriend={(gameId) => handleChallengeFriend(gameId)}
+            onChallengeFriend={(gameId, mode) => handleChallengeFriend(gameId, mode)}
+            chatWsRef={chatWsRef}
           />
         )}
         {currentPage === 'stats' && <Stats />}
@@ -156,14 +226,53 @@ export default function App() {
         {currentPage === 'cheat' && <CheatAnalysis onNavigate={(page) => setCurrentPage(page)} />}
         {currentPage === 'cheatHistory' && <CheatHistory />}
         {currentPage === 'challenge' && challengeGameId && (
-          <MultiplayerGame
-            gameId={challengeGameId}
-            username={user?.username || 'anonymous'}
-            onBack={() => { setChallengeGameId(null); setCurrentPage('friends'); }}
-            fromChallenge={true}
-          />
+          challengeMode === '3d' ? (
+            <MultiplayerGame3D
+              gameId={challengeGameId}
+              username={user?.username || 'anonymous'}
+              onBack={() => { setChallengeGameId(null); setCurrentPage('friends'); }}
+              fromChallenge={true}
+            />
+          ) : (
+            <MultiplayerGame
+              gameId={challengeGameId}
+              username={user?.username || 'anonymous'}
+              onBack={() => { setChallengeGameId(null); setCurrentPage('friends'); }}
+              fromChallenge={true}
+            />
+          )
         )}
       </main>
+
+      {/* ── GLOBAL CHALLENGE MODAL ────────────────────────── */}
+      {incomingChallenge && (
+        <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.3)] p-8 w-full max-w-sm text-center border border-gray-100" style={{ animation: 'scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+            <div className="w-20 h-20 mx-auto bg-blue-600/10 text-blue-600 rounded-full flex items-center justify-center mb-6 shadow-inner ring-4 ring-blue-50">
+              <Swords className="w-10 h-10" />
+            </div>
+            <h3 className="text-2xl font-black text-gray-900 mb-2">Défi Reçu !</h3>
+            <p className="text-gray-600 mb-4 text-lg">
+              <span className="font-bold text-blue-600">{incomingChallenge.from}</span> vous défie.
+            </p>
+            <div className="mb-4 px-4 py-2 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-sm font-semibold text-center">
+              Mode : {incomingChallenge.mode === '3d' ? '🎮 3D' : '♟️ 2D'}
+            </div>
+            <div className="flex items-center justify-center gap-3 mb-8 text-sm font-bold text-gray-500 bg-gray-50 py-3 rounded-xl border border-gray-100">
+              <Clock className="w-4 h-4 text-blue-500" />
+              <span>Cadence : <span className="text-gray-900">{incomingChallenge.timeControl}</span></span>
+            </div>
+            <div className="flex flex-col gap-3">
+              <button onClick={handleAcceptChallenge} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl transition-all shadow-lg shadow-blue-600/20 active:scale-95 text-lg cursor-pointer">
+                ACCEPTER
+              </button>
+              <button onClick={handleDeclineChallenge} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-xl transition-all active:scale-95 cursor-pointer">
+                Plus tard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

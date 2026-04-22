@@ -684,10 +684,11 @@ async def chat_websocket(websocket: WebSocket):
                             pass
 
             elif msg_type == "challenge":
-                # Challenger sends: { type: "challenge", to: "friendPseudo", gameId: "xxx", timeControl: "5+0" }
+                # Challenger sends: { type: "challenge", to: "friendPseudo", gameId: "xxx", timeControl: "5+0", mode: "2d"|"3d" }
                 to_user = data.get("to", "")
                 game_id = data.get("gameId", "")
                 time_control = data.get("timeControl", "")
+                mode = data.get("mode", "2d")
                 if to_user and game_id:
                     target_ws = chat_websockets.get(to_user)
                     if target_ws:
@@ -697,6 +698,7 @@ async def chat_websocket(websocket: WebSocket):
                                 "from": username,
                                 "gameId": game_id,
                                 "timeControl": time_control,
+                                "mode": mode,
                                 "timestamp": int(time.time() * 1000)
                             })
                         except Exception:
@@ -710,10 +712,11 @@ async def chat_websocket(websocket: WebSocket):
                         })
 
             elif msg_type == "challenge_response":
-                # Challenged player says accept/decline: { type: "challenge_response", to: "challengerPseudo", gameId: "xxx", accepted: true/false }
+                # Challenged player says accept/decline: { type: "challenge_response", to: "challengerPseudo", gameId: "xxx", accepted: true/false, mode: "2d"|"3d" }
                 to_user = data.get("to", "")
                 game_id = data.get("gameId", "")
                 accepted = data.get("accepted", False)
+                mode = data.get("mode", "2d")
                 if to_user:
                     target_ws = chat_websockets.get(to_user)
                     if target_ws:
@@ -723,6 +726,7 @@ async def chat_websocket(websocket: WebSocket):
                                 "from": username,
                                 "gameId": game_id,
                                 "accepted": accepted,
+                                "mode": mode,
                                 "timestamp": int(time.time() * 1000)
                             })
                         except Exception:
