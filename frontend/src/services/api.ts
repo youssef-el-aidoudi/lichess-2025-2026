@@ -21,7 +21,7 @@ const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
         ...options.headers,
     };
 
-    const response = await fetch(`${BACKEND_API_URL}${endpoint}`, {
+    const response = await fetch(`${STOCKFISH_API_URL}${endpoint}`, {
         ...options,
         headers,
     });
@@ -38,7 +38,7 @@ const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
             try {
                 const textError = await response.text();
                 if (textError) errorMessage = textError;
-            } catch (e2) {}
+            } catch (e2) { }
         }
         throw new Error(errorMessage);
     }
@@ -164,7 +164,7 @@ export const evaluatePosition = async (
             depth: depth.toString(),
         });
 
-        const response = await fetch(`${STOCKFISH_API_URL}/api/chess/evaluate?${params}`, {
+        const response = await fetch(`${BACKEND_API_URL}/api/chess/evaluate?${params}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',

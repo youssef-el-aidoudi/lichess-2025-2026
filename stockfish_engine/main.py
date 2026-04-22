@@ -52,4 +52,44 @@ async def get_best_move(moves: str = "", mode: str = "depth", color: str = "blac
         print(f"❌ Stockfish error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/evaluate")
+async def evaluate_position(moves: str = "", depth: int = 15):
+    """Evaluate a position and return the score in centipawns."""
+    try:
+        board = chess.Board()
+        if moves:
+            for m in moves.split():
+                if m.strip():
+                    try:
+                        board.push_uci(m)
+                    except ValueError:
+                        pass
+
+        if not os.path.exists(STOCKFISH_PATH):
+            raise HTTPException(status_code=500, detail=f"Stockfish binary not found at {STOCKFISH_PATH}")
+
+        with chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH) as engine:
+            info = engine.analyse(board, chess.engine.Limit(depth=depth))
+            score = info["score"].relative  # from side-to-move's perspective
+
+            is_mate = score.is_mate()
+            if is_mate:
+                mate_in = score.mate()
+                cp_score = 100000 if mate_in > 0 else -100000
+            else:
+                cp_score = score.score(mate_score=100000)
+
+            # Get best move too
+            result = engine.play(board, chess.engine.Limit(depth=depth))
+            best_move = result.move.uci() if result.move else ""
+
+            return {
+                "score": cp_score,
+                "isMate": is_mate,
+                "bestMove": best_move,
+            }
+    except Exception as e:
+        print(f"Evaluate error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 app.include_router(router)

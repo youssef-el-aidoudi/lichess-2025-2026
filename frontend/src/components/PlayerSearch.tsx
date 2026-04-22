@@ -158,8 +158,8 @@ export function PlayerSearch() {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-gray-900 mb-2">Recherche de parties Lichess</h2>
-                <p className="text-gray-600">
+                <h2 className="text-white-900 mb-2">Recherche de parties Lichess</h2>
+                <p className="text-white-600">
                     Recherchez les parties d'un joueur directement depuis l'API Lichess
                 </p>
             </div>
@@ -175,7 +175,7 @@ export function PlayerSearch() {
                             onChange={(e) => setPseudo(e.target.value)}
                             onKeyDown={handleKeyDown}
                             placeholder="Entrez un pseudo Lichess (ex: DrNykterstein)"
-                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-900 placeholder:text-gray-400"
                         />
                     </div>
                     <div className="flex items-center gap-2">
@@ -183,7 +183,7 @@ export function PlayerSearch() {
                         <select
                             value={maxGames}
                             onChange={(e) => setMaxGames(Number(e.target.value))}
-                            className="px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                            className="px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                         >
                             <option value={5}>5</option>
                             <option value={10}>10</option>
