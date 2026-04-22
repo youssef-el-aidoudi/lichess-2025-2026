@@ -527,63 +527,105 @@ export function MultiplayerGame({ gameId, username, onBack, fromChallenge = fals
               )}
             </div>
 
-            {/* Chat sidebar */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col h-[600px] overflow-hidden">
-              {/* Header */}
-              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm uppercase tracking-wide">
-                  <MessageCircle className="w-4 h-4 text-blue-500" /> Chat de la partie
-                </h3>
-              </div>
+            <div className="flex flex-col gap-4 lg:h-[750px]">
+              {/* Chat sidebar */}
+              <div className="glass-panel bg-slate-900/50 rounded-2xl shadow-sm border border-slate-700/50 flex flex-col flex-1 min-h-[300px] overflow-hidden">
+                {/* Header */}
+                <div className="px-4 py-3 border-b border-white/5 bg-slate-800/50 flex items-center justify-between">
+                  <h3 className="font-bold text-slate-100 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    <MessageCircle className="w-4 h-4 text-cyan-400" /> Chat de la partie
+                  </h3>
+                </div>
 
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 bg-white flex flex-col gap-3">
-                {chatMessages.length === 0 && (
-                  <div className="m-auto text-center">
-                    <p className="text-gray-400 text-sm font-medium">Aucun message pour l'instant</p>
-                  </div>
-                )}
-                {chatMessages.map((msg, i) => {
-                  const isMe = msg.sender === username;
-                  return (
-                    <div key={i} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] px-3 py-2 rounded-2xl relative ${
-                        isMe 
-                          ? 'bg-blue-600 text-white rounded-br-sm' 
-                          : 'bg-gray-100 text-gray-800 rounded-bl-sm border border-gray-200'
-                      }`}>
-                        <div className={`text-[10px] font-bold opacity-75 mb-0.5 ${isMe ? 'text-blue-200 text-right' : 'text-gray-500'}`}>
-                          {msg.sender}
-                        </div>
-                        <p className="text-[13px] leading-relaxed break-words">{msg.content}</p>
-                      </div>
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar">
+                  {chatMessages.length === 0 && (
+                    <div className="m-auto text-center">
+                      <p className="text-slate-400 text-sm font-medium">Aucun message pour l'instant</p>
                     </div>
-                  );
-                })}
-                <div ref={chatEndRef} />
+                  )}
+                  {chatMessages.map((msg, i) => {
+                    const isMe = msg.sender === username;
+                    return (
+                      <div key={i} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] px-3 py-2 rounded-2xl relative ${
+                          isMe 
+                            ? 'bg-cyan-600/80 text-white rounded-br-sm' 
+                            : 'bg-slate-800 text-slate-200 rounded-bl-sm border border-slate-700/50'
+                        }`}>
+                          <div className={`text-[10px] font-bold opacity-75 mb-0.5 ${isMe ? 'text-cyan-100 text-right' : 'text-slate-400'}`}>
+                            {msg.sender}
+                          </div>
+                          <p className="text-[13px] leading-relaxed break-words">{msg.content}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Input */}
+                <div className="p-3 bg-slate-800/50 border-t border-white/5 flex gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+                    placeholder="Écrire un message..."
+                    className="flex-1 bg-slate-900 border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500"
+                  />
+                  <button
+                    onClick={handleSendChat}
+                    disabled={!chatInput.trim()}
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
+                      chatInput.trim() 
+                        ? 'bg-cyan-600 text-white shadow-sm hover:bg-cyan-500' 
+                        : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <Send className="w-4 h-4 ml-0.5" />
+                  </button>
+                </div>
               </div>
 
-              {/* Input */}
-              <div className="p-3 bg-white border-t border-gray-100 flex gap-2">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                  placeholder="Écrire un message..."
-                  className="flex-1 bg-gray-100 border-transparent rounded-lg px-3 py-2 text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all placeholder:text-gray-400"
-                />
-                <button
-                  onClick={handleSendChat}
-                  disabled={!chatInput.trim()}
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
-                    chatInput.trim() 
-                      ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700' 
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  <Send className="w-4 h-4 ml-0.5" />
-                </button>
+              {/* Historique des coups */}
+              <div className="glass-panel bg-slate-900/50 rounded-2xl shadow-sm border border-slate-700/50 flex flex-col flex-1 min-h-[250px] overflow-hidden">
+                {/* Header */}
+                <div className="px-4 py-3 border-b border-white/5 bg-slate-800/50 flex items-center justify-between">
+                  <h3 className="font-bold text-slate-100 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    <div className="w-1 h-4 bg-gradient-to-b from-cyan-400 to-indigo-500 rounded-full" />
+                    Historique des coups
+                  </h3>
+                </div>
+                
+                {/* Moves List */}
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                  {(!gameState.moves || gameState.moves.length === 0) ? (
+                    <div className="text-center py-8">
+                      <p className="text-slate-500 text-sm">Aucun coup joué</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {gameState.moves.map((move, index) => (
+                        <div
+                          key={index}
+                          className={`px-3 py-2 rounded-lg text-sm transition-all duration-200 flex items-center gap-3 ${index === gameState.moves.length - 1
+                            ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-200'
+                            : 'bg-slate-800/50 text-slate-300'
+                            }`}
+                        >
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${index % 2 === 0
+                            ? 'bg-indigo-500/20 text-indigo-300'
+                            : 'bg-slate-700 text-slate-400'
+                            }`}>
+                            {Math.floor(index / 2) + 1}.{index % 2 === 0 ? '' : '..'}
+                          </span>
+                          <span className="font-mono">{move}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

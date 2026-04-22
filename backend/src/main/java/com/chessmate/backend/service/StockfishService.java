@@ -20,7 +20,8 @@ public class StockfishService {
     }
 
     public Map<String, Object> evaluatePosition(String moves, int depth) {
-        EngineEvaluation eval = stockfish.evaluateFen("startpos", depth);
+        String positionCmd = (moves != null && !moves.trim().isEmpty()) ? "startpos moves " + moves : "startpos";
+        EngineEvaluation eval = stockfish.evaluateFen(positionCmd, depth);
         Map<String, Object> result = new HashMap<>();
         result.put("score", eval.getEvaluationCp());
         result.put("isMate", eval.isMateScore());
