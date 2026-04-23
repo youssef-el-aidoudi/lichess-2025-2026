@@ -11,15 +11,19 @@ import org.springframework.web.bind.annotation.*;
 import com.chessmate.backend.dto.CreatePartieJoueeRequest;
 import com.chessmate.backend.entiter.PartieJouee;
 import com.chessmate.backend.repository.PartieJoueeRepository;
+import com.chessmate.backend.service.PartieJoueeService;
 
 @RestController
 @RequestMapping("/parties-jouees")
 public class PartieJoueeController {
 
     private final PartieJoueeRepository partieJoueeRepository;
+    private final PartieJoueeService partieJoueeService;
 
-    public PartieJoueeController(PartieJoueeRepository partieJoueeRepository) {
+    public PartieJoueeController(PartieJoueeRepository partieJoueeRepository,
+                                  PartieJoueeService partieJoueeService) {
         this.partieJoueeRepository = partieJoueeRepository;
+        this.partieJoueeService = partieJoueeService;
     }
 
     @GetMapping
@@ -111,7 +115,7 @@ public class PartieJoueeController {
         partie.setResumeAnalyse(request.getResumeAnalyse());
         partie.setDateHeure(LocalDateTime.now());
 
-        PartieJouee saved = partieJoueeRepository.save(partie);
+        PartieJouee saved = partieJoueeService.enregistrerPartie(partie);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 }

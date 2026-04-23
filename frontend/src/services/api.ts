@@ -146,6 +146,11 @@ export const createPartieJouee = async (payload: {
     });
 };
 
+// Récupère le profil ML de l'utilisateur connecté de façon sécurisée
+export const getMyMlProfile = async () => {
+  return fetchWithAuth('/api/ml/profile/me');
+};
+
 // =========================================================
 // STOCKFISH
 // =========================================================

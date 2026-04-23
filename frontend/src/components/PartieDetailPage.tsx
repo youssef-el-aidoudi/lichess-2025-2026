@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChessMiniBoard } from './ChessMiniBoard';
+import { MlInsightBadge } from './MLGameBadges';
 
 type PartieDetailPageProps = {
   partieId: number;
@@ -789,6 +790,21 @@ export function PartieDetailPage({ partieId, onBack }: PartieDetailPageProps) {
           {analysisMessage && (
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
               {analysisMessage}
+            </div>
+          )}
+
+          {(partie?.mlTag || partie?.mlInsight || partie?.probWhite != null) && (
+            <div className="bg-gradient-to-br from-gray-50 to-blue-50 border border-blue-100 rounded-xl p-6 shadow-sm mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <span>🤖</span> Analyse Machine Learning
+              </h3>
+              <MlInsightBadge
+                tag={partie?.mlTag}
+                insight={partie?.mlInsight}
+                probWhite={partie?.probWhite != null ? Number(partie.probWhite) : undefined}
+                probBlack={partie?.probBlack != null ? Number(partie.probBlack) : undefined}
+                probDraw={partie?.probDraw != null ? Number(partie.probDraw) : undefined}
+              />
             </div>
           )}
 

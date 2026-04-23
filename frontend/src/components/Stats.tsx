@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Download, TrendingUp, Activity, ShieldAlert, CheckCircle, ShieldCheck, Database, Clock } from 'lucide-react';
+import { MLPlayerDashboard } from './MLPlayerDashboard';
 
 type CheatHistoryItem = {
   id: number;
@@ -96,6 +97,9 @@ export function Stats() {
           Exporter l'historique
         </button>
       </div>
+
+      {/* ML Player Dashboard */}
+      <MLPlayerDashboard />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
