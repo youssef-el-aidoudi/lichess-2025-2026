@@ -30,3 +30,5 @@ traefik/cert.pem
 traefik/private.key
 
 frontend/build
+stockfish_engine/__pycache__/main.cpython-311.pyc
+ai_engine/__pycache__/main.cpython-311.pyc
