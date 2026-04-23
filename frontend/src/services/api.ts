@@ -116,6 +116,37 @@ export const getJoueurById = async (id: number) => {
 };
 
 // =========================================================
+// PARTIES JOUÉES (saved games)
+// =========================================================
+
+export const getAllPartiesJouees = async () => {
+    return fetchWithAuth('/parties-jouees');
+};
+
+export const getPartieJoueeById = async (id: number) => {
+    return fetchWithAuth(`/parties-jouees/${id}`);
+};
+
+export const createPartieJouee = async (payload: {
+    titre: string;
+    joueurBlanc: string;
+    joueurNoir: string;
+    resultat: string;
+    variant: string;
+    ouverture: string;
+    source: string;
+    vainqueur: string;
+    nombreCoups: number;
+    pgn: string;
+    resumeAnalyse: string;
+}) => {
+    return fetchWithAuth('/parties-jouees', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+};
+
+// =========================================================
 // STOCKFISH
 // =========================================================
 

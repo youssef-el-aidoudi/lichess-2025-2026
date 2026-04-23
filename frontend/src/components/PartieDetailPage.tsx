@@ -103,9 +103,6 @@ const INITIAL_BOARD: Board = [
   ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'],
 ];
 
-const WHITE_PIECES = ['♔', '♕', '♖', '♗', '♘', '♙'];
-const BLACK_PIECES = ['♚', '♛', '♜', '♝', '♞', '♟'];
-
 function cloneBoard(board: Board): Board {
   return board.map((row) => [...row]);
 }

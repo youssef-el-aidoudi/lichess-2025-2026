@@ -10,7 +10,9 @@ import { MultiplayerGame3D } from './components/MultiplayerGame3D';
 import { PlayerSearch } from './components/PlayerSearch';
 import CheatAnalysis from './components/CheatAnalysis';
 import { CheatHistory } from './components/CheatHistory';
-import { Users, ShieldAlert, Swords, Clock } from 'lucide-react';
+import { HistoryPage } from './components/HistoryPage';
+import { PartieDetailPage } from './components/PartieDetailPage';
+import { Users, ShieldAlert, Swords, Clock, History } from 'lucide-react';
 import { connectChatWebSocket, joinMultiplayerGame } from './services/api';
 
 export default function App() {
@@ -23,6 +25,7 @@ export default function App() {
   // Global chat WebSocket (stays connected across all pages)
   const chatWsRef = useRef<WebSocket | null>(null);
   const [incomingChallenge, setIncomingChallenge] = useState<{ from: string; gameId: string; timeControl: string; mode: '2d' | '3d' } | null>(null);
+  const [selectedPartieId, setSelectedPartieId] = useState<number | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('jwt_token');
@@ -148,13 +151,19 @@ export default function App() {
               <h1 className="text-xl text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 font-bold tracking-tight">♟ Chess Analytics</h1>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setCurrentPage('dashboard')}
+                  onClick={() => {
+                    setCurrentPage('dashboard');
+                    setSelectedPartieId(null);
+                  }}
                   className={navButtonClass('dashboard')}
                 >
                   Dashboard
                 </button>
                 <button
-                  onClick={() => setCurrentPage('play')}
+                  onClick={() => {
+                    setCurrentPage('play');
+                    setSelectedPartieId(null);
+                  }}
                   className={navButtonClass('play')}
                 >
                   Jouer (2D)
@@ -175,10 +184,25 @@ export default function App() {
                   </span>
                 </button>
                 <button
-                  onClick={() => setCurrentPage('stats')}
+                  onClick={() => {
+                    setCurrentPage('stats');
+                    setSelectedPartieId(null);
+                  }}
                   className={navButtonClass('stats')}
                 >
                   Statistiques
+                </button>
+                <button
+                  onClick={() => {
+                    setCurrentPage('history');
+                    setSelectedPartieId(null);
+                  }}
+                  className={navButtonClass('history')}
+                >
+                  <span className="flex items-center gap-1">
+                    <History className="w-4 h-4" />
+                    Historique
+                  </span>
                 </button>
                 <button
                   onClick={() => setCurrentPage('search')}
@@ -225,6 +249,19 @@ export default function App() {
         {currentPage === 'search' && <PlayerSearch />}
         {currentPage === 'cheat' && <CheatAnalysis onNavigate={(page) => setCurrentPage(page)} />}
         {currentPage === 'cheatHistory' && <CheatHistory />}
+        {currentPage === 'history' && selectedPartieId === null && (
+          <HistoryPage
+            onSelectPartie={(partieId) => setSelectedPartieId(partieId)}
+            onGoToPlay={() => setCurrentPage('play')}
+            onGoToSearch={() => setCurrentPage('search')}
+          />
+        )}
+        {currentPage === 'history' && selectedPartieId !== null && (
+          <PartieDetailPage
+            partieId={selectedPartieId}
+            onBack={() => setSelectedPartieId(null)}
+          />
+        )}
         {currentPage === 'challenge' && challengeGameId && (
           challengeMode === '3d' ? (
             <MultiplayerGame3D
