@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Download, Brain, Circle } from 'lucide-react';
 import { getStockfishBestMove, analyzePosition, getCustomBotMove, evaluatePosition } from '../services/api';
+import { useVoiceAccessibility } from '../hooks/useVoiceAccessibility';
+import { useASR } from '../hooks/useASR';
+import { VoiceToggle } from './VoiceToggle';
+import { MicButton } from './MicButton';
+import { parseWithAlternatives, type ChessIntent } from '../services/chessCommandParser';
 
 interface ChessGameProps {
   mode: 'human' | 'bot' | 'bot_ml';
@@ -46,7 +51,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   const [pgnMoves, setPgnMoves] = useState<string[]>([]);
   const [currentTurn, setCurrentTurn] = useState<'white' | 'black'>('white');
   const [gameStatus, setGameStatus] = useState<string>('En cours');
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [backendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   // Silence unused variable warning until used in UI
   useEffect(() => { if (backendStatus) { } }, [backendStatus]);
   const [thinking, setThinking] = useState(false);
@@ -104,6 +109,183 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
   // Guard against concurrent bot moves
   const botMoveInProgress = useRef(false);
+
+  // Voice Accessibility Integration
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [micFeedback, setMicFeedback] = useState<string>('');
+  const [pendingClicks, setPendingClicks] = useState<{row: number, col: number}[]>([]);
+
+  const { isSupported: voiceSupported, speak } = useVoiceAccessibility({
+    isEnabled: voiceEnabled,
+    moveHistory,
+    gameStatus,
+    winner,
+  });
+
+  const handleVoiceToggle = (enabled: boolean) => {
+    setVoiceEnabled(enabled);
+    try {
+      if (enabled) speak("Accessibilité vocale activée");
+      else speak("Accessibilité vocale désactivée");
+    } catch (e) {
+      console.warn("TTS error", e);
+    }
+  };
+
+  const isMoveLegal = (fromRow: number, fromCol: number, toRow: number, toCol: number) => {
+    if (!isValidMove(board, fromRow, fromCol, toRow, toCol)) return false;
+    const testBoard = board.map(r => [...r]);
+    testBoard[toRow][toCol] = testBoard[fromRow][fromCol];
+    testBoard[fromRow][fromCol] = '';
+    return !isKingInCheck(testBoard, currentTurn === 'white');
+  };
+
+  const resolveVoiceMove = (intent: ChessIntent): { ok: true, fromRow: number, fromCol: number, toRow: number, toCol: number } | { ok: false, error: string } => {
+    if (intent.type === 'castle-short' || intent.type === 'castle-long') {
+      const kingRow = currentTurn === 'white' ? 7 : 0;
+      const toCol = intent.type === 'castle-short' ? 6 : 2;
+      if (isMoveLegal(kingRow, 4, kingRow, toCol)) {
+        return { ok: true as const, fromRow: kingRow, fromCol: 4, toRow: kingRow, toCol };
+      }
+      return { ok: false as const, error: 'illegal' };
+    }
+
+    if (intent.type !== 'move') return { ok: false as const, error: 'illegal' };
+
+    const PIECE_SYMBOLS: Record<string, Record<string, string>> = {
+      pawn: { white: '♙', black: '♟' },
+      knight: { white: '♘', black: '♞' },
+      bishop: { white: '♗', black: '♝' },
+      rook: { white: '♖', black: '♜' },
+      queen: { white: '♕', black: '♛' },
+      king: { white: '♔', black: '♚' }
+    };
+    const pieceSymbol = PIECE_SYMBOLS[intent.piece]?.[currentTurn];
+    if (!pieceSymbol) return { ok: false, error: 'illegal' };
+
+    const hasPartial = intent.toSquare.includes('?');
+    if (hasPartial) {
+      const partialFile = intent.partialFile;
+      const partialRank = intent.partialRank;
+      const allCandidates = [];
+      for (let fromR = 0; fromR < 8; fromR++) {
+        for (let fromC = 0; fromC < 8; fromC++) {
+          if (board[fromR][fromC] !== pieceSymbol) continue;
+          for (let toR = 0; toR < 8; toR++) {
+            for (let toC = 0; toC < 8; toC++) {
+              if (partialRank !== undefined && toR !== (8 - parseInt(partialRank, 10))) continue;
+              if (partialFile !== undefined && toC !== (partialFile.charCodeAt(0) - 'a'.charCodeAt(0))) continue;
+              if (isMoveLegal(fromR, fromC, toR, toC)) {
+                allCandidates.push({ fromRow: fromR, fromCol: fromC, toRow: toR, toCol: toC });
+              }
+            }
+          }
+        }
+      }
+      if (allCandidates.length === 1) return { ok: true as const, ...allCandidates[0] };
+      if (allCandidates.length > 1 && intent.piece === 'pawn') {
+        const sorted = [...allCandidates].sort((a, b) => currentTurn === 'white' ? a.fromRow - b.fromRow : b.fromRow - a.fromRow);
+        const oneStep = sorted.filter(c => Math.abs(c.toRow - c.fromRow) === 1);
+        if (oneStep.length === 1) return { ok: true as const, ...oneStep[0] };
+        return { ok: true as const, ...sorted[0] };
+      }
+      return { ok: false as const, error: allCandidates.length === 0 ? 'illegal' : 'ambiguous' };
+    }
+
+    const toCol = intent.toSquare.charCodeAt(0) - 'a'.charCodeAt(0);
+    const toRow = 8 - parseInt(intent.toSquare[1], 10);
+    if (toCol < 0 || toCol > 7 || toRow < 0 || toRow > 7) return { ok: false as const, error: 'illegal' };
+
+    const candidates = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (board[r][c] === pieceSymbol && isMoveLegal(r, c, toRow, toCol)) {
+          candidates.push({ fromRow: r, fromCol: c });
+        }
+      }
+    }
+
+    if (candidates.length === 1) return { ok: true as const, ...candidates[0], toRow, toCol };
+    if (candidates.length > 1 && intent.piece === 'pawn') {
+      const oneStep = candidates.filter(c => Math.abs(toRow - c.fromRow) === 1);
+      if (oneStep.length === 1) return { ok: true as const, ...oneStep[0], toRow, toCol };
+      const sameFile = candidates.filter(c => c.fromCol === toCol);
+      if (sameFile.length === 1) return { ok: true as const, ...sameFile[0], toRow, toCol };
+      return { ok: false as const, error: 'ambiguous' };
+    }
+    if (candidates.length > 1) return { ok: false as const, error: 'ambiguous' };
+    return { ok: false as const, error: 'illegal' };
+  };
+
+  const handleVoiceCommand = (primary: string, alternatives: string[]) => {
+    if (winner) {
+      setMicFeedback('⚠ Partie terminée.');
+      if (voiceEnabled) speak('La partie est terminée.');
+      return;
+    }
+    if (thinking) {
+      setMicFeedback('⚠ L\'adversaire réfléchit…');
+      return;
+    }
+    if (mode === 'bot' && currentTurn !== 'white') {
+      setMicFeedback("⚠ Ce n'est pas votre tour.");
+      return;
+    }
+
+    const parsed = parseWithAlternatives(primary, alternatives);
+    if (!parsed) {
+      setMicFeedback(`❌ Entendu: « ${primary} » — non compris`);
+      if (voiceEnabled) speak('Non compris. Répétez en disant par exemple : e quatre.');
+      return;
+    }
+
+    const resolution = resolveVoiceMove(parsed.intent);
+    if (!resolution.ok) {
+      if (resolution.error === 'ambiguous') {
+        setMicFeedback(`⚠ Ambigu : plusieurs pièces peuvent jouer ce coup.`);
+        if (voiceEnabled) speak('Coup ambigu. Précisez la pièce.');
+      } else {
+        setMicFeedback(`❌ Coup illégal ou impossible.`);
+        if (voiceEnabled) speak('Coup impossible.');
+      }
+      return;
+    }
+
+    // Trigger programmatic click sequence for the UI to handle the move natively
+    setSelectedSquare(null); // Reset selection just in case
+    setPendingClicks([
+      { row: resolution.fromRow, col: resolution.fromCol },
+      { row: resolution.toRow, col: resolution.toCol }
+    ]);
+  };
+
+  const { isListening, startListening, stopListening } = useASR({
+    onResult: (primary, alternatives) => handleVoiceCommand(primary, alternatives),
+    onInterim: (text) => {
+      if (text.trim()) setMicFeedback(`🎤 « ${text} »…`);
+    },
+    onError: (err) => {
+      setMicFeedback(`❌ ${err}`);
+      if (voiceEnabled) speak(err);
+    },
+    lang: 'fr-FR',
+  });
+
+  const handleMicToggle = () => {
+    if (isListening) stopListening();
+    else {
+      setMicFeedback('');
+      startListening();
+    }
+  };
+
+  useEffect(() => {
+    if (pendingClicks.length > 0) {
+      const nextClick = pendingClicks[0];
+      handleSquareClick(nextClick.row, nextClick.col);
+      setPendingClicks(prev => prev.slice(1));
+    }
+  }, [pendingClicks, selectedSquare]);
 
   // Timer
   useEffect(() => {
@@ -1185,7 +1367,7 @@ ${formattedMoves}${result}`;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-gray-900 mb-2">
             {mode === 'bot' ? 'Jouer contre Stockfish' : 'Jouer aux échecs'}
@@ -1195,6 +1377,19 @@ ${formattedMoves}${result}`;
               ? 'Affrontez le moteur d\'échecs Stockfish'
               : 'Jouez une partie libre'}
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <VoiceToggle
+            enabled={voiceEnabled}
+            onToggle={handleVoiceToggle}
+            isSupported={voiceSupported}
+          />
+          <MicButton
+            isListening={isListening}
+            onToggle={handleMicToggle}
+            feedback={micFeedback}
+            isSupported={voiceSupported}
+          />
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

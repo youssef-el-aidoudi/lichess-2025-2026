@@ -2,7 +2,8 @@ fastapi==0.110.0
 uvicorn==0.27.1
 chess==1.10.0
 pydantic==2.6.3
-tensorflow==2.15.1
+tensorflow-cpu==2.16.2
+tf_keras
 numpy
 httpx
 websockets

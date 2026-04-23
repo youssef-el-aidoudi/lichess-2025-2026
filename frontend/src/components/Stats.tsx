@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Download, TrendingUp, Activity, ShieldAlert, Cpu, CheckCircle, ShieldCheck, PieChart as PieIcon, Database, Clock } from 'lucide-react';
+import { Download, TrendingUp, Activity, ShieldAlert, CheckCircle, ShieldCheck, Database, Clock } from 'lucide-react';
 
 type CheatHistoryItem = {
   id: number;
@@ -66,7 +65,7 @@ export function Stats() {
     return { total, suspectRatio, precision, recall, avgScore, timeline, verdicts };
   }, [history]);
 
-  const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
+
 
   const exportStats = () => {
     const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json' });
