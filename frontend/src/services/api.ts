@@ -1,10 +1,19 @@
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-// When running on localhost, we hit the services directly to bypass Traefik/CORS/WS issues
-const BACKEND_API_URL = import.meta.env.VITE_API_URL || (isLocalhost ? 'http://localhost:8080' : 'https://api.docker.localhost');
-const ML_BOT_API_URL = import.meta.env.VITE_ML_API_URL || (isLocalhost ? 'http://localhost:8002' : 'https://api.docker.localhost');
-const STOCKFISH_API_URL = import.meta.env.VITE_STOCKFISH_API_URL || (isLocalhost ? 'http://localhost:8001' : 'https://api.docker.localhost');
-const WS_API_URL = ML_BOT_API_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+// Helper for building API URLs dynamically
+const getApiUrl = (envVar: string | undefined, localPort: string) => {
+    if (envVar) return envVar.endsWith('/') ? envVar.slice(0, -1) : envVar;
+    if (isLocalhost) return `http://localhost:${localPort}`;
+    return ''; // Relative URL when deployed (proxied via Nginx or Traefik)
+};
+
+export const BACKEND_API_URL = getApiUrl(import.meta.env.VITE_API_URL, '8080');
+export const ML_BOT_API_URL = getApiUrl(import.meta.env.VITE_ML_API_URL, '8002');
+export const STOCKFISH_API_URL = getApiUrl(import.meta.env.VITE_STOCKFISH_API_URL, '8001');
+
+// Resolve WebSocket URL
+const currentWsHost = window.location.protocol === 'https:' ? `wss://${window.location.host}` : `ws://${window.location.host}`;
+export const WS_API_URL = ML_BOT_API_URL ? ML_BOT_API_URL.replace('http://', 'ws://').replace('https://', 'wss://') : currentWsHost;
 
 // Helper pour récupérer le token JWT du localStorage
 const getAuthToken = (): string | null => {

@@ -16,6 +16,12 @@ from typing import Dict, List, Optional, Set
 from fastapi import FastAPI, HTTPException, APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 
 # Initialize FastAPI app and router AT THE TOP to prevent NameError
 app = FastAPI(title="ML Bot Engine + Multiplayer Server")
@@ -52,29 +58,66 @@ def build_model_from_architecture():
     model.compile(optimizer='rmsprop', loss='mean_squared_error')
     return model
 
+# --- Smart Fallback Evaluator ---
+PIECE_VALUES = {
+    chess.PAWN: 100,
+    chess.KNIGHT: 320,
+    chess.BISHOP: 330,
+    chess.ROOK: 500,
+    chess.QUEEN: 900,
+    chess.KING: 20000
+}
+
+def evaluate_board_material(board: chess.Board):
+    """Simple heuristic if ML fails: count material balance"""
+    score = 0
+    for sq in chess.SQUARES:
+        piece = board.piece_at(sq)
+        if piece:
+            val = PIECE_VALUES.get(piece.piece_type, 0)
+            score += val if piece.color == chess.WHITE else -val
+    
+    # Slight bonus for mobility
+    score += (board.legal_moves.count() * 10 if board.turn == chess.WHITE else -board.legal_moves.count() * 10)
+    return score
+
 def load_ml_model():
     global custom_model, model_input_key
     try:
         pb_path = os.path.join(MODEL_DIR, "saved_model.pb")
+        variables_path = os.path.join(MODEL_DIR, "variables")
+        
         if os.path.exists(pb_path):
-            print(f"🔄 Loading SavedModel from {MODEL_DIR}...")
-            custom_model = tf.saved_model.load(MODEL_DIR)
+            if not os.path.exists(variables_path):
+                logger.warning(f"⚠️ 'variables' folder missing at {MODEL_DIR}. SavedModel might be incomplete.")
             
-            # Inspect signature to find the correct input key
-            if "serving_default" in custom_model.signatures:
-                sig = custom_model.signatures["serving_default"]
-                if hasattr(sig, 'structured_input_signature') and sig.structured_input_signature[1]:
-                    model_input_key = list(sig.structured_input_signature[1].keys())[0]
-                    print(f"✅ Detected model input key: {model_input_key}")
-                else:
-                    inputs = sig.inputs
-                    if inputs: print(f"ℹ️ Model inputs: {inputs}")
-            print("✅ ML Model loaded successfully.")
+            logger.info(f"🔄 Attempting to load model from {MODEL_DIR}...")
+            
+            # Try loading as standard SavedModel
+            try:
+                custom_model = tf.saved_model.load(MODEL_DIR)
+                # Inspect signature
+                if "serving_default" in custom_model.signatures:
+                    sig = custom_model.signatures["serving_default"]
+                    if hasattr(sig, 'structured_input_signature') and sig.structured_input_signature[1]:
+                        model_input_key = list(sig.structured_input_signature[1].keys())[0]
+                    else:
+                        model_input_key = list(sig.inputs[0].name.split(":")[0]) if sig.inputs else "input_1"
+                logger.info(f"✅ ML Model loaded via tf.saved_model. Input key: {model_input_key}")
+            except Exception as e1:
+                logger.error(f"❌ tf.saved_model.load failed: {e1}. Trying Keras loading...")
+                # Try loading as Keras model (sometimes users rename .h5 to .pb or use Keras saving)
+                try:
+                    custom_model = tf.keras.models.load_model(MODEL_DIR)
+                    logger.info("✅ ML Model loaded via tf.keras.models.load_model")
+                except Exception as e2:
+                    logger.error(f"❌ Keras loading failed: {e2}. Reverting to fallback.")
+                    custom_model = build_model_from_architecture()
         else:
-            print(f"⚠️ Model not found at {pb_path}. Using fallback architecture.")
+            logger.info(f"ℹ️ No saved_model.pb at {pb_path}. Initializing smart fallback.")
             custom_model = build_model_from_architecture()
     except Exception as e:
-        print(f"❌ Error loading model: {e}. Using fallback architecture.")
+        logger.error(f"❌ Critical error during model initialization: {e}")
         custom_model = build_model_from_architecture()
 
 # Run loading
@@ -293,7 +336,9 @@ async def save_game_result(room: GameRoom):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "engine": "ml_bot", "model_loaded": custom_model is not None,
+    is_fallback = (custom_model is None or not hasattr(custom_model, 'signatures') and not isinstance(custom_model, tf.keras.Model))
+    return {"status": "ok", "engine": "ml_bot", "model_loaded": not is_fallback,
+            "mode": "ml" if not is_fallback else "smart_fallback",
             "active_games": len(game_rooms), "matchmaking_queue": len(matchmaking_queue)}
 
 @router.get("/health")
@@ -307,9 +352,6 @@ def api_health():
 
 @router.get("/custom-bot")
 async def get_custom_bot_move(moves: str = "", color: str = "black"):
-    if custom_model is None: 
-        raise HTTPException(status_code=500, detail="ML Model not available")
-    
     try:
         board = chess.Board()
         if moves:
@@ -321,21 +363,49 @@ async def get_custom_bot_move(moves: str = "", color: str = "black"):
         legal_moves = list(board.legal_moves)
         if not legal_moves:
             return {"bestmove": ""}
+
+        # Determine if we should use ML or Fallback
+        is_fallback = (custom_model is None or not hasattr(custom_model, 'signatures') and not isinstance(custom_model, tf.keras.Model))
+        
+        if is_fallback:
+            # Smart Fallback using Minimax-lite (Material only)
+            best_m = None
+            best_s = float('-inf') if board.turn == chess.WHITE else float('inf')
             
+            for m in legal_moves:
+                board.push(m)
+                score = evaluate_board_material(board)
+                board.pop()
+                
+                if board.turn == chess.WHITE:
+                    if score > best_s:
+                        best_s = score
+                        best_m = m
+                else:
+                    if score < best_s:
+                        best_s = score
+                        best_m = m
+            
+            logger.info(f"🧠 Smart Fallback bot chose {best_m} (material: {best_s})")
+            return {"bestmove": best_m.uci() if best_m else "", "mode": "smart_fallback"}
+
+        # ML Inference
+        encoded_boards = [encode_board(board) for m in legal_moves] # Logic error in original: needed to actually apply moves
+        # Actually we need to apply each move to see the resulting state
         encoded_boards = []
         for m in legal_moves:
             board.push(m)
             encoded_boards.append(encode_board(board))
             board.pop()
+
+        input_tensors = tf.convert_to_tensor(np.array(encoded_boards, dtype=np.float32))
         
-        input_tensors = np.array(encoded_boards, dtype=np.float32)
-        
-        # Perform Inference
         if isinstance(custom_model, tf.keras.Model):
-            predictions = custom_model(input_tensors, training=False).numpy()
+            # Use model.predict to avoid tracing leaks in TF 2.x
+            predictions = custom_model.predict(input_tensors, verbose=0)
         else:
             infer = custom_model.signatures["serving_default"]
-            input_dict = {model_input_key: tf.constant(input_tensors)}
+            input_dict = {model_input_key: input_tensors}
             result = infer(**input_dict)
             output_key = list(result.keys())[0]
             predictions = result[output_key].numpy()
@@ -356,20 +426,16 @@ async def get_custom_bot_move(moves: str = "", color: str = "black"):
                     best_s = score
                     best_m = m
         
-        print(f"🤖 Bot ({color}) chose {best_m} with score {best_s:.4f}")
-        return {"bestmove": best_m.uci() if best_m else ""}
+        logger.info(f"🤖 ML Bot ({color}) chose {best_m} with score {best_s:.4f}")
+        return {"bestmove": best_m.uci() if best_m else "", "mode": "ml"}
         
     except Exception as e:
-        print(f"❌ Inference error: {e}")
+        logger.error(f"❌ Inference error: {e}")
         import random
-        board_fallback = chess.Board()
-        if moves:
-            for m in moves.split():
-                try: board_fallback.push_uci(m)
-                except: pass
-        legal = list(board_fallback.legal_moves)
+        # Last resort random
+        legal = list(chess.Board().legal_moves) # Using fresh board if current failed
         move = random.choice(legal) if legal else None
-        return {"bestmove": move.uci() if move else "", "fallback": True, "error": str(e)}
+        return {"bestmove": move.uci() if move else "", "fallback": "random", "error": str(e)}
 
 
 # =========================================================

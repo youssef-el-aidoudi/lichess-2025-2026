@@ -68,7 +68,7 @@ export function HistoryPage({
   const [sortOrder, setSortOrder] = useState<'recent' | 'oldest'>('recent');
   const [resultFilter, setResultFilter] = useState<'all' | 'blanc' | 'noir' | 'nulle'>('all');
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+  const API_URL = BACKEND_API_URL || 'http://localhost:8080';
 
 useEffect(() => {
   const fetchParties = async () => {

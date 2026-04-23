@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Download, Brain, Circle } from 'lucide-react';
-import { getStockfishBestMove, analyzePosition, getCustomBotMove, evaluatePosition } from '../services/api';
+import { getStockfishBestMove, analyzePosition, getCustomBotMove, evaluatePosition, ML_BOT_API_URL, STOCKFISH_API_URL } from '../services/api';
 import { useVoiceAccessibility } from '../hooks/useVoiceAccessibility';
 import { useASR } from '../hooks/useASR';
 import { VoiceToggle } from './VoiceToggle';
@@ -411,7 +411,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     // Check ML Bot
     try {
       setMlStatus('checking');
-      const ML_URL = import.meta.env.VITE_ML_API_URL || 'http://localhost:8002';
+      const ML_URL = ML_BOT_API_URL;
       const response = await fetch(`${ML_URL}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
       setMlStatus(response.ok ? 'ok' : 'fail');
     } catch {
@@ -421,7 +421,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     // Check Stockfish
     try {
       setStockfishStatus('checking');
-      const SF_URL = import.meta.env.VITE_STOCKFISH_API_URL || 'http://localhost:8001';
+      const SF_URL = STOCKFISH_API_URL;
       const response = await fetch(`${SF_URL}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
       setStockfishStatus(response.ok ? 'ok' : 'fail');
     } catch {

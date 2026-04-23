@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChessMiniBoard } from './ChessMiniBoard';
+import { ChevronLeft, Calendar, User, Trophy, Hash, Clock, Brain, Activity } from 'lucide-react';
+import { BACKEND_API_URL } from '../services/api';
 
 type PartieDetailPageProps = {
   partieId: number;
@@ -370,7 +372,7 @@ export function PartieDetailPage({ partieId, onBack }: PartieDetailPageProps) {
   const [tournoi, setTournoi] = useState<any>(null);
   const [suiteCoups, setSuiteCoups] = useState<any>(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+  const API_URL = BACKEND_API_URL;
 
   useEffect(() => {
     const applyDemoData = () => {

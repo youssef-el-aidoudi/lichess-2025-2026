@@ -16,7 +16,8 @@ import java.net.http.HttpResponse;
 @Component
 public class MachineLearningDetector implements CheatDetector {
 
-    private final String pythonApiUrl = "http://localhost:8000/api/predict/cheat";
+    @org.springframework.beans.factory.annotation.Value("${app.cheat-bot-url:http://trichebot:5000/api/predict/cheat}")
+    private String pythonApiUrl;
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final ObjectMapper objectMapper = new ObjectMapper();
 

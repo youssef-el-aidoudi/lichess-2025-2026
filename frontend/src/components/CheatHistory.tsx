@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BACKEND_API_URL } from "../services/api";
 
 type CheatHistoryItem = {
   id: number;
@@ -38,7 +39,7 @@ export function CheatHistory() {
       setLoading(true);
       setError("");
 
-      const response = await fetch("http://localhost:8080/api/cheat/history");
+      const response = await fetch(`${BACKEND_API_URL}/api/cheat/history`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -58,7 +59,7 @@ export function CheatHistory() {
       setDetailsLoading(true);
       setError("");
 
-      const response = await fetch(`http://localhost:8080/api/cheat/history/${id}`);
+      const response = await fetch(`${BACKEND_API_URL}/api/cheat/history/${id}`);
       const data = await response.json();
 
       if (!response.ok) {

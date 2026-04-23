@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { ChessBoard3D } from "./ChessBoard3D";
 import { ShieldCheck, ShieldAlert, Cpu, Activity, BarChart2 } from "lucide-react";
+import { BACKEND_API_URL } from "../services/api";
 
 type CheatSignal = {
   name: string;
@@ -54,7 +55,7 @@ export default function CheatAnalysis({ onNavigate }: CheatAnalysisProps) {
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/cheat/history");
+      const res = await fetch(`${BACKEND_API_URL}/api/cheat/history`);
       if (!res.ok) throw new Error("Erreur chargement historique");
       const data = await res.json();
       setHistory([...data].reverse());
@@ -74,7 +75,7 @@ export default function CheatAnalysis({ onNavigate }: CheatAnalysisProps) {
     const endpoint = save ? "analyze-and-save" : "analyze";
 
     try {
-      const res = await fetch(`http://localhost:8080/api/cheat/${endpoint}`, {
+      const res = await fetch(`${BACKEND_API_URL}/api/cheat/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pgn, eloWhite: whiteElo, eloBlack: blackElo }),
