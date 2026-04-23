@@ -146,6 +146,8 @@ services:
       context: ./ai_engine
       dockerfile: Dockerfile
     restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://backend:8080
     ports:
       - "8002:8000"
     networks:
@@ -158,7 +160,7 @@ services:
       - traefik.http.routers.mlbot.tls=true
       - traefik.http.services.mlbot.loadbalancer.server.port=8000
       - traefik.docker.network=chessmate_proxy
-      - traefik.http.routers.mlbot.rule=Host(`${BACKEND_HOST}`) && PathPrefix(`/api/chess/custom-bot`)
+      - traefik.http.routers.mlbot.rule=Host(`${BACKEND_HOST}`) && (PathPrefix(`/api/chess/custom-bot`) || PathPrefix(`/api/chess/multiplayer`) || PathPrefix(`/api/chess/ws`))
       - traefik.http.routers.mlbot.priority=100
       - traefik.http.routers.mlbot.middlewares=securityheaders
 

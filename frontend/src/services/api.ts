@@ -4,7 +4,7 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
 const BACKEND_API_URL = import.meta.env.VITE_API_URL || (isLocalhost ? 'http://localhost:8080' : 'https://api.docker.localhost');
 const ML_BOT_API_URL = import.meta.env.VITE_ML_API_URL || (isLocalhost ? 'http://localhost:8002' : 'https://api.docker.localhost');
 const STOCKFISH_API_URL = import.meta.env.VITE_STOCKFISH_API_URL || (isLocalhost ? 'http://localhost:8001' : 'https://api.docker.localhost');
-const WS_API_URL = isLocalhost ? 'ws://localhost:8002' : 'wss://api.docker.localhost';
+const WS_API_URL = ML_BOT_API_URL.replace('http://', 'ws://').replace('https://', 'wss://');
 
 // Helper pour récupérer le token JWT du localStorage
 const getAuthToken = (): string | null => {
