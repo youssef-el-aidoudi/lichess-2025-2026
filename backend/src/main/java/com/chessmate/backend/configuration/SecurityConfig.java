@@ -90,6 +90,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/online-parties/**").permitAll()
                         // Cheat detection
                         .requestMatchers("/api/cheat/**").permitAll()
+                        // ML analysis
+                        .requestMatchers("/api/ml/**").permitAll()
                         // Swagger / OpenAPI
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui/index.html").permitAll()
                         // Everything else requires authentication

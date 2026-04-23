@@ -1,13 +1,13 @@
 import { getAllPartiesJouees } from '../services/api';
+import { loadGameMLMap, getGameMLByPlayers } from '../services/mlData';
+import { inferGameML } from '../services/mlInference';
 import { useEffect, useMemo, useState } from 'react';
+import { MLPlayerDashboard } from './MLPlayerDashboard';
+import { MLGameBadges, MlInsightBadge } from './MLGameBadges';
+import type { GameMLData } from '../types/gameML';
 
-type JoueurMini = {
-  pseudonyme?: string;
-};
-
-type OuvertureMini = {
-  libelle?: string;
-};
+type JoueurMini = { pseudonyme?: string };
+type OuvertureMini = { libelle?: string };
 
 type Partie = {
   id: number;
@@ -17,6 +17,19 @@ type Partie = {
   joueurBlanc?: JoueurMini;
   joueurNoir?: JoueurMini;
   ouverture?: OuvertureMini;
+  lichessId?: string;
+  eloBlanc?: number;
+  eloNoir?: number;
+  nombreCoups?: number;
+  cadence?: string;
+  victoryStatus?: string;
+  openingEco?: string;
+  // ── Champs ML générés par predict_game.py ──────────────────────────
+  mlInsight?: string;  // Message statistique dynamique
+  mlTag?: string;      // Tag court : 'Exploit' | 'Logique' | 'Équilibré'
+  probWhite?: number;  // Probabilité victoire blanche  [0–1]
+  probBlack?: number;  // Probabilité victoire noire    [0–1]
+  probDraw?: number;   // Probabilité nulle             [0–1]
 };
 
 type HistoryPageProps = {
@@ -25,41 +38,53 @@ type HistoryPageProps = {
   onGoToPlay?: () => void;
 };
 
-const DEMO_PARTIES: Partie[] = [
-  {
-    id: 101,
-    title: 'Magnus vs Hikaru - Blitz',
-    dateHeureUTC: '2026-03-20T18:30:00',
-    typeResultat: 'Victoire blanc',
-    joueurBlanc: { pseudonyme: 'Magnus' },
-    joueurNoir: { pseudonyme: 'Hikaru' },
-    ouverture: { libelle: 'Défense sicilienne' },
-  },
-  {
-    id: 102,
-    title: 'Youssef vs Stockfish',
-    dateHeureUTC: '2026-03-22T20:10:00',
-    typeResultat: 'Victoire noir',
-    joueurBlanc: { pseudonyme: 'Youssef' },
-    joueurNoir: { pseudonyme: 'Stockfish' },
-    ouverture: { libelle: 'Partie italienne' },
-  },
-  {
-    id: 103,
-    title: 'Partie analysée Lichess',
-    dateHeureUTC: '2026-03-25T14:45:00',
-    typeResultat: 'Nulle',
-    joueurBlanc: { pseudonyme: 'AlphaPlayer' },
-    joueurNoir: { pseudonyme: 'BetaPlayer' },
-    ouverture: { libelle: 'Ouverture espagnole' },
-  },
-];
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-export function HistoryPage({
-  onSelectPartie,
-  onGoToSearch,
-  onGoToPlay,
-}: HistoryPageProps) {
+function getResultStyle(result?: string): {
+  bg: string; color: string; border: string; label: string; dot: string;
+} {
+  const v = (result || '').toLowerCase();
+  if (v.includes('blanc') || v.includes('white'))
+    return { bg: '#f0fdf4', color: '#059669', border: '#bbf7d0', label: result || 'Victoire blanc', dot: '#059669' };
+  if (v.includes('noir') || v.includes('black'))
+    return { bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe', label: result || 'Victoire noir', dot: '#2563eb' };
+  if (v.includes('nul') || v.includes('draw'))
+    return { bg: '#f9fafb', color: '#6b7280', border: '#e5e7eb', label: result || 'Nulle', dot: '#9ca3af' };
+  return { bg: '#fef9c3', color: '#92400e', border: '#fde68a', label: result || 'Résultat inconnu', dot: '#d97706' };
+}
+
+function getVictoryIcon(victoryStatus?: string): string {
+  if (!victoryStatus) return '';
+  switch (victoryStatus.toLowerCase()) {
+    case 'mate': return '♟ Mat';
+    case 'resign': return '🏳 Abandon';
+    case 'outoftime': return '⏱ Timeout';
+    case 'draw': return '🤝 Nulle';
+    default: return '';
+  }
+}
+
+function formatDate(value?: string): string {
+  if (!value) return 'Date inconnue';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatCadence(cadence?: string): string {
+  if (!cadence) return '';
+  const lower = cadence.toLowerCase();
+  if (lower === 'bullet') return '⚡ Bullet';
+  if (lower === 'blitz') return '🔥 Blitz';
+  if (lower === 'rapid') return '🕐 Rapid';
+  if (lower === 'classical') return '♟ Classical';
+  if (/^\d+\+\d+$/.test(cadence)) return `⏱ ${cadence}`;
+  return cadence;
+}
+
+// ── Composant principal ────────────────────────────────────────────────────
+
+export function HistoryPage({ onSelectPartie, onGoToSearch, onGoToPlay }: HistoryPageProps) {
   const [parties, setParties] = useState<Partie[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -67,111 +92,203 @@ export function HistoryPage({
   const [usingDemo, setUsingDemo] = useState(false);
   const [sortOrder, setSortOrder] = useState<'recent' | 'oldest'>('recent');
   const [resultFilter, setResultFilter] = useState<'all' | 'blanc' | 'noir' | 'nulle'>('all');
+  const [mlMap, setMlMap] = useState<Map<string, GameMLData>>(new Map());
+  // Map secondaire : clé = partieId, valeur = données ML pré-résolues
+  const [mlByPartieId, setMlByPartieId] = useState<Map<number, GameMLData & { _source: 'csv' | 'inferred' }>>(new Map());
 
-  const API_URL = BACKEND_API_URL || 'http://localhost:8080';
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 
-useEffect(() => {
-  const fetchParties = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      setUsingDemo(false);
-
-      const token = localStorage.getItem('jwt_token');
-
-      const response = await fetch(`${API_URL}/parties`, {
-        headers: token
-          ? {
-              Authorization: `Bearer ${token}`,
-            }
-          : {},
-      });
-
-      let apiParties: Partie[] = [];
-      if (response.ok) {
-        const data = await response.json();
-        apiParties = Array.isArray(data) ? data : [];
-      }
-
-      let partiesJouees: Partie[] = [];
+  useEffect(() => {
+    const fetchAll = async () => {
       try {
-        const played = await getAllPartiesJouees();
-        partiesJouees = Array.isArray(played)
-          ? played.map((p: any) => ({
-              id: -p.id,
-              title: p.titre,
-              dateHeureUTC: p.dateHeure,
-              typeResultat: p.resultat,
-              joueurBlanc: { pseudonyme: p.joueurBlanc },
-              joueurNoir: { pseudonyme: p.joueurNoir },
-              ouverture: { libelle: p.ouverture || 'Partie locale' },
-            }))
-          : [];
-      } catch (e) {
-        console.error('Erreur parties jouées:', e);
-      }
-
-      const merged = [...partiesJouees, ...apiParties];
-
-      if (merged.length > 0) {
-        setParties(merged);
+        setLoading(true);
+        setError('');
         setUsingDemo(false);
-      } else {
-        setParties(DEMO_PARTIES);
-        setUsingDemo(true);
-      }
-    } catch (err) {
-      console.error(err);
-      setParties(DEMO_PARTIES);
-      setUsingDemo(true);
-      setError('');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  fetchParties();
-}, [API_URL]);
+        const token = localStorage.getItem('jwt_token');
+        let isBackendIndisponible = false;
+
+        // Fetch ML Data en parallèle (ne bloque pas l'affichage)
+        Promise.resolve(loadGameMLMap()).then((mlMapRes) => setMlMap(mlMapRes)).catch(console.error);
+
+        let apiParties: Partie[] = [];
+        let partiesJouees: Partie[] = [];
+
+        try {
+          const partiesResponse = await fetch(`${API_URL}/parties`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (partiesResponse.ok) {
+            const data = await partiesResponse.json();
+            apiParties = Array.isArray(data) ? data : [];
+          }
+        } catch (e) {
+          isBackendIndisponible = true;
+        }
+
+        try {
+          const played = await getAllPartiesJouees();
+
+          // ── DEBUG : inspecter la réponse brute pour identifier les noms de champs réels ──
+          if (Array.isArray(played) && played.length > 0) {
+            console.log('[ML-DEBUG] Réponse brute getAllPartiesJouees (1er objet) :', played[played.length - 1]);
+            console.log('[ML-DEBUG] Clés disponibles :', Object.keys(played[played.length - 1]));
+          }
+
+          partiesJouees = Array.isArray(played)
+            ? played.map((p: any) => {
+                // Résolution robuste : supporte camelCase ET lowercase (selon config Jackson)
+                const resolveProbWhite = (): number | undefined => {
+                  const v = p.probWhite ?? p.prob_white ?? p.probwhite ?? null;
+                  return v != null ? Number(v) : undefined;
+                };
+                const resolveProbBlack = (): number | undefined => {
+                  const v = p.probBlack ?? p.prob_black ?? p.probblack ?? null;
+                  return v != null ? Number(v) : undefined;
+                };
+                const resolveProbDraw = (): number | undefined => {
+                  const v = p.probDraw ?? p.prob_draw ?? p.probdraw ?? null;
+                  return v != null ? Number(v) : undefined;
+                };
+                const resolveMlTag = (): string | undefined => {
+                  return p.mlTag ?? p.mltag ?? p.ml_tag ?? undefined;
+                };
+                const resolveMlInsight = (): string | undefined => {
+                  return p.mlInsight ?? p.mlinsight ?? p.ml_insight ?? undefined;
+                };
+
+                const mapped = {
+                  id: -p.id,
+                  title: p.titre,
+                  dateHeureUTC: p.dateHeure,
+                  typeResultat: p.resultat,
+                  victoryStatus: p.vainqueur === 'blanc' ? 'resign'
+                               : p.vainqueur === 'noir'  ? 'resign'
+                               : p.vainqueur === 'nul'   ? 'draw'
+                               : undefined,
+                  joueurBlanc: { pseudonyme: p.joueurBlanc },
+                  joueurNoir: { pseudonyme: p.joueurNoir },
+                  ouverture: { libelle: p.ouverture || 'Partie locale' },
+                  nombreCoups: p.nombreCoups ?? undefined,
+                  cadence: p.variant ?? undefined,
+                  lichessId: p.lichessId ?? undefined,
+                  eloBlanc: p.eloBlanc ?? undefined,
+                  eloNoir: p.eloNoir ?? undefined,
+                  // ── Champs ML — résolution robuste camelCase + snake_case + lowercase ──
+                  mlInsight: resolveMlInsight(),
+                  mlTag:     resolveMlTag(),
+                  probWhite: resolveProbWhite(),
+                  probBlack: resolveProbBlack(),
+                  probDraw:  resolveProbDraw(),
+                };
+
+                // ── DEBUG : afficher le mapping du dernier objet seulement ──
+                if (p === played[played.length - 1]) {
+                  console.log('[ML-DEBUG] Objet mappé (dernier) :', {
+                    id: mapped.id, mlTag: mapped.mlTag, mlInsight: mapped.mlInsight,
+                    probWhite: mapped.probWhite, probBlack: mapped.probBlack, probDraw: mapped.probDraw,
+                  });
+                }
+
+                return mapped;
+              })
+            : [];
+        } catch (e) {
+          if (e instanceof TypeError) {
+            isBackendIndisponible = true;
+          }
+        }
+
+        const allParties = isBackendIndisponible
+          ? []
+          : [...partiesJouees, ...apiParties];
+
+        if (isBackendIndisponible) {
+          setUsingDemo(true);
+          // Ne pas bloquer l'interface — on affichera 0 parties avec message
+        }
+
+        setParties(allParties);
+
+        // ── Enrichissement ML asynchrone avec double matching ──────────────
+        // Pour chaque partie sans lichessId, on tente un matching par joueurs
+        if (allParties.length > 0) {
+          const enrichML = async () => {
+            const newMap = new Map<number, GameMLData & { _source: 'csv' | 'inferred' }>();
+            await Promise.allSettled(
+              allParties.map(async (partie) => {
+                // Priorité 1 : match direct par lichessId
+                if (partie.lichessId) {
+                  const csvMatch = (await loadGameMLMap()).get(partie.lichessId);
+                  if (csvMatch) {
+                    newMap.set(partie.id, { ...csvMatch, _source: 'csv' });
+                    return;
+                  }
+                }
+
+                // Priorité 2 : match par joueurs (white vs black)
+                const white = partie.joueurBlanc?.pseudonyme;
+                const black = partie.joueurNoir?.pseudonyme;
+                if (white && black) {
+                  const playerMatch = await getGameMLByPlayers(white, black);
+                  if (playerMatch) {
+                    newMap.set(partie.id, { ...playerMatch, _source: 'csv' });
+                    return;
+                  }
+                }
+
+                // Priorité 3 : inférence locale
+                const inferred = inferGameML(
+                  {
+                    id: partie.id,
+                    typeResultat: partie.typeResultat,
+                    victoryStatus: partie.victoryStatus,
+                    openingName: partie.ouverture?.libelle,
+                    openingEco: partie.openingEco,
+                    eloBlanc: partie.eloBlanc,
+                    eloNoir: partie.eloNoir,
+                    nombreCoups: partie.nombreCoups,
+                    cadence: partie.cadence,
+                  },
+                  'inferred',
+                );
+                newMap.set(partie.id, inferred);
+              }),
+            );
+            setMlByPartieId(newMap);
+          };
+          enrichML().catch(console.error);
+        }
+      } catch (err) {
+        console.error(err);
+        setUsingDemo(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAll();
+  }, [API_URL]);
 
   const filteredParties = useMemo(() => {
     const term = search.trim().toLowerCase();
-
     let result = [...parties];
 
     if (term) {
-      result = result.filter((partie) => {
-        const title = partie.title?.toLowerCase() || '';
-        const white = partie.joueurBlanc?.pseudonyme?.toLowerCase() || '';
-        const black = partie.joueurNoir?.pseudonyme?.toLowerCase() || '';
-        const opening = partie.ouverture?.libelle?.toLowerCase() || '';
-        const matchResult = partie.typeResultat?.toLowerCase() || '';
-
-        return (
-          title.includes(term) ||
-          white.includes(term) ||
-          black.includes(term) ||
-          opening.includes(term) ||
-          matchResult.includes(term)
-        );
-      });
+      result = result.filter((p) =>
+        (p.title?.toLowerCase() || '').includes(term) ||
+        (p.joueurBlanc?.pseudonyme?.toLowerCase() || '').includes(term) ||
+        (p.joueurNoir?.pseudonyme?.toLowerCase() || '').includes(term) ||
+        (p.ouverture?.libelle?.toLowerCase() || '').includes(term) ||
+        (p.typeResultat?.toLowerCase() || '').includes(term)
+      );
     }
 
     if (resultFilter !== 'all') {
-      result = result.filter((partie) => {
-        const value = (partie.typeResultat || '').toLowerCase();
-
-        if (resultFilter === 'blanc') {
-          return value.includes('blanc') || value.includes('white');
-        }
-
-        if (resultFilter === 'noir') {
-          return value.includes('noir') || value.includes('black');
-        }
-
-        if (resultFilter === 'nulle') {
-          return value.includes('nulle') || value.includes('nul') || value.includes('draw');
-        }
-
+      result = result.filter((p) => {
+        const v = (p.typeResultat || '').toLowerCase();
+        if (resultFilter === 'blanc') return v.includes('blanc') || v.includes('white');
+        if (resultFilter === 'noir')  return v.includes('noir')  || v.includes('black');
+        if (resultFilter === 'nulle') return v.includes('nul') || v.includes('draw');
         return true;
       });
     }
@@ -179,145 +296,225 @@ useEffect(() => {
     result.sort((a, b) => {
       const da = a.dateHeureUTC ? new Date(a.dateHeureUTC).getTime() : 0;
       const db = b.dateHeureUTC ? new Date(b.dateHeureUTC).getTime() : 0;
-
       return sortOrder === 'recent' ? db - da : da - db;
     });
 
     return result;
   }, [parties, search, resultFilter, sortOrder]);
 
-  const formatDate = (value?: string) => {
-    if (!value) return 'Date inconnue';
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-
-    return date.toLocaleString('fr-FR');
+  // ── Styles réutilisables ──
+  const selectStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '9px 12px',
+    border: '1px solid #e5e7eb',
+    borderRadius: 8,
+    fontSize: '0.875rem',
+    color: '#374151',
+    background: '#ffffff',
+    outline: 'none',
+    cursor: 'pointer',
   };
 
-  const getResultBadgeClass = (result?: string) => {
-    const value = (result || '').toLowerCase();
-
-    if (value.includes('white') || value.includes('blanc') || value.includes('victoire blanc')) {
-      return 'bg-green-100 text-green-700';
-    }
-
-    if (value.includes('black') || value.includes('noir') || value.includes('victoire noir')) {
-      return 'bg-blue-100 text-blue-700';
-    }
-
-    if (value.includes('draw') || value.includes('nul') || value.includes('nulle')) {
-      return 'bg-gray-100 text-gray-700';
-    }
-
-    return 'bg-orange-100 text-orange-700';
-  };
+  // Nombre de parties matchées via CSV
+  const csvMatchCount = Array.from(mlByPartieId.values()).filter(v => v._source === 'csv').length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+      {/* ── Titre ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 className="text-3xl font-semibold text-gray-900">Historique des parties</h2>
-          <p className="mt-2 text-gray-600">
-            Consultez les parties enregistrées et accédez à leur analyse détaillée.
+          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
+            Historique des parties
+          </h2>
+          <p style={{ margin: '4px 0 0', fontSize: '0.875rem', color: '#6b7280' }}>
+            Consultez vos parties avec leur analyse Machine Learning intégrée.
           </p>
         </div>
-
-        <div>
-          <span
-            className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
-              usingDemo ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'
-            }`}
-          >
-            Source : {usingDemo ? 'Démonstration' : 'API'}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {mlMap.size > 0 && (
+            <span style={{
+              fontSize: '0.75rem', fontWeight: 600,
+              background: '#eef2ff', color: '#4f46e5',
+              border: '1px solid #c7d2fe',
+              borderRadius: 99, padding: '4px 12px',
+            }}>
+              🤖 ML actif · {mlMap.size.toLocaleString('fr-FR')} parties
+            </span>
+          )}
+          {csvMatchCount > 0 && (
+            <span style={{
+              fontSize: '0.75rem', fontWeight: 600,
+              background: '#f0fdf4', color: '#059669',
+              border: '1px solid #bbf7d0',
+              borderRadius: 99, padding: '4px 12px',
+            }}>
+              📂 {csvMatchCount} matchée(s) CSV
+            </span>
+          )}
+          <span style={{
+            fontSize: '0.75rem', fontWeight: 600,
+            background: usingDemo ? '#fffbeb' : '#f0fdf4',
+            color: usingDemo ? '#92400e' : '#059669',
+            border: `1px solid ${usingDemo ? '#fde68a' : '#bbf7d0'}`,
+            borderRadius: 99, padding: '4px 12px',
+          }}>
+            {usingDemo ? '⚠ Backend hors ligne' : '✓ Source API'}
           </span>
         </div>
       </div>
 
+      {/* Bandeau démo */}
       {usingDemo && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          Mode démonstration activé : affichage de parties d’exemple pour présenter la fonctionnalité.
+        <div style={{
+          background: '#fffbeb', border: '1px solid #fde68a',
+          borderRadius: 10, padding: '12px 16px',
+          fontSize: '0.875rem', color: '#92400e',
+        }}>
+          <strong>Backend non joignable</strong> — Les parties affichées proviennent du cache local ou de l'API.
+          Vérifiez que Spring Boot tourne sur <code>localhost:8080</code>.
         </div>
       )}
 
-      <div className="bg-white border rounded-xl p-4 shadow-sm space-y-4">
+      {/* ── Dashboard ML global ── */}
+      <MLPlayerDashboard />
+
+      {/* ── Filtres & recherche ── */}
+      <div style={{
+        background: '#ffffff',
+        border: '1px solid #e5e7eb',
+        borderRadius: 14, padding: '18px 20px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+        display: 'flex', flexDirection: 'column', gap: 14,
+      }}>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>
             Rechercher une partie
           </label>
           <input
+            id="history-search"
             type="text"
-            placeholder="Titre, joueur, ouverture, résultat..."
+            placeholder="Titre, joueur, ouverture, résultat…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+            style={{
+              width: '100%', padding: '9px 12px',
+              border: '1px solid #e5e7eb', borderRadius: 8,
+              fontSize: '0.875rem', color: '#374151',
+              background: '#f9fafb', outline: 'none',
+              boxSizing: 'border-box',
+              transition: 'border-color 0.15s ease',
+            }}
+            onFocus={(e) => {
+              (e.target as HTMLInputElement).style.borderColor = '#6366f1';
+              (e.target as HTMLInputElement).style.background = '#fff';
+            }}
+            onBlur={(e) => {
+              (e.target as HTMLInputElement).style.borderColor = '#e5e7eb';
+              (e.target as HTMLInputElement).style.background = '#f9fafb';
+            }}
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>
               Filtrer par résultat
             </label>
             <select
+              id="history-result-filter"
               value={resultFilter}
-              onChange={(e) => setResultFilter(e.target.value as 'all' | 'blanc' | 'noir' | 'nulle')}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => setResultFilter(e.target.value as typeof resultFilter)}
+              style={selectStyle}
             >
-              <option value="all">Tous</option>
+              <option value="all">Tous les résultats</option>
               <option value="blanc">Victoire blanc</option>
               <option value="noir">Victoire noir</option>
               <option value="nulle">Nulle</option>
             </select>
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>
               Trier par date
             </label>
             <select
+              id="history-sort-order"
               value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as 'recent' | 'oldest')}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+              style={selectStyle}
             >
-              <option value="recent">Plus récentes d’abord</option>
-              <option value="oldest">Plus anciennes d’abord</option>
+              <option value="recent">Plus récentes d'abord</option>
+              <option value="oldest">Plus anciennes d'abord</option>
             </select>
           </div>
         </div>
       </div>
 
-      <div className="bg-white border rounded-xl shadow-sm">
-        <div className="p-4 border-b">
-          <p className="text-sm text-gray-500">
-            {loading ? 'Chargement...' : `${filteredParties.length} partie(s) trouvée(s)`}
-          </p>
+      {/* ── Liste des parties ── */}
+      <div style={{
+        background: '#ffffff',
+        border: '1px solid #e5e7eb',
+        borderRadius: 14, overflow: 'hidden',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+      }}>
+        {/* Compteur */}
+        <div style={{
+          padding: '12px 20px',
+          borderBottom: '1px solid #f3f4f6',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: '#fafafa',
+        }}>
+          <span style={{ fontSize: '0.82rem', color: '#9ca3af', fontWeight: 500 }}>
+            {loading ? 'Chargement…' : `${filteredParties.length} partie(s) trouvée(s)`}
+          </span>
         </div>
 
-        {loading && <div className="p-6 text-gray-600">Chargement des parties...</div>}
+        {/* Loading */}
+        {loading && (
+          <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>
+            <div style={{ marginBottom: 8, fontSize: '1.5rem' }}>⏳</div>
+            Chargement des parties…
+          </div>
+        )}
 
-        {!loading && error && <div className="p-6 text-red-600">{error}</div>}
+        {/* Erreur */}
+        {!loading && error && (
+          <div style={{ padding: '20px 24px', color: '#dc2626', fontSize: '0.875rem' }}>{error}</div>
+        )}
 
+        {/* Liste vide */}
         {!loading && !error && filteredParties.length === 0 && (
-          <div className="p-8 text-center">
-            <h3 className="text-xl font-semibold text-gray-800">
-              Aucune partie enregistrée pour le moment
+          <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', marginBottom: 12 }}>♟</div>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#111827', margin: '0 0 8px' }}>
+              Aucune partie enregistrée
             </h3>
-            <p className="mt-2 text-gray-600">
-              Lancez une nouvelle partie ou recherchez des parties Lichess pour commencer.
+            <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: '0 0 20px' }}>
+              Lancez une nouvelle partie ou importez des parties Lichess pour commencer.
             </p>
-
-            <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
               <button
+                id="history-go-play"
                 onClick={onGoToPlay}
-                className="px-5 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                style={{
+                  padding: '9px 20px', borderRadius: 8,
+                  background: 'linear-gradient(135deg, #4f46e5, #6366f1)',
+                  color: '#fff', fontWeight: 600, border: 'none',
+                  cursor: 'pointer', fontSize: '0.875rem',
+                  boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+                }}
               >
                 Nouvelle partie
               </button>
-
               <button
+                id="history-go-search"
                 onClick={onGoToSearch}
-                className="px-5 py-3 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                style={{
+                  padding: '9px 20px', borderRadius: 8,
+                  background: '#f3f4f6', color: '#374151',
+                  fontWeight: 600, border: '1px solid #e5e7eb',
+                  cursor: 'pointer', fontSize: '0.875rem',
+                }}
               >
                 Rechercher sur Lichess
               </button>
@@ -325,48 +522,230 @@ useEffect(() => {
           </div>
         )}
 
+        {/* ── Cartes de parties ── */}
         {!loading && !error && filteredParties.length > 0 && (
-          <div className="divide-y">
-            {filteredParties.map((partie) => (
-              <div
-                key={partie.id}
-                className="p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between hover:bg-gray-50 transition-colors"
-              >
-                <div className="space-y-1">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {partie.title || `Partie #${partie.id}`}
-                  </h3>
+          <div>
+            {filteredParties.map((partie, idx) => {
+              // Récupère les données ML pré-résolues (csv > players > inferred)
+              const mlData: GameMLData & { _source: 'csv' | 'inferred' } =
+                mlByPartieId.get(partie.id) ??
+                inferGameML(
+                  {
+                    id: partie.id,
+                    typeResultat: partie.typeResultat,
+                    victoryStatus: partie.victoryStatus,
+                    openingName: partie.ouverture?.libelle,
+                    openingEco: partie.openingEco,
+                    eloBlanc: partie.eloBlanc,
+                    eloNoir: partie.eloNoir,
+                    nombreCoups: partie.nombreCoups,
+                    cadence: partie.cadence,
+                  },
+                  'inferred',
+                );
 
-                  <p className="text-sm text-gray-600">
-                    {partie.joueurBlanc?.pseudonyme || 'Blanc inconnu'} vs{' '}
-                    {partie.joueurNoir?.pseudonyme || 'Noir inconnu'}
-                  </p>
+              const resultStyle = getResultStyle(partie.typeResultat);
+              const victoryIcon = getVictoryIcon(partie.victoryStatus);
+              const cadenceLabel = formatCadence(partie.cadence);
+              const isCSV = mlData._source === 'csv';
 
-                  <p className="text-sm text-gray-500">{formatDate(partie.dateHeureUTC)}</p>
+              return (
+                <div
+                  key={partie.id}
+                  id={`history-game-card-${partie.id}`}
+                  style={{
+                    borderBottom: idx < filteredParties.length - 1 ? '1px solid #f3f4f6' : 'none',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#fafbff'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+                >
+                  {/* ── Bande colorée résultat (top border) */}
+                  <div style={{
+                    height: 3,
+                    background: `linear-gradient(90deg, ${resultStyle.dot}, ${resultStyle.dot}40)`,
+                    borderRadius: '2px 2px 0 0',
+                  }} />
 
-                  <p className="text-sm text-gray-500">
-                    Ouverture : {partie.ouverture?.libelle || 'Non renseignée'}
-                  </p>
+                  <div style={{ padding: '18px 22px 20px' }}>
+
+                    {/* ── Ligne 1 : Titre + résultat + bouton ── */}
+                    <div style={{
+                      display: 'flex', alignItems: 'flex-start',
+                      justifyContent: 'space-between', gap: 12,
+                      marginBottom: 12, flexWrap: 'wrap',
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {/* Titre */}
+                        <h3 style={{
+                          margin: '0 0 6px', fontSize: '1rem', fontWeight: 700,
+                          color: '#111827',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {partie.title || `Partie #${Math.abs(partie.id)}`}
+                        </h3>
+                        {/* Badges résultat + fin */}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <span style={{
+                            padding: '2px 10px', borderRadius: 99,
+                            background: resultStyle.bg, color: resultStyle.color,
+                            border: `1px solid ${resultStyle.border}`,
+                            fontSize: '0.72rem', fontWeight: 700,
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {resultStyle.label}
+                          </span>
+                          {victoryIcon && (
+                            <span style={{
+                              fontSize: '0.68rem', color: '#9ca3af',
+                              fontWeight: 500,
+                            }}>
+                              {victoryIcon}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bouton Voir détails */}
+                      <button
+                        id={`history-detail-btn-${partie.id}`}
+                        onClick={() => onSelectPartie?.(partie.id)}
+                        style={{
+                          flexShrink: 0,
+                          padding: '8px 18px', borderRadius: 8,
+                          background: 'linear-gradient(135deg, #4f46e5, #6366f1)',
+                          color: '#ffffff', fontWeight: 600,
+                          border: 'none', cursor: 'pointer', fontSize: '0.82rem',
+                          boxShadow: '0 2px 8px rgba(99,102,241,0.2)',
+                          transition: 'opacity 0.15s ease',
+                          whiteSpace: 'nowrap',
+                          alignSelf: 'flex-start',
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}
+                      >
+                        Voir détails →
+                      </button>
+                    </div>
+
+                    {/* ── Ligne 2 : Joueurs avec ELO ── */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      marginBottom: 10, flexWrap: 'wrap',
+                    }}>
+                      {/* Joueur blanc */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        background: '#f9fafb', border: '1px solid #e5e7eb',
+                        borderRadius: 8, padding: '4px 10px',
+                      }}>
+                        <span style={{ fontSize: '0.78rem' }}>⚪</span>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#374151' }}>
+                          {partie.joueurBlanc?.pseudonyme || 'Blanc'}
+                        </span>
+                        {partie.eloBlanc && partie.eloBlanc > 0 && (
+                          <span style={{ fontSize: '0.72rem', color: '#9ca3af', fontWeight: 500 }}>
+                            {partie.eloBlanc}
+                          </span>
+                        )}
+                      </div>
+
+                      <span style={{ fontSize: '0.75rem', color: '#d1d5db', fontWeight: 500 }}>vs</span>
+
+                      {/* Joueur noir */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        background: '#1f2937', border: '1px solid #374151',
+                        borderRadius: 8, padding: '4px 10px',
+                      }}>
+                        <span style={{ fontSize: '0.78rem' }}>⚫</span>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#f9fafb' }}>
+                          {partie.joueurNoir?.pseudonyme || 'Noir'}
+                        </span>
+                        {partie.eloNoir && partie.eloNoir > 0 && (
+                          <span style={{ fontSize: '0.72rem', color: '#9ca3af', fontWeight: 500 }}>
+                            {partie.eloNoir}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ── Ligne 3 : Méta-données ── */}
+                    <div style={{
+                      display: 'flex', gap: 14, flexWrap: 'wrap',
+                      marginBottom: 14, alignItems: 'center',
+                    }}>
+                      <span style={{ fontSize: '0.77rem', color: '#9ca3af' }}>
+                        🗓 {formatDate(partie.dateHeureUTC)}
+                      </span>
+                      {partie.ouverture?.libelle && (
+                        <span style={{ fontSize: '0.77rem', color: '#9ca3af' }}>
+                          📖 {partie.ouverture.libelle}
+                          {partie.openingEco && (
+                            <span style={{
+                              marginLeft: 4, padding: '1px 5px',
+                              background: '#f3f4f6', borderRadius: 4,
+                              fontSize: '0.66rem', fontWeight: 700, color: '#6b7280',
+                            }}>
+                              {partie.openingEco}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                      {partie.nombreCoups != null && partie.nombreCoups > 0 && (
+                        <span style={{ fontSize: '0.77rem', color: '#9ca3af' }}>
+                          ♟ {partie.nombreCoups} coups
+                        </span>
+                      )}
+                      {cadenceLabel && (
+                        <span style={{ fontSize: '0.77rem', color: '#9ca3af' }}>
+                          {cadenceLabel}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* ── Ligne 4 : Analyse ML ── */}
+                    <div style={{
+                      borderTop: '1px solid #f3f4f6',
+                      paddingTop: 12,
+                    }}>
+                      {partie.mlTag || partie.mlInsight || partie.probWhite != null || partie.probBlack != null || partie.probDraw != null ? (
+                        /* ── Insight ML généré par predict_game.py (déclenché si au moins un champ ML existe) */
+                        <MlInsightBadge
+                          tag={partie.mlTag}
+                          insight={partie.mlInsight}
+                          probWhite={partie.probWhite}
+                          probBlack={partie.probBlack}
+                          probDraw={partie.probDraw}
+                        />
+                      ) : (
+                        /* ── Fallback : ancienne analyse inférée localement ─────── */
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                            <span style={{
+                              fontSize: '0.68rem', fontWeight: 700,
+                              color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em',
+                            }}>
+                              🤖 Analyse ML
+                            </span>
+                            <span style={{
+                              fontSize: '0.63rem', padding: '1px 7px', borderRadius: 99,
+                              background: isCSV ? '#eef2ff' : '#f9fafb',
+                              color: isCSV ? '#4f46e5' : '#9ca3af',
+                              border: `1px solid ${isCSV ? '#c7d2fe' : '#e5e7eb'}`,
+                              fontWeight: 600,
+                            }}>
+                              {isCSV ? '📂 CSV exact' : '⚙ Inférence locale'}
+                            </span>
+                          </div>
+                          <MLGameBadges ml={mlData} variant="inline" />
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
-
-                <div className="flex flex-col items-start gap-3 md:items-end">
-                  <span
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${getResultBadgeClass(
-                      partie.typeResultat
-                    )}`}
-                  >
-                    {partie.typeResultat || 'Résultat inconnu'}
-                  </span>
-
-                  <button
-                    onClick={() => onSelectPartie?.(partie.id)}
-                    className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                  >
-                    Voir détails
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

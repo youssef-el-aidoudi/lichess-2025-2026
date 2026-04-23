@@ -29,6 +29,17 @@ public class PartieJouee {
     @Column(columnDefinition = "TEXT")
     private String resumeAnalyse;
 
+    // ── ML Analysis fields ──────────────────────────────────────────────────
+    @Column(columnDefinition = "TEXT")
+    private String mlInsight; // Message statistique dynamique du modèle ML
+
+    private String mlTag; // Tag court : 'Exploit', 'Logique', 'Équilibré'
+
+    // Probabilités brutes issues de predict_proba() — NULL pour les anciennes parties
+    private Double probWhite; // Probabilité victoire blanche [0.0 – 1.0]
+    private Double probBlack; // Probabilité victoire noire [0.0 – 1.0]
+    private Double probDraw;  // Probabilité nulle [0.0 – 1.0]
+
     public PartieJouee() {}
 
     public Long getId() { return id; }
@@ -68,4 +79,19 @@ public class PartieJouee {
 
     public String getResumeAnalyse() { return resumeAnalyse; }
     public void setResumeAnalyse(String resumeAnalyse) { this.resumeAnalyse = resumeAnalyse; }
+
+    public String getMlInsight() { return mlInsight; }
+    public void setMlInsight(String mlInsight) { this.mlInsight = mlInsight; }
+
+    public String getMlTag() { return mlTag; }
+    public void setMlTag(String mlTag) { this.mlTag = mlTag; }
+
+    public Double getProbWhite() { return probWhite; }
+    public void setProbWhite(Double probWhite) { this.probWhite = probWhite; }
+
+    public Double getProbBlack() { return probBlack; }
+    public void setProbBlack(Double probBlack) { this.probBlack = probBlack; }
+
+    public Double getProbDraw() { return probDraw; }
+    public void setProbDraw(Double probDraw) { this.probDraw = probDraw; }
 }
