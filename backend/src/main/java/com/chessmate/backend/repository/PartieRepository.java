@@ -13,6 +13,9 @@ import com.chessmate.backend.entiter.Partie;
 public interface PartieRepository extends JpaRepository<Partie, Long>{
     Optional<Partie> findByTitle(String title);   // recherche par titre 
 
+    // Recherche par pseudonyme du joueur blanc OU noir (pour le profil ML)
+    List<Partie> findByJoueurBlancPseudonymeIgnoreCaseOrJoueurNoirPseudonymeIgnoreCase(String pseudoBlanc, String pseudoNoir);
+
     @Query("SELECT p FROM Partie p WHERE p.dateHeureUTC = :dt")
     List<Partie> findAllPartiesByDateHeureUTC(@Param("dt") LocalDateTime dt);  // recherche par date creation
     

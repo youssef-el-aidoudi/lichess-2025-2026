@@ -166,4 +166,12 @@ public class PartieJoueeService {
                 })
                 .orElse(email);
     }
+
+    /**
+     * Enregistre directement une partie jouée déjà construite.
+     * Utilisé par le contrôleur legacy qui construit l'entité lui-même.
+     */
+    public PartieJouee enregistrerPartie(PartieJouee partie) {
+        return partieJoueeRepository.save(partie);
+    }
 }

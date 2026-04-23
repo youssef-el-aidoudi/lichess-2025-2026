@@ -10,14 +10,19 @@ from pydantic import BaseModel
 # 1. Chargement du Modèle (Au démarrage)
 try:
     pipeline = joblib.load("chess_cheating_model.joblib")
-    print("Modèle XGBoost chargé avec succès !")
-    if hasattr(pipeline, "feature_names_in_"):
-        EXPECTED_FEATURES = list(pipeline.feature_names_in_)
-        print(f"Features attendues : {len(EXPECTED_FEATURES)}")
+    if pipeline is None or not hasattr(pipeline, 'predict'):
+        print(f"ERREUR: Le modèle chargé est invalide (type={type(pipeline)}, valeur={pipeline})")
+        pipeline = None
     else:
-        EXPECTED_FEATURES = None
+        print("Modèle XGBoost chargé avec succès !")
+        if hasattr(pipeline, "feature_names_in_"):
+            EXPECTED_FEATURES = list(pipeline.feature_names_in_)
+            print(f"Features attendues : {len(EXPECTED_FEATURES)}")
+        else:
+            EXPECTED_FEATURES = None
 except Exception as e:
-    print(f"Erreur lors du chargement du modèle : {e}")
+    print(f"Erreur lors du chargement du modèle : {type(e).__name__}: {e}")
+    traceback.print_exc()
     pipeline = None
 
 app = FastAPI(
