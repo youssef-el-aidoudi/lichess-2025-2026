@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Download, TrendingUp, Activity, ShieldAlert, CheckCircle, ShieldCheck, Database, Clock } from 'lucide-react';
 import { MLPlayerDashboard } from './MLPlayerDashboard';
+import { BACKEND_API_URL } from '../services/api';
 
 type CheatHistoryItem = {
   id: number;
@@ -21,7 +22,7 @@ export function Stats() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("http://localhost:8080/api/cheat/history")
+    fetch(`${BACKEND_API_URL}/api/cheat/history`)
       .then(res => res.json())
       .then(data => {
         setHistory(data);

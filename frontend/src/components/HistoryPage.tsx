@@ -1,4 +1,4 @@
-import { getAllPartiesJouees } from '../services/api';
+import { getAllPartiesJouees, BACKEND_API_URL } from '../services/api';
 import { loadGameMLMap, getGameMLByPlayers } from '../services/mlData';
 import { inferGameML } from '../services/mlInference';
 import { useEffect, useMemo, useState } from 'react';
@@ -96,7 +96,7 @@ export function HistoryPage({ onSelectPartie, onGoToSearch, onGoToPlay }: Histor
   // Map secondaire : clé = partieId, valeur = données ML pré-résolues
   const [mlByPartieId, setMlByPartieId] = useState<Map<number, GameMLData & { _source: 'csv' | 'inferred' }>>(new Map());
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+  const API_URL = BACKEND_API_URL;
 
   useEffect(() => {
     const fetchAll = async () => {
