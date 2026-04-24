@@ -88,6 +88,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/chat/**").permitAll()
                         // Online parties
                         .requestMatchers("/api/online-parties/**").permitAll()
+                        // Parties jouées (saved local games — no /api/ prefix)
+                        .requestMatchers("/parties-jouees/**").permitAll()
+                        // Parties dataset (Lichess import — no /api/ prefix)
+                        .requestMatchers("/parties/**").permitAll()
                         // Cheat detection
                         .requestMatchers("/api/cheat/**").permitAll()
                         // ML analysis
