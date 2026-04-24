@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Download, Brain, Circle } from 'lucide-react';
-import { getStockfishBestMove, analyzePosition, getCustomBotMove, evaluatePosition, ML_BOT_API_URL, STOCKFISH_API_URL } from '../services/api';
+import { getStockfishBestMove, analyzePosition, getCustomBotMove, evaluatePosition, ML_BOT_API_URL, STOCKFISH_API_URL, createPartieJouee } from '../services/api';
 import { useVoiceAccessibility } from '../hooks/useVoiceAccessibility';
 import { useASR } from '../hooks/useASR';
 import { VoiceToggle } from './VoiceToggle';
@@ -113,7 +113,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   // Voice Accessibility Integration
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [micFeedback, setMicFeedback] = useState<string>('');
-  const [pendingClicks, setPendingClicks] = useState<{row: number, col: number}[]>([]);
+  const [pendingClicks, setPendingClicks] = useState<{ row: number, col: number }[]>([]);
 
   const { isSupported: voiceSupported, speak } = useVoiceAccessibility({
     isEnabled: voiceEnabled,
@@ -1281,6 +1281,48 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     return () => clearTimeout(timer);
   }, [currentTurn, mode, winner]); // Removed thinking and engineSettings to prevent loops
 
+  // ── Sauvegarder la partie au backend quand elle se termine ──────────────
+  useEffect(() => {
+    if (!winner) return;
+
+    // Construire le PGN complet
+    let formattedMoves = '';
+    for (let i = 0; i < pgnMoves.length; i += 2) {
+      const moveNumber = Math.floor(i / 2) + 1;
+      const whiteMove = pgnMoves[i];
+      const blackMove = pgnMoves[i + 1];
+      formattedMoves += blackMove
+        ? `${moveNumber}. ${whiteMove} ${blackMove} `
+        : `${moveNumber}. ${whiteMove} `;
+    }
+
+    let result = '1/2-1/2';
+    if (winner === 'Blancs') result = '1-0';
+    if (winner === 'Noirs') result = '0-1';
+
+    const opponentName = mode === 'bot' ? 'Stockfish Bot'
+      : mode === 'bot_ml' ? 'ML Bot'
+      : 'Joueur 2';
+
+    const fullPgn = formattedMoves.trim() + ' ' + result;
+
+    createPartieJouee({
+      titre: `Partie vs ${opponentName}`,
+      joueurBlanc: 'Joueur',
+      joueurNoir: opponentName,
+      resultat: result,
+      variant: 'standard',
+      ouverture: 'Partie locale',
+      source: 'app',
+      vainqueur: winner === 'Blancs' ? 'blanc' : winner === 'Noirs' ? 'noir' : 'nul',
+      nombreCoups: pgnMoves.length,
+      pgn: fullPgn,
+      resumeAnalyse: gameStatus,
+    })
+      .then(() => console.log('\u2705 Partie sauvegard\u00e9e dans l\'historique'))
+      .catch((err) => console.error('\u274c Erreur sauvegarde partie:', err));
+  }, [winner]); // Se d\u00e9clenche uniquement quand winner passe de null \u00e0 une valeur
+
   const resetGame = () => {
     setBoard(INITIAL_BOARD);
     setMoveHistory([]);
@@ -1500,8 +1542,8 @@ ${formattedMoves}${result}`;
                               onContextMenu={handleRightClick}
                               disabled={thinking}
                               className={`w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-5xl sm:text-6xl transition-all duration-200 relative ${isLight
-                                  ? isLastMove ? 'bg-amber-100/80 saturate-150' : 'bg-gradient-to-br from-amber-50 to-amber-100'
-                                  : isLastMove ? 'bg-amber-700/80 saturate-150' : 'bg-gradient-to-br from-amber-600 to-amber-800'
+                                ? isLastMove ? 'bg-amber-100/80 saturate-150' : 'bg-gradient-to-br from-amber-50 to-amber-100'
+                                : isLastMove ? 'bg-amber-700/80 saturate-150' : 'bg-gradient-to-br from-amber-600 to-amber-800'
                                 } ${isSelected
                                   ? 'ring-4 ring-blue-500 ring-inset scale-95 shadow-inner'
                                   : ''
