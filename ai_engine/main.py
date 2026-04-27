@@ -1,11 +1,8 @@
 import os
-# Silencing TensorFlow logs and limiting memory usage BEFORE it starts to avoid OOM (137)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 import chess
 import numpy as np
-#import tensorflow as tf
+import onnxruntime as ort
 
 import asyncio
 import uuid
@@ -43,20 +40,11 @@ MODEL_DIR = os.environ.get("MODEL_DIR", ".")
 print(f"🚀 ML Bot Engine + Multiplayer Server starting...")
 
 # =========================================================
-# ML MODEL LOADING & INFERENCE HELPERS
+# ML MODEL LOADING & INFERENCE HELPERS (ONNX Runtime)
 # =========================================================
-custom_model = None
-model_input_key = "input_1"  # Default guess
-
-def build_model_from_architecture():
-    model = tf.keras.Sequential([
-        tf.keras.layers.Input(shape=(8, 8, 13)),
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(128, activation='relu'),
-        tf.keras.layers.Dense(1),
-    ])
-    model.compile(optimizer='rmsprop', loss='mean_squared_error')
-    return model
+onnx_session = None  # ONNX inference session
+onnx_input_name = None
+onnx_output_name = None
 
 # --- Smart Fallback Evaluator ---
 PIECE_VALUES = {
@@ -82,43 +70,21 @@ def evaluate_board_material(board: chess.Board):
     return score
 
 def load_ml_model():
-    global custom_model, model_input_key
+    global onnx_session, onnx_input_name, onnx_output_name
     try:
-        pb_path = os.path.join(MODEL_DIR, "saved_model.pb")
-        variables_path = os.path.join(MODEL_DIR, "variables")
+        onnx_path = os.path.join(MODEL_DIR, "model.onnx")
         
-        if os.path.exists(pb_path):
-            if not os.path.exists(variables_path):
-                logger.warning(f"⚠️ 'variables' folder missing at {MODEL_DIR}. SavedModel might be incomplete.")
-            
-            logger.info(f"🔄 Attempting to load model from {MODEL_DIR}...")
-            
-            # Try loading as standard SavedModel
-            try:
-                custom_model = tf.saved_model.load(MODEL_DIR)
-                # Inspect signature
-                if "serving_default" in custom_model.signatures:
-                    sig = custom_model.signatures["serving_default"]
-                    if hasattr(sig, 'structured_input_signature') and sig.structured_input_signature[1]:
-                        model_input_key = list(sig.structured_input_signature[1].keys())[0]
-                    else:
-                        model_input_key = list(sig.inputs[0].name.split(":")[0]) if sig.inputs else "input_1"
-                logger.info(f"✅ ML Model loaded via tf.saved_model. Input key: {model_input_key}")
-            except Exception as e1:
-                logger.error(f"❌ tf.saved_model.load failed: {e1}. Trying Keras loading...")
-                # Try loading as Keras model (sometimes users rename .h5 to .pb or use Keras saving)
-                try:
-                    custom_model = tf.keras.models.load_model(MODEL_DIR)
-                    logger.info("✅ ML Model loaded via tf.keras.models.load_model")
-                except Exception as e2:
-                    logger.error(f"❌ Keras loading failed: {e2}. Reverting to fallback.")
-                    custom_model = build_model_from_architecture()
+        if os.path.exists(onnx_path):
+            logger.info(f"🔄 Loading ONNX model from {onnx_path}...")
+            onnx_session = ort.InferenceSession(onnx_path, providers=['CPUExecutionProvider'])
+            onnx_input_name = onnx_session.get_inputs()[0].name
+            onnx_output_name = onnx_session.get_outputs()[0].name
+            logger.info(f"✅ ONNX Model loaded. Input: {onnx_input_name}, Output: {onnx_output_name}")
         else:
-            logger.info(f"ℹ️ No saved_model.pb at {pb_path}. Initializing smart fallback.")
-            custom_model = build_model_from_architecture()
+            logger.info(f"ℹ️ No model.onnx at {onnx_path}. Using smart fallback evaluator.")
     except Exception as e:
-        logger.error(f"❌ Critical error during model initialization: {e}")
-        custom_model = build_model_from_architecture()
+        logger.error(f"❌ Error loading ONNX model: {e}. Using smart fallback.")
+        onnx_session = None
 
 # Run loading
 load_ml_model()
@@ -336,9 +302,9 @@ async def save_game_result(room: GameRoom):
 
 @app.get("/health")
 def health():
-    is_fallback = (custom_model is None or not hasattr(custom_model, 'signatures') and not isinstance(custom_model, tf.keras.Model))
-    return {"status": "ok", "engine": "ml_bot", "model_loaded": not is_fallback,
-            "mode": "ml" if not is_fallback else "smart_fallback",
+    model_loaded = onnx_session is not None
+    return {"status": "ok", "engine": "ml_bot", "model_loaded": model_loaded,
+            "mode": "onnx" if model_loaded else "smart_fallback",
             "active_games": len(game_rooms), "matchmaking_queue": len(matchmaking_queue)}
 
 @router.get("/health")
@@ -365,9 +331,7 @@ async def get_custom_bot_move(moves: str = "", color: str = "black"):
             return {"bestmove": ""}
 
         # Determine if we should use ML or Fallback
-        is_fallback = (custom_model is None or not hasattr(custom_model, 'signatures') and not isinstance(custom_model, tf.keras.Model))
-        
-        if is_fallback:
+        if onnx_session is None:
             # Smart Fallback using Minimax-lite (Material only)
             best_m = None
             best_s = float('-inf') if board.turn == chess.WHITE else float('inf')
@@ -389,26 +353,15 @@ async def get_custom_bot_move(moves: str = "", color: str = "black"):
             logger.info(f"🧠 Smart Fallback bot chose {best_m} (material: {best_s})")
             return {"bestmove": best_m.uci() if best_m else "", "mode": "smart_fallback"}
 
-        # ML Inference
-        encoded_boards = [encode_board(board) for m in legal_moves] # Logic error in original: needed to actually apply moves
-        # Actually we need to apply each move to see the resulting state
+        # ONNX Inference
         encoded_boards = []
         for m in legal_moves:
             board.push(m)
             encoded_boards.append(encode_board(board))
             board.pop()
 
-        input_tensors = tf.convert_to_tensor(np.array(encoded_boards, dtype=np.float32))
-        
-        if isinstance(custom_model, tf.keras.Model):
-            # Use model.predict to avoid tracing leaks in TF 2.x
-            predictions = custom_model.predict(input_tensors, verbose=0)
-        else:
-            infer = custom_model.signatures["serving_default"]
-            input_dict = {model_input_key: input_tensors}
-            result = infer(**input_dict)
-            output_key = list(result.keys())[0]
-            predictions = result[output_key].numpy()
+        input_array = np.array(encoded_boards, dtype=np.float32)
+        predictions = onnx_session.run([onnx_output_name], {onnx_input_name: input_array})[0]
         
         best_m = None
         if color == "white":
@@ -426,8 +379,8 @@ async def get_custom_bot_move(moves: str = "", color: str = "black"):
                     best_s = score
                     best_m = m
         
-        logger.info(f"🤖 ML Bot ({color}) chose {best_m} with score {best_s:.4f}")
-        return {"bestmove": best_m.uci() if best_m else "", "mode": "ml"}
+        logger.info(f"🤖 ONNX Bot ({color}) chose {best_m} with score {best_s:.4f}")
+        return {"bestmove": best_m.uci() if best_m else "", "mode": "onnx"}
         
     except Exception as e:
         logger.error(f"❌ Inference error: {e}")

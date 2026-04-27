@@ -1,9 +1,8 @@
 fastapi==0.110.0
 uvicorn==0.27.1
-python-chess==1.999 # More modern version of chess package
+python-chess==1.999
 pydantic==2.6.3
-#tensorflow==2.16.2
-tf_keras==2.16.0 # Ensure tf_keras version matches tensorflow
-numpy<2.0.0 # Avoid breaking changes in numpy 2.0
+onnxruntime==1.17.1
+numpy<2.0.0
 httpx==0.27.0
 websockets==12.0
