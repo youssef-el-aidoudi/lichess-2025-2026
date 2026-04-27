@@ -5,7 +5,7 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 import chess
 import numpy as np
-import tensorflow as tf
+#import tensorflow as tf
 
 import asyncio
 import uuid
