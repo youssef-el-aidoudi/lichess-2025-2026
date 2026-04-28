@@ -80,7 +80,7 @@ export function Login({ onLogin }: LoginProps) {
       <div className="glass-panel rounded-lg shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="text-4xl mb-2">♟</div>
-          <h1 className="text-slate-100 text-xl font-semibold">Chess Analytics Platform</h1>
+          <h1 className="text-slate-100 text-xl font-semibold">ChessMate</h1>
           <p className="text-slate-400 mt-2">
             Analysez vos parties avec Lichess et Stockfish
           </p>

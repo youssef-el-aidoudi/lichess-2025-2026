@@ -155,7 +155,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
-              <h1 className="text-xl text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 font-bold tracking-tight">♟ Chess Analytics</h1>
+              <h1 className="text-xl text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 font-bold tracking-tight">♟ ChessMate</h1>
               <div className="flex gap-2">
                 <button
                   onClick={() => {

@@ -1366,7 +1366,7 @@ export function ChessGame({ username: propUsername, mode, timeControl, engineSet
     if (winner === 'Noirs') result = '0-1';
 
     const pgn = `[Event "Chess Game"]
-[Site "Chess Analytics Platform"]
+[Site "ChessMate"]
 [Date "${new Date().toISOString().split('T')[0]}"]
 [Round "1"]
 [White "${username}"]
