@@ -2,19 +2,18 @@ package com.chessmate.backend.entiter;
 
 import java.time.LocalDateTime;
 
+import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 
 @Entity // Entité JPA mappée à une table en base de données
 public class PositionStats {
 
     @Id 
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    // Identifiant unique de la position, généré automatiquement par la base
-    private long id;
+    // Identifiant unique de la position (hash UUID)
+    private UUID hash;
 
     @Column(columnDefinition = "TEXT", nullable = false)
     // Stocke la position FEN (notation Forsyth-Edwards pour décrire la position sur l'échiquier)

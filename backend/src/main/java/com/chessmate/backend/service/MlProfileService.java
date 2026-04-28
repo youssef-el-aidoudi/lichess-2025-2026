@@ -25,7 +25,7 @@ public class MlProfileService {
     private final ObjectMapper objectMapper;
 
     // Paths for Docker container
-    private final String PYTHON_SCRIPT_PATH = "/app/ml_chess_profile.py";
+    private final String ML_SCRIPT_PATH = "/app/ml_chess_profile.py";
     private final String PYTHON_EXEC = "python3";
     private final String BASELINE_CSV_PATH = "/app/games_final_clean.csv";
 
@@ -40,57 +40,79 @@ public class MlProfileService {
         List<Partie> userParties = partieRepository.findByJoueurBlancPseudonymeIgnoreCaseOrJoueurNoirPseudonymeIgnoreCase(username, username);
         List<PartieJouee> userPartiesJouees = partieJoueeRepository.findByJoueurBlancIgnoreCaseOrJoueurNoirIgnoreCase(username, username);
         
-        if ((userParties == null || userParties.isEmpty()) && (userPartiesJouees == null || userPartiesJouees.isEmpty())) {
-            throw new RuntimeException("Aucune partie trouvée pour l'utilisateur: " + username);
-        }
-
         // 2. Map entities to ML expectations
-        List<MlGameDto> mappedGames = new ArrayList<>();
+        List<MlGameDto> allGames = new ArrayList<>();
         if (userParties != null) {
-            mappedGames.addAll(userParties.stream().map(this::mapToMlGameDto).collect(Collectors.toList()));
+            allGames.addAll(userParties.stream().map(this::mapToMlGameDto).collect(Collectors.toList()));
         }
         if (userPartiesJouees != null) {
-            mappedGames.addAll(userPartiesJouees.stream().map(this::mapPartieJoueeToMlGameDto).collect(Collectors.toList()));
+            allGames.addAll(userPartiesJouees.stream().map(this::mapPartieJoueeToMlGameDto).collect(Collectors.toList()));
+        }
+
+        if (allGames.isEmpty()) {
+            System.err.println("⚠ Aucune partie trouvée pour l'utilisateur: " + username + ". Retour d'un profil de base.");
+            return createDefaultProfile(username);
         }
 
         // 3. Serialize to temporary JSON file to avoid ProcessBuilder buffer limits
-        File tempInputFile = File.createTempFile("ml_input_" + username, ".json");
-        objectMapper.writeValue(tempInputFile, mappedGames);
-
-        // 4. Call Python Process
+        File tempInputFile = null;
         try {
+            tempInputFile = File.createTempFile("ml_input_" + username.replaceAll("[^a-zA-Z0-9]", "_"), ".json");
+            objectMapper.writeValue(tempInputFile, allGames);
+
+            // 4. Call Python Process
             ProcessBuilder pb = new ProcessBuilder(
-                    PYTHON_EXEC,
-                    PYTHON_SCRIPT_PATH,
-                    "--target-user", username,
-                    "--user-games-file", tempInputFile.getAbsolutePath(),
-                    "--baseline-default", BASELINE_CSV_PATH
+                PYTHON_EXEC,
+                ML_SCRIPT_PATH,
+                "--target-user", username,
+                "--user-games-file", tempInputFile.getAbsolutePath(),
+                "--baseline-default", BASELINE_CSV_PATH
             );
             
-            // INDISPENSABLE sur Windows : forcer Python à écrire en UTF-8 sur la sortie standard
             pb.environment().put("PYTHONIOENCODING", "utf-8");
-            pb.redirectErrorStream(false);
             
             Process process = pb.start();
             
-            // Read stdout in UTF-8 to prevent encoding corruption (Intermdiaire)
+            // Timeout de 30 secondes pour éviter de bloquer le thread
+            if (!process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                System.err.println("❌ Le processus ML a dépassé le délai d'attente (30s)");
+                return createDefaultProfile(username);
+            }
+
             String outputJson = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
             String errorOutput = new String(process.getErrorStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-            
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                throw new RuntimeException("Erreur du processus ML (code " + exitCode + "): " + errorOutput);
+
+            if (process.exitValue() != 0) {
+                System.err.println("❌ Erreur du processus ML (code " + process.exitValue() + "): " + errorOutput);
+                return createDefaultProfile(username);
             }
-            
-            // 5. Return JSON Node to the controller
+
             return objectMapper.readTree(outputJson);
 
+        } catch (Exception e) {
+            System.err.println("❌ Exception lors de la génération du profil ML: " + e.getMessage());
+            e.printStackTrace();
+            return createDefaultProfile(username);
         } finally {
-            try {
-                Files.deleteIfExists(tempInputFile.toPath());
-            } catch (IOException e) {
-                // Ignore cleanup error
+            if (tempInputFile != null && tempInputFile.exists()) {
+                tempInputFile.delete();
             }
+        }
+    }
+
+    private JsonNode createDefaultProfile(String username) {
+        try {
+            String defaultJson = "{"
+                + "\"user_id\": \"" + username + "\","
+                + "\"style\": \"Équilibré (Profil par défaut)\","
+                + "\"tendencies\": [\"Données insuffisantes pour une analyse approfondie\"],"
+                + "\"accuracy_metrics\": {\"global\": 0, \"opening\": 0, \"midgame\": 0, \"endgame\": 0},"
+                + "\"is_placeholder\": true"
+                + "}";
+            return objectMapper.readTree(defaultJson);
+        } catch (Exception e) {
+            return objectMapper.createObjectNode();
         }
     }
 
