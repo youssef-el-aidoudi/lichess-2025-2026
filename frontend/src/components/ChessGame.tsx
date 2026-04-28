@@ -1628,6 +1628,7 @@ ${formattedMoves}${result}`;
                   </div>
                   <div className="text-blue-600 font-mono font-bold">ELO: {userElo}</div>
                 </div>
+              </div>
 
                 {/* Ligne de lettres en bas */}
                 <div className="flex pl-8">
