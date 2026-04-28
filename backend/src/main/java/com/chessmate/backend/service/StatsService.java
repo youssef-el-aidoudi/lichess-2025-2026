@@ -360,42 +360,42 @@ public class StatsService {
     //stats pour les meilleur coups par phase
     public List<BestMoveDTO> getBestMovesByPhase(Long joueurId)
     {
-        List<Partie> parties = partieRepository.findAllByJoueur(joueurId);
-
         Map<String, Map<String, MoveStats>> stats = new HashMap<>();
+        var joueurOpt = joueurRepository.findById(joueurId);
+        if (!joueurOpt.isPresent()) return new ArrayList<>();
+        
+        Joueur j = joueurOpt.get();
+        String pseudo = j.getPseudo();
 
-        for(Partie partie : parties)
-        {
+        // 1. Stats from 'Partie' table
+        List<Partie> parties = partieRepository.findAllByJoueur(joueurId);
+        for(Partie partie : parties) {
             if(partie.getPgnPartie() == null) continue;
-
             boolean isblanc = partie.getJoueurBlanc().getId().equals(joueurId);
+            boolean win = (isblanc && partie.getResultat() == 2) || (!isblanc && partie.getResultat() == 0);
+            processMoves(partie.getPgnPartie(), isblanc, win, stats);
+        }
 
-            boolean win = (isblanc && partie.getResultat() == 2) ||
-                        (!isblanc && partie.getResultat() == 0);
-            
-            List<String> moves = extractMoves(partie.getPgnPartie());
+        // 2. Stats from 'OnlinePartie' table
+        var online = onlinePartieRepository.findByJoueur(j);
+        for(var p : online) {
+            if(p.getPgn() == null) continue;
+            boolean isWhite = p.getJoueurBlanc().getId().equals(joueurId);
+            int res = (int) p.getResultat();
+            boolean win = (isWhite && res == 2) || (!isWhite && res == 0);
+            processMoves(p.getPgn(), isWhite, win, stats);
+        }
 
-            for(int i=0; i < moves.size(); i++)
-            {
-                if((isblanc && i%2 == 0) ||
-                    (!isblanc && i%2 == 1)) {
-                        int numeroCoup = (i / 2) + 1;
-
-                        String phase;
-                        if(numeroCoup <= 10) phase = "Debut de partie";
-                        else if(numeroCoup <=30) phase = "Milieu de partie";
-                        else phase = "Finale";
-
-                        stats.putIfAbsent(phase, new HashMap<>());
-                        stats.get(phase).putIfAbsent(moves.get(i), new MoveStats());
-
-                        MoveStats ms = stats.get(phase).get(moves.get(i));
-                        ms.total++;
-                        if(win) ms.wins++;
-                    }
-                }
-            }
-
+        // 3. Stats from 'PartieJouee' table
+        var jouees = partieJoueeRepository.findByJoueurBlancIgnoreCaseOrJoueurNoirIgnoreCase(pseudo, pseudo);
+        for(var p : jouees) {
+            if(p.getPgn() == null) continue;
+            boolean isWhite = p.getJoueurBlanc() != null && p.getJoueurBlanc().equalsIgnoreCase(pseudo);
+            String res = p.getResultat();
+            boolean win = (isWhite && "1-0".equals(res)) || (!isWhite && "0-1".equals(res));
+            if (!win && p.getVainqueur() != null) win = p.getVainqueur().equalsIgnoreCase(pseudo);
+            processMoves(p.getPgn(), isWhite, win, stats);
+        }
 
         List<BestMoveDTO> result = new ArrayList<>();
         for(String phase : stats.keySet())
@@ -413,10 +413,10 @@ public class StatsService {
                 }
             }
 
-            if(bestStats != null && bestStats.total >= 5) //filtre anti fake stats
+            if(bestStats != null && bestStats.total >= 1) // Lowered threshold to 1 for visibility
             {
-                double winrate = (bestStats.wins * 100) /bestStats.total;
-                winrate = Math.round(winrate * 100) / 100;
+                double winrate = (bestStats.wins * 100.0) / bestStats.total;
+                winrate = Math.round(winrate * 100.0) / 100.0;
 
                 result.add(new BestMoveDTO(
                     phase,
@@ -427,6 +427,26 @@ public class StatsService {
             }
         }
         return result;
+    }
+
+    private void processMoves(String pgn, boolean isWhite, boolean win, Map<String, Map<String, MoveStats>> stats) {
+        List<String> moves = extractMoves(pgn);
+        for(int i=0; i < moves.size(); i++) {
+            if((isWhite && i%2 == 0) || (!isWhite && i%2 == 1)) {
+                int numeroCoup = (i / 2) + 1;
+                String phase;
+                if(numeroCoup <= 10) phase = "Debut de partie";
+                else if(numeroCoup <=30) phase = "Milieu de partie";
+                else phase = "Finale";
+
+                stats.putIfAbsent(phase, new HashMap<>());
+                stats.get(phase).putIfAbsent(moves.get(i), new MoveStats());
+
+                MoveStats ms = stats.get(phase).get(moves.get(i));
+                ms.total++;
+                if(win) ms.wins++;
+            }
+        }
     }
     
     //methode pour extraire les moves
@@ -455,7 +475,7 @@ public class StatsService {
         
         // 1. Initial list from 'Partie' table
         List<OuvertureStatsDTO> stats = new ArrayList<>(
-            partieRepository.getStatsOuvertures(joueurId, 5)
+            partieRepository.getStatsOuvertures(joueurId, 1)
                 .stream()
                 .map(r -> new OuvertureStatsDTO(
                     (String) r[0],
