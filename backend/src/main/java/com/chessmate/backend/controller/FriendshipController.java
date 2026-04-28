@@ -49,15 +49,23 @@ public class FriendshipController {
         if (targetPseudo == null) return ResponseEntity.badRequest().body("Pseudo requis");
 
         Optional<Joueur> targetOpt = joueurRepo.findByPseudonyme(targetPseudo);
-        if (targetOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Joueur non trouvé: " + targetPseudo);
+        if (targetOpt.isEmpty()) {
+            logger.warn("Friend request failed: Target player '{}' not found in database", targetPseudo);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Joueur non trouvé: " + targetPseudo);
+        }
 
         Joueur target = targetOpt.get();
-        if (target.getPseudo().equals(me.getPseudo())) return ResponseEntity.badRequest().body("Vous ne pouvez pas vous ajouter vous-même");
+        if (target.getPseudo().equalsIgnoreCase(me.getPseudo())) {
+            logger.warn("Friend request failed: Player '{}' tried to add themselves", me.getPseudo());
+            return ResponseEntity.badRequest().body("Vous ne pouvez pas vous ajouter vous-même");
+        }
 
         // Check if friendship already exists
         Optional<Friendship> existing = friendshipRepo.findBetween(me, target);
         if (existing.isPresent()) {
             Friendship f = existing.get();
+            logger.info("Friend request from '{}' to '{}' already exists with status: {}", 
+                me.getPseudo(), target.getPseudo(), f.getStatus());
             if (f.getStatus() == Friendship.Status.ACCEPTED) {
                 return ResponseEntity.badRequest().body("Vous êtes déjà amis");
             }

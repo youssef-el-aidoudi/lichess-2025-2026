@@ -768,15 +768,28 @@ async def chat_websocket(websocket: WebSocket):
 async def startup_cleanup_task():
     async def cleanup():
         while True:
-            await asyncio.sleep(60)  # Every 60 seconds
+            await asyncio.sleep(5)  # Check more frequently for timeouts
             now = time.time()
             
-            # Remove stale matchmaking entries (older than 5 minutes)
+            # 1. Check for timeouts in active games
+            for gid, room in list(game_rooms.items()):
+                if room.started and not room.finished:
+                    room.update_clock()
+                    if room.finished:
+                        # Broadcast game over
+                        print(f"⏰ Game {gid} timed out!")
+                        for u, ws in room.websockets.items():
+                            try:
+                                await ws.send_json(room.to_state(for_user=u))
+                            except: pass
+                        asyncio.create_task(save_game_result(room))
+
+            # 2. Remove stale matchmaking entries (older than 5 minutes)
             matchmaking_queue[:] = [
                 e for e in matchmaking_queue if now - e["timestamp"] < 300
             ]
             
-            # Remove finished games older than 30 minutes
+            # 3. Remove finished games older than 30 minutes
             stale_ids = [
                 gid for gid, room in game_rooms.items()
                 if room.finished and now - room.created_at > 1800
@@ -784,7 +797,7 @@ async def startup_cleanup_task():
             for gid in stale_ids:
                 game_rooms.pop(gid, None)
             
-            # Remove games that were never started and are older than 10 minutes
+            # 4. Remove games that were never started and are older than 10 minutes
             abandoned_ids = [
                 gid for gid, room in game_rooms.items()
                 if not room.started and now - room.created_at > 600

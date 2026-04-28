@@ -113,10 +113,10 @@ export function HistoryPage({ onSelectPartie, onGoToSearch, onGoToPlay }: Histor
 
         let apiParties: Partie[] = [];
         let partiesJouees: Partie[] = [];
+        let onlineParties: Partie[] = [];
 
         // 1. Fetch Lichess games (via Backend Proxy)
         try {
-          // Use /api prefix which is required by Nginx
           const partiesResponse = await fetch(`${API_URL}/api/parties`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
@@ -125,8 +125,7 @@ export function HistoryPage({ onSelectPartie, onGoToSearch, onGoToPlay }: Histor
             apiParties = Array.isArray(data) ? data : [];
           }
         } catch (e) {
-          console.error("Erreur lors de la récupération des parties API:", e);
-          // On ne marque pas comme indisponible tout de suite pour laisser une chance aux parties locales
+          console.error("Erreur parties API:", e);
         }
 
         // 2. Fetch Local app games
@@ -135,56 +134,62 @@ export function HistoryPage({ onSelectPartie, onGoToSearch, onGoToPlay }: Histor
           const played = await getAllPartiesJouees(currentUsername || undefined);
 
           if (Array.isArray(played)) {
-            partiesJouees = played.map((p: any) => {
-              const resolveProbWhite = () => {
-                const v = p.probWhite ?? p.prob_white ?? p.probwhite ?? null;
-                return v != null ? Number(v) : undefined;
-              };
-              const resolveProbBlack = () => {
-                const v = p.probBlack ?? p.prob_black ?? p.probblack ?? null;
-                return v != null ? Number(v) : undefined;
-              };
-              const resolveProbDraw = () => {
-                const v = p.probDraw ?? p.prob_draw ?? p.probdraw ?? null;
-                return v != null ? Number(v) : undefined;
-              };
-              const resolveMlTag = () => p.mlTag ?? p.mltag ?? p.ml_tag ?? undefined;
-              const resolveMlInsight = () => p.mlInsight ?? p.mlinsight ?? p.ml_insight ?? undefined;
-
-              return {
-                id: -p.id,
-                title: p.titre,
-                dateHeureUTC: p.dateHeure,
-                typeResultat: p.resultat,
-                victoryStatus: p.vainqueur === 'blanc' ? 'resign'
-                             : p.vainqueur === 'noir'  ? 'resign'
-                             : p.vainqueur === 'nul'   ? 'draw'
-                             : undefined,
-                joueurBlanc: { pseudonyme: p.joueurBlanc },
-                joueurNoir: { pseudonyme: p.joueurNoir },
-                ouverture: { libelle: p.ouverture || 'Partie locale' },
-                nombreCoups: p.nombreCoups ?? undefined,
-                cadence: p.variant ?? undefined,
-                lichessId: p.lichessId ?? undefined,
-                eloBlanc: p.eloBlanc ?? undefined,
-                eloNoir: p.eloNoir ?? undefined,
-                mlInsight: resolveMlInsight(),
-                mlTag:     resolveMlTag(),
-                probWhite: resolveProbWhite(),
-                probBlack: resolveProbBlack(),
-                probDraw:  resolveProbDraw(),
-              };
-            });
+            partiesJouees = played.map((p: any) => ({
+              id: -p.id,
+              title: p.titre,
+              dateHeureUTC: p.dateHeure,
+              typeResultat: p.resultat,
+              victoryStatus: p.vainqueur === 'blanc' ? 'resign' : p.vainqueur === 'noir' ? 'resign' : p.vainqueur === 'nul' ? 'draw' : undefined,
+              joueurBlanc: { pseudonyme: p.joueurBlanc },
+              joueurNoir: { pseudonyme: p.joueurNoir },
+              ouverture: { libelle: p.ouverture || 'Partie locale' },
+              nombreCoups: p.nombreCoups ?? undefined,
+              cadence: p.variant ?? undefined,
+              lichessId: p.lichessId ?? undefined,
+              eloBlanc: p.eloBlanc ?? undefined,
+              eloNoir: p.eloNoir ?? undefined,
+              mlInsight: p.mlInsight ?? p.mlinsight ?? p.ml_insight,
+              mlTag: p.mlTag ?? p.mltag ?? p.ml_tag,
+              probWhite: p.probWhite ?? p.prob_white ?? p.probwhite,
+              probBlack: p.probBlack ?? p.prob_black ?? p.probblack,
+              probDraw: p.probDraw ?? p.prob_draw ?? p.probdraw,
+            }));
           }
         } catch (e) {
-          console.error("Erreur lors de la récupération des parties jouées:", e);
-          if (apiParties.length === 0) isBackendIndisponible = true;
+          console.error("Erreur parties jouées:", e);
         }
 
-        const allParties = [...partiesJouees, ...apiParties];
+        // 3. Fetch Online Multiplayer games
+        try {
+          const currentUsername = localStorage.getItem('username');
+          if (currentUsername) {
+            const onlineResp = await fetch(`${API_URL}/api/online-parties/player/${encodeURIComponent(currentUsername)}`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (onlineResp.ok) {
+              const data = await onlineResp.json();
+              onlineParties = Array.isArray(data) ? data.map((p: any) => ({
+                id: 1000000 + Math.floor(Math.random() * 1000000), // Fake unique ID for React keys
+                title: `Multiplayer ${p.gameId}`,
+                dateHeureUTC: p.playedAt,
+                typeResultat: p.resultat === 1 ? 'Victoire blanc' : p.resultat === -1 ? 'Victoire noir' : 'Nulle',
+                victoryStatus: p.resultType,
+                joueurBlanc: { pseudonyme: p.white },
+                joueurNoir: { pseudonyme: p.black },
+                ouverture: { libelle: 'Multiplayer' },
+                nombreCoups: p.totalMoves,
+                cadence: p.timeControl,
+              })) : [];
+            }
+          }
+        } catch (e) {
+          console.error("Erreur parties en ligne:", e);
+        }
+
+        const allParties = [...partiesJouees, ...onlineParties, ...apiParties];
         
-        if (allParties.length === 0 && isBackendIndisponible) {
-          setUsingDemo(true);
+        if (allParties.length === 0 && (apiParties.length === 0)) {
+           // Si tout est vide, on peut supposer un souci backend si l'utilisateur s'attendait à des données
         }
 
         setParties(allParties);

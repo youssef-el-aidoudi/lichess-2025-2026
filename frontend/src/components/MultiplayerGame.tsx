@@ -423,10 +423,10 @@ export function MultiplayerGame({ gameId, username, onBack, fromChallenge = fals
               <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl shadow-xl p-8 border border-slate-200">
                 <div className="flex justify-center items-center mb-6">
                   {/* Top Player (Opponent) Timer */}
-                  <div className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 ${!isFlipped ? 'bg-slate-800 shadow-lg ring-2 ring-purple-500 scale-105 text-white' : 'bg-white shadow-lg ring-2 ring-blue-500 scale-105'}`}>
+                  <div className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 ${!isFlipped ? 'bg-slate-800 shadow-lg ring-2 ring-purple-500 scale-105 text-white' : 'bg-white shadow-lg ring-2 ring-blue-500 scale-105 text-slate-900'}`}>
                     <div>
                       <div className="text-sm opacity-80">{opponent || 'En attente...'}</div>
-                      <div className={`text-lg font-mono ${(isFlipped ? displayWhiteTime : displayBlackTime) < 30 ? 'text-red-400 animate-pulse' : ''}`}>
+                      <div className={`text-lg font-mono ${(isFlipped ? displayWhiteTime : displayBlackTime) < 30 ? 'text-red-500 animate-pulse' : (isFlipped ? 'text-slate-900' : 'text-white')}`}>
                         {formatTime(isFlipped ? displayWhiteTime : displayBlackTime)}
                       </div>
                     </div>
@@ -545,10 +545,10 @@ export function MultiplayerGame({ gameId, username, onBack, fromChallenge = fals
 
                 <div className="flex justify-center items-center mt-6">
                   {/* Bottom Player (You) Timer */}
-                  <div className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 ${!isFlipped ? 'bg-white shadow-lg ring-2 ring-blue-500 scale-105' : 'bg-slate-800 shadow-lg ring-2 ring-purple-500 scale-105 text-white'}`}>
+                  <div className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 ${!isFlipped ? 'bg-white shadow-lg ring-2 ring-blue-500 scale-105 text-slate-900' : 'bg-slate-800 shadow-lg ring-2 ring-purple-500 scale-105 text-white'}`}>
                     <div>
                       <div className="text-sm opacity-80">{username} (Vous)</div>
-                      <div className={`text-lg font-mono ${(isFlipped ? displayBlackTime : displayWhiteTime) < 30 ? 'text-red-600 animate-pulse' : ''}`}>
+                      <div className={`text-lg font-mono ${(isFlipped ? displayBlackTime : displayWhiteTime) < 30 ? 'text-red-600 animate-pulse' : (!isFlipped ? 'text-slate-900' : 'text-white')}`}>
                         {formatTime(isFlipped ? displayBlackTime : displayWhiteTime)}
                       </div>
                     </div>

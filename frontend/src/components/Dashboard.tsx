@@ -184,8 +184,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-sm font-medium text-slate-300">
-                    Précision: <span className={game.precision ? 'text-cyan-400' : 'text-slate-500 italic'}>
-                      {game.precision !== null && game.precision !== undefined ? `${game.precision}%` : 'En attente'}
+                    Précision: <span className={game.precision > 0 ? 'text-cyan-400' : 'text-slate-500 italic'}>
+                      {game.precision > 0 ? `${game.precision}%` : 'Calcul...'}
                     </span>
                   </div>
                   <div
