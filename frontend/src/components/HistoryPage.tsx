@@ -114,8 +114,10 @@ export function HistoryPage({ onSelectPartie, onGoToSearch, onGoToPlay }: Histor
         let apiParties: Partie[] = [];
         let partiesJouees: Partie[] = [];
 
+        // 1. Fetch Lichess games (via Backend Proxy)
         try {
-          const partiesResponse = await fetch(`${API_URL}/parties`, {
+          // Use /api prefix which is required by Nginx
+          const partiesResponse = await fetch(`${API_URL}/api/parties`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           if (partiesResponse.ok) {
@@ -123,90 +125,66 @@ export function HistoryPage({ onSelectPartie, onGoToSearch, onGoToPlay }: Histor
             apiParties = Array.isArray(data) ? data : [];
           }
         } catch (e) {
-          isBackendIndisponible = true;
+          console.error("Erreur lors de la récupération des parties API:", e);
+          // On ne marque pas comme indisponible tout de suite pour laisser une chance aux parties locales
         }
 
+        // 2. Fetch Local app games
         try {
           const currentUsername = localStorage.getItem('username');
           const played = await getAllPartiesJouees(currentUsername || undefined);
 
-          // ── DEBUG : inspecter la réponse brute pour identifier les noms de champs réels ──
-          if (Array.isArray(played) && played.length > 0) {
-            console.log('[ML-DEBUG] Réponse brute getAllPartiesJouees (1er objet) :', played[played.length - 1]);
-            console.log('[ML-DEBUG] Clés disponibles :', Object.keys(played[played.length - 1]));
+          if (Array.isArray(played)) {
+            partiesJouees = played.map((p: any) => {
+              const resolveProbWhite = () => {
+                const v = p.probWhite ?? p.prob_white ?? p.probwhite ?? null;
+                return v != null ? Number(v) : undefined;
+              };
+              const resolveProbBlack = () => {
+                const v = p.probBlack ?? p.prob_black ?? p.probblack ?? null;
+                return v != null ? Number(v) : undefined;
+              };
+              const resolveProbDraw = () => {
+                const v = p.probDraw ?? p.prob_draw ?? p.probdraw ?? null;
+                return v != null ? Number(v) : undefined;
+              };
+              const resolveMlTag = () => p.mlTag ?? p.mltag ?? p.ml_tag ?? undefined;
+              const resolveMlInsight = () => p.mlInsight ?? p.mlinsight ?? p.ml_insight ?? undefined;
+
+              return {
+                id: -p.id,
+                title: p.titre,
+                dateHeureUTC: p.dateHeure,
+                typeResultat: p.resultat,
+                victoryStatus: p.vainqueur === 'blanc' ? 'resign'
+                             : p.vainqueur === 'noir'  ? 'resign'
+                             : p.vainqueur === 'nul'   ? 'draw'
+                             : undefined,
+                joueurBlanc: { pseudonyme: p.joueurBlanc },
+                joueurNoir: { pseudonyme: p.joueurNoir },
+                ouverture: { libelle: p.ouverture || 'Partie locale' },
+                nombreCoups: p.nombreCoups ?? undefined,
+                cadence: p.variant ?? undefined,
+                lichessId: p.lichessId ?? undefined,
+                eloBlanc: p.eloBlanc ?? undefined,
+                eloNoir: p.eloNoir ?? undefined,
+                mlInsight: resolveMlInsight(),
+                mlTag:     resolveMlTag(),
+                probWhite: resolveProbWhite(),
+                probBlack: resolveProbBlack(),
+                probDraw:  resolveProbDraw(),
+              };
+            });
           }
-
-          partiesJouees = Array.isArray(played)
-            ? played.map((p: any) => {
-                // Résolution robuste : supporte camelCase ET lowercase (selon config Jackson)
-                const resolveProbWhite = (): number | undefined => {
-                  const v = p.probWhite ?? p.prob_white ?? p.probwhite ?? null;
-                  return v != null ? Number(v) : undefined;
-                };
-                const resolveProbBlack = (): number | undefined => {
-                  const v = p.probBlack ?? p.prob_black ?? p.probblack ?? null;
-                  return v != null ? Number(v) : undefined;
-                };
-                const resolveProbDraw = (): number | undefined => {
-                  const v = p.probDraw ?? p.prob_draw ?? p.probdraw ?? null;
-                  return v != null ? Number(v) : undefined;
-                };
-                const resolveMlTag = (): string | undefined => {
-                  return p.mlTag ?? p.mltag ?? p.ml_tag ?? undefined;
-                };
-                const resolveMlInsight = (): string | undefined => {
-                  return p.mlInsight ?? p.mlinsight ?? p.ml_insight ?? undefined;
-                };
-
-                const mapped = {
-                  id: -p.id,
-                  title: p.titre,
-                  dateHeureUTC: p.dateHeure,
-                  typeResultat: p.resultat,
-                  victoryStatus: p.vainqueur === 'blanc' ? 'resign'
-                               : p.vainqueur === 'noir'  ? 'resign'
-                               : p.vainqueur === 'nul'   ? 'draw'
-                               : undefined,
-                  joueurBlanc: { pseudonyme: p.joueurBlanc },
-                  joueurNoir: { pseudonyme: p.joueurNoir },
-                  ouverture: { libelle: p.ouverture || 'Partie locale' },
-                  nombreCoups: p.nombreCoups ?? undefined,
-                  cadence: p.variant ?? undefined,
-                  lichessId: p.lichessId ?? undefined,
-                  eloBlanc: p.eloBlanc ?? undefined,
-                  eloNoir: p.eloNoir ?? undefined,
-                  // ── Champs ML — résolution robuste camelCase + snake_case + lowercase ──
-                  mlInsight: resolveMlInsight(),
-                  mlTag:     resolveMlTag(),
-                  probWhite: resolveProbWhite(),
-                  probBlack: resolveProbBlack(),
-                  probDraw:  resolveProbDraw(),
-                };
-
-                // ── DEBUG : afficher le mapping du dernier objet seulement ──
-                if (p === played[played.length - 1]) {
-                  console.log('[ML-DEBUG] Objet mappé (dernier) :', {
-                    id: mapped.id, mlTag: mapped.mlTag, mlInsight: mapped.mlInsight,
-                    probWhite: mapped.probWhite, probBlack: mapped.probBlack, probDraw: mapped.probDraw,
-                  });
-                }
-
-                return mapped;
-              })
-            : [];
         } catch (e) {
-          if (e instanceof TypeError) {
-            isBackendIndisponible = true;
-          }
+          console.error("Erreur lors de la récupération des parties jouées:", e);
+          if (apiParties.length === 0) isBackendIndisponible = true;
         }
 
-        const allParties = isBackendIndisponible
-          ? []
-          : [...partiesJouees, ...apiParties];
-
-        if (isBackendIndisponible) {
+        const allParties = [...partiesJouees, ...apiParties];
+        
+        if (allParties.length === 0 && isBackendIndisponible) {
           setUsingDemo(true);
-          // Ne pas bloquer l'interface — on affichera 0 parties avec message
         }
 
         setParties(allParties);
@@ -373,7 +351,7 @@ export function HistoryPage({ onSelectPartie, onGoToSearch, onGoToPlay }: Histor
           fontSize: '0.875rem', color: '#92400e',
         }}>
           <strong>Backend non joignable</strong> — Les parties affichées proviennent du cache local ou de l'API.
-          Vérifiez que Spring Boot tourne sur <code>localhost:8080</code>.
+          Vérifiez la connexion au serveur.
         </div>
       )}
 
