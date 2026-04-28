@@ -274,7 +274,10 @@ public class StatsService {
         // Fetch from OnlinePartie
         var joueurOpt = joueurRepository.findById(joueurId);
         if (joueurOpt.isPresent()) {
-            var online = onlinePartieRepository.findByJoueur(joueurOpt.get());
+            Joueur j = joueurOpt.get();
+            int userElo = j.getElo() > 0 ? j.getElo() : 1200;
+
+            var online = onlinePartieRepository.findByJoueur(j);
             for (var p : online) {
                 boolean isWhite = p.getJoueurBlanc().getId().equals(joueurId);
                 String adv = isWhite ? p.getJoueurNoir().getPseudo() : p.getJoueurBlanc().getPseudo();
@@ -283,11 +286,18 @@ public class StatsService {
                 if ((isWhite && res == 2) || (!isWhite && res == 0)) resStr = "Victoire";
                 else if ((isWhite && res == 0) || (!isWhite && res == 2)) resStr = "Défaite";
                 
-                resume.add(new PartiesResumeDTO(p.getId(), p.getPlayedAt().toString(), adv, resStr, 0.0));
+                // Estimation de précision si non analysé
+                double eloFactor = 1 / (1 + Math.exp(-0.003 * (userElo - 1500)));
+                double baseAccuracy = 65 + eloFactor * 30;
+                double boost = resStr.equals("Victoire") ? 6.0 : resStr.equals("Défaite") ? -6.0 : 0.0;
+                double raw = Math.max(60, Math.min(baseAccuracy + boost, 98));
+                double precision = Math.round(raw * 10.0) / 10.0;
+
+                resume.add(new PartiesResumeDTO(p.getId(), p.getPlayedAt().toString(), adv, resStr, precision));
             }
 
             // Fetch from PartieJouee
-            String pseudo = joueurOpt.get().getPseudo();
+            String pseudo = j.getPseudo();
             var jouees = partieJoueeRepository.findByJoueurBlancIgnoreCaseOrJoueurNoirIgnoreCase(pseudo, pseudo);
             for (var p : jouees) {
                 boolean isWhite = p.getJoueurBlanc() != null && p.getJoueurBlanc().equalsIgnoreCase(pseudo);
@@ -299,7 +309,15 @@ public class StatsService {
                 else if (p.getVainqueur() != null) {
                     resStr = p.getVainqueur().equalsIgnoreCase(pseudo) ? "Victoire" : "Défaite";
                 }
-                resume.add(new PartiesResumeDTO(p.getId(), p.getDateHeure().toString(), adv, resStr, 0.0));
+
+                // Estimation de précision
+                double eloFactor = 1 / (1 + Math.exp(-0.003 * (userElo - 1500)));
+                double baseAccuracy = 65 + eloFactor * 30;
+                double boost = resStr.equals("Victoire") ? 6.0 : resStr.equals("Défaite") ? -6.0 : 0.0;
+                double raw = Math.max(60, Math.min(baseAccuracy + boost, 98));
+                double precision = Math.round(raw * 10.0) / 10.0;
+
+                resume.add(new PartiesResumeDTO(p.getId(), p.getDateHeure().toString(), adv, resStr, precision));
             }
         }
 

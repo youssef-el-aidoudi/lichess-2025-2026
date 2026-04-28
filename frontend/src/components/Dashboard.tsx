@@ -176,7 +176,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <div
                 key={idx}
                 className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-all cursor-pointer"
-                onClick={() => onNavigate?.('parties')}
+                onClick={() => onNavigate?.('history')}
               >
                 <div className="flex-1">
                   <div className="text-slate-100 font-semibold">{game.adversaire}</div>
@@ -185,7 +185,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <div className="flex items-center gap-4">
                   <div className="text-sm font-medium text-slate-300">
                     Précision: <span className={game.precision ? 'text-cyan-400' : 'text-slate-500 italic'}>
-                      {game.precision ? `${game.precision}%` : 'En attente'}
+                      {game.precision !== null && game.precision !== undefined ? `${game.precision}%` : 'En attente'}
                     </span>
                   </div>
                   <div
@@ -207,7 +207,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </div>
           {recentGames.length > 0 && (
             <button 
-              onClick={() => onNavigate?.('parties')}
+              onClick={() => onNavigate?.('history')}
               className="w-full mt-4 py-2 text-sm text-cyan-400 hover:text-cyan-300 font-medium flex items-center justify-center gap-1 transition-colors"
             >
               Voir tout l'historique <ExternalLink className="w-3 h-3" />

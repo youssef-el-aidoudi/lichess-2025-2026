@@ -226,16 +226,6 @@ export default function App() {
                     Détection triche
                   </span>
                 </button>
-                <button
-                  onClick={() => {
-                    setCurrentPage('parties');
-                    setSelectedPartieId(null);
-                    setReviewPartieId(null);
-                  }}
-                  className={navButtonClass('parties')}
-                >
-                  Mes Parties
-                </button>
               </div>
             </div>
             <div className="flex items-center gap-4">
