@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -36,7 +37,7 @@ public class Partie {
     private String titreNoir;  // Titre du joueur noir
     private String typeResultat; // Type de résultat (normal, abandon, etc.)
     @Column(name = "\"round\"")
-    private String round; // Numéro du round dans un tournoi (stored as string)
+    private Integer round; // Numéro du round dans un tournoi
     
     @Column(columnDefinition = "TEXT")
     private String broadcastUrl; // URL de diffusion de la partie
@@ -48,12 +49,12 @@ public class Partie {
 
     // ---------------- Relations JPA ----------------
     
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_suite_coups_stats", nullable = false)
     // Plusieurs parties peuvent partager la même suite de coups
     private SuiteCoupsStats suiteCoupsStats;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hash_position_stats", nullable = false)
     // Relation vers PositionStats pour l'état des positions de la partie
     private PositionStats positionStats;
@@ -86,6 +87,7 @@ public class Partie {
 
     // ---------------- Getters ----------------
 
+    public Long getId() { return this.id; }
     public Short getResultat() { return this.resultat; }
     public String getPgnPartie() { return this.pgn; }
     public Short getScore_Blanc_Diff() { return this.scoreBlancDiff; }
@@ -93,7 +95,7 @@ public class Partie {
     public String getTitre_blanc() { return this.titreBlanc; }
     public String getTitre_noir() { return this.titreNoir; }
     public String getType_Resultat() { return this.typeResultat; }
-    public String getRound() { return this.round; }
+    public Integer getRound() { return this.round; }
     public Short getElo_Blanc() { return this.eloBlanc; }
     public Short getElo_Noir() { return this.eloNoir; }
     public LocalDateTime getDateHeurePartie() { return this.dateHeureUTC; }

@@ -12,6 +12,8 @@ import CheatAnalysis from './components/CheatAnalysis';
 import { CheatHistory } from './components/CheatHistory';
 import { HistoryPage } from './components/HistoryPage';
 import { PartieDetailPage } from './components/PartieDetailPage';
+import { Parties } from './components/Parties';
+import { ReviewPartie } from './components/ReviewPartie';
 import { Users, ShieldAlert, Swords, Clock, History } from 'lucide-react';
 import { connectChatWebSocket, joinMultiplayerGame } from './services/api';
 
@@ -26,6 +28,7 @@ export default function App() {
   const chatWsRef = useRef<WebSocket | null>(null);
   const [incomingChallenge, setIncomingChallenge] = useState<{ from: string; gameId: string; timeControl: string; mode: '2d' | '3d' } | null>(null);
   const [selectedPartieId, setSelectedPartieId] = useState<number | null>(null);
+  const [reviewPartieId, setReviewPartieId] = useState<number | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('jwt_token');
@@ -83,9 +86,12 @@ export default function App() {
     return () => { ws?.close(); chatWsRef.current = null; };
   }, [isAuthenticated, user?.username]);
 
-  const handleLogin = (token: string, username: string) => {
+  const handleLogin = (token: string, username: string, joueurId?: number) => {
     localStorage.setItem('jwt_token', token);
     localStorage.setItem('username', username);
+    if (joueurId) {
+      localStorage.setItem('joueurId', String(joueurId));
+    }
     setIsAuthenticated(true);
     setUser({ username });
   };
@@ -93,6 +99,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('jwt_token');
     localStorage.removeItem('username');
+    localStorage.removeItem('joueurId');
     chatWsRef.current?.close();
     chatWsRef.current = null;
     setIsAuthenticated(false);
@@ -219,6 +226,16 @@ export default function App() {
                     Détection triche
                   </span>
                 </button>
+                <button
+                  onClick={() => {
+                    setCurrentPage('parties');
+                    setSelectedPartieId(null);
+                    setReviewPartieId(null);
+                  }}
+                  className={navButtonClass('parties')}
+                >
+                  Mes Parties
+                </button>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -249,6 +266,12 @@ export default function App() {
         {currentPage === 'search' && <PlayerSearch />}
         {currentPage === 'cheat' && <CheatAnalysis onNavigate={(page) => setCurrentPage(page)} />}
         {currentPage === 'cheatHistory' && <CheatHistory />}
+        {currentPage === 'parties' && reviewPartieId === null && (
+          <Parties onReview={(id) => setReviewPartieId(id)} />
+        )}
+        {currentPage === 'parties' && reviewPartieId !== null && (
+          <ReviewPartie partieId={reviewPartieId} onBack={() => setReviewPartieId(null)} />
+        )}
         {currentPage === 'history' && selectedPartieId === null && (
           <HistoryPage
             onSelectPartie={(partieId) => setSelectedPartieId(partieId)}

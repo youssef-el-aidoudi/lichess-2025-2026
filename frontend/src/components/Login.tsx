@@ -3,7 +3,7 @@ import { LogIn, UserPlus } from 'lucide-react';
 import { BACKEND_API_URL } from '../services/api';
 
 interface LoginProps {
-  onLogin: (token: string, username: string) => void;
+  onLogin: (token: string, username: string, joueurId?: number) => void;
 }
 
 export function Login({ onLogin }: LoginProps) {
@@ -56,7 +56,7 @@ export function Login({ onLogin }: LoginProps) {
       }
 
       if (data.token) {
-        onLogin(data.token, data.username || email);
+        onLogin(data.token, data.username || email, data.joueurId);
       } else {
         throw new Error('Token manquant dans la réponse');
       }

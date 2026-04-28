@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { ChessBoard3D } from "./ChessBoard3D";
 import { ShieldCheck, ShieldAlert, Cpu, Activity, BarChart2 } from "lucide-react";
-import { BACKEND_API_URL } from "../services/api";
+import { analyzeCheat, getCheatHistory } from "../services/api";
 
 type CheatSignal = {
   name: string;
@@ -55,9 +55,7 @@ export default function CheatAnalysis({ onNavigate }: CheatAnalysisProps) {
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch(`${BACKEND_API_URL}/api/cheat/history`);
-      if (!res.ok) throw new Error("Erreur chargement historique");
-      const data = await res.json();
+      const data = await getCheatHistory();
       setHistory([...data].reverse());
     } catch (err) {
       console.error("Erreur historique:", err);
@@ -72,18 +70,9 @@ export default function CheatAnalysis({ onNavigate }: CheatAnalysisProps) {
     setMessage("");
     setReport(null);
 
-    const endpoint = save ? "analyze-and-save" : "analyze";
 
     try {
-      const res = await fetch(`${BACKEND_API_URL}/api/cheat/${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pgn, eloWhite: whiteElo, eloBlack: blackElo }),
-      });
-
-      if (!res.ok) throw new Error("Erreur analyse");
-
-      const data = await res.json();
+      const data = await analyzeCheat({ pgn, eloWhite: whiteElo, eloBlack: blackElo }, save);
       
       // Adaptation du format de réponse si c'est analyse-and-save (format entité vs format report)
       const finalReport = save ? {
@@ -99,9 +88,9 @@ export default function CheatAnalysis({ onNavigate }: CheatAnalysisProps) {
           setMessage(`Analyse #${data.id} sauvegardée !`);
           fetchHistory();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setMessage("Erreur pendant l'analyse. Vérifiez que le backend et l'IA sont actifs.");
+      setMessage(err.message || "Erreur pendant l'analyse. Vérifiez que le backend et l'IA sont actifs.");
     } finally {
       setLoading(false);
     }

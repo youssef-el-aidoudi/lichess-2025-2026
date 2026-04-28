@@ -5,4 +5,5 @@ public record OuvertureStatsDTO(
     int parties,
     double winrate,
     double utilisation
-) {}
+) 
+{}

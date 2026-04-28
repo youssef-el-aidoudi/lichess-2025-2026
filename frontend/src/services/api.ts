@@ -21,14 +21,22 @@ const getAuthToken = (): string | null => {
 };
 
 // Helper pour les requêtes authentifiées (Backend)
-const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
+export const fetchWithAuth = async (
+    endpoint: string,
+    options: RequestInit = {},
+    isFormData: boolean = false
+) => {
     const token = getAuthToken();
 
-    const headers = {
-        'Content-Type': 'application/json',
+    const headers: any = {
         ...(token && { 'Authorization': `Bearer ${token}` }),
         ...options.headers,
     };
+
+    // ❗ NE PAS ajouter Content-Type si FormData
+    if (!isFormData) {
+        headers['Content-Type'] = 'application/json';
+    }
 
     const response = await fetch(`${BACKEND_API_URL}${endpoint}`, {
         ...options,
@@ -57,6 +65,61 @@ const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
         return response.json();
     }
     return response.text();
+};
+
+// =========================================================
+// CHEAT DETECTION
+// =========================================================
+
+export const analyzeCheat = async (payload: { pgn: string; eloWhite: number; eloBlack: number }, save = false) => {
+    const endpoint = save ? "/api/cheat/analyze-and-save" : "/api/cheat/analyze";
+    return fetchWithAuth(endpoint, {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+};
+
+export const getCheatHistory = async () => {
+    return fetchWithAuth("/api/cheat/history");
+};
+
+// =========================================================
+// STATS PER PLAYER
+// =========================================================
+
+export const getAllStats = async (id: number) => {
+    return fetchWithAuth(`/api/stats/joueur/${id}/allStats`);
+};
+
+export const getStatsCouleur = async (id: number) => {
+    return fetchWithAuth(`/api/stats/joueur/${id}/couleurs`);
+};
+
+export const getAllMyParties = async (id: number) => {
+    return fetchWithAuth(`/api/stats/joueur/${id}/last-parties`);
+};
+
+export const getInfoPartie = async (id: number) => {
+    return fetchWithAuth(`/api/stats/partie/${id}/info`);
+};
+
+// =========================================================
+// ETL UPLOAD
+// =========================================================
+
+export const uploadFile = async (file: File, joueurId: string): Promise<{ jobId: string }> => {
+    const formData = new FormData();
+    formData.append("joueurId", String(joueurId));
+    formData.append("file", file);
+
+    return fetchWithAuth("/api/etl/upload", {
+        method: "POST",
+        body: formData,
+    }, true);
+};
+
+export const getEtlStatus = async (jobId: string) => {
+    return fetchWithAuth(`/api/etl/status/${jobId}`);
 };
 
 // =========================================================

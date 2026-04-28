@@ -30,24 +30,8 @@ public class Lichess implements IApi {
         return HttpRequest.newBuilder(URI.create(API_URI + route)).build();
     }
 
-    private HttpRequest getPgnRequest(String route) {
-        return HttpRequest.newBuilder(URI.create(API_URI + route))
-                .header("Accept", "application/x-chess-pgn")
-                .build();
-    }
-
     private String getResponse(String route) throws IOException, InterruptedException {
         HttpResponse<String> response = client.send(getRequest(route), HttpResponse.BodyHandlers.ofString());
-
-        if (response.statusCode() == 200) {
-            return response.body();
-        }
-
-        return null;
-    }
-
-    private String getPgnResponse(String route) throws IOException, InterruptedException {
-        HttpResponse<String> response = client.send(getPgnRequest(route), HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() == 200) {
             return response.body();
@@ -59,15 +43,14 @@ public class Lichess implements IApi {
     @Override
     public String findPartieParId(String id) throws IOException, InterruptedException {
         if (id != null) {
-            return getPgnResponse("game/export/" + id);
+            return getResponse("game/export/" + id);
         }
 
         return null;
     }
 
     @Override
-    public String findPartiesParPseudo(String pseudo, Integer debut, Integer fin, Integer max)
-            throws IOException, InterruptedException {
+    public String findPartiesParPseudo(String pseudo, Integer debut, Integer fin, Integer max) throws IOException, InterruptedException {
         if (pseudo != null) {
             String route = "api/games/user/" + pseudo;
             List<String> parametres = new ArrayList<>();
@@ -86,7 +69,7 @@ public class Lichess implements IApi {
                 route += "?" + String.join("&", parametres);
             }
 
-            return getPgnResponse(route);
+            return getResponse(route);
         }
 
         return null;

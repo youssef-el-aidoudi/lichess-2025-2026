@@ -2,6 +2,8 @@ package com.chessmate.backend.entiter;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -37,10 +39,12 @@ public class Cadence {
     private CategorieCadence typePartie;
 
     @OneToMany(mappedBy = "cadence")
+    @JsonIgnore
     // Relation OneToMany : une cadence peut être associée à plusieurs parties
     private List<Partie> parties;
 
     @OneToMany(mappedBy = "cadence")
+    @JsonIgnore
     // Relation OneToMany : une cadence peut être associée à plusieurs tournois
     private List<Tournoi> tournois;
 

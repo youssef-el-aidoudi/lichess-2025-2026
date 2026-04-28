@@ -6,3 +6,4 @@ public record BestMoveDTO(
     int parties,
     double winrate
 ) {}
+

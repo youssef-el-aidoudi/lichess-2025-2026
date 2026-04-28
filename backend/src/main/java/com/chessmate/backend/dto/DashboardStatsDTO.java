@@ -9,5 +9,11 @@ public record DashboardStatsDTO(
     Double accuracy,
     int nbParties,
     List<BestMoveDTO> bestMoves,
-    List<PerformanceMensuelleDTO> performanceMensuelle
+    List<PerformanceMensuelleDTO> performanceMensuelle,
+    EtlLogDTO logEtl,
+    List<AccuracyOverTimeDTO> accuracyOverTime,
+    List<AccuracyBySituationDTO> accuracyBySituation,
+    List<MoveStatsStockfishDTO> moveStatsStockfish,
+    Double engineMatch,
+    boolean partialError
 ) {}

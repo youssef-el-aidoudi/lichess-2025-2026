@@ -4,6 +4,8 @@ import com.chessmate.backend.cheat.entity.CheatAnalysisEntity;
 import com.chessmate.backend.cheat.model.CheatReport;
 import com.chessmate.backend.cheat.service.CheatAnalysisStorageService;
 import com.chessmate.backend.cheat.service.CheatDetectionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +16,8 @@ import java.util.List;
 @RequestMapping("/api/cheat")
 @CrossOrigin(origins = "*")
 public class CheatAnalysisController {
+
+    private static final Logger logger = LoggerFactory.getLogger(CheatAnalysisController.class);
 
     private final CheatDetectionService cheatDetectionService;
     private final CheatAnalysisStorageService storageService;
@@ -26,8 +30,10 @@ public class CheatAnalysisController {
 
     @PostMapping("/analyze")
     public ResponseEntity<?> analyze(@RequestBody CheatAnalysisRequest request) {
+        logger.info("Analyse simple demandée (EloW: {}, EloB: {})", request.getEloWhite(), request.getEloBlack());
         try {
             if (request == null || request.getPgn() == null || request.getPgn().isBlank()) {
+                logger.warn("Requête invalide : PGN manquant");
                 return ResponseEntity.badRequest().body("Le PGN est obligatoire.");
             }
 
@@ -35,8 +41,10 @@ public class CheatAnalysisController {
             return ResponseEntity.ok(report);
 
         } catch (IllegalArgumentException e) {
+            logger.error("Erreur de validation PGN: {}", e.getMessage());
             return ResponseEntity.badRequest().body("PGN invalide : " + e.getMessage());
         } catch (Exception e) {
+            logger.error("Erreur serveur pendant l'analyse", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Erreur pendant l'analyse : " + e.getMessage());
         }
@@ -44,8 +52,10 @@ public class CheatAnalysisController {
 
     @PostMapping("/analyze-and-save")
     public ResponseEntity<?> analyzeAndSave(@RequestBody CheatAnalysisRequest request) {
+        logger.info("Analyse et sauvegarde demandée (EloW: {}, EloB: {})", request.getEloWhite(), request.getEloBlack());
         try {
             if (request == null || request.getPgn() == null || request.getPgn().isBlank()) {
+                logger.warn("Requête invalide : PGN manquant");
                 return ResponseEntity.badRequest().body("Le PGN est obligatoire.");
             }
 
@@ -55,8 +65,10 @@ public class CheatAnalysisController {
             return ResponseEntity.ok(saved);
 
         } catch (IllegalArgumentException e) {
+            logger.error("Erreur de validation PGN: {}", e.getMessage());
             return ResponseEntity.badRequest().body("PGN invalide : " + e.getMessage());
         } catch (Exception e) {
+            logger.error("Erreur serveur pendant l'analyse", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Erreur pendant l'analyse : " + e.getMessage());
         }

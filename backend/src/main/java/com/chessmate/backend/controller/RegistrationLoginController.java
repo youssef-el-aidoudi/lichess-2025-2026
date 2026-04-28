@@ -12,30 +12,20 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.chessmate.backend.configuration.JwtUtils;
-import com.chessmate.backend.entiter.Joueur;
 import com.chessmate.backend.entiter.Utilisateur;
+import com.chessmate.backend.entiter.Joueur;
 import com.chessmate.backend.repository.JoueurRepository;
 import com.chessmate.backend.repository.UtilisateurRepository;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/auth") // Toutes les routes de ce controller commenceront par /api/auth
 public class RegistrationLoginController {
-    
-    @GetMapping("/debug")
-    public ResponseEntity<?> debugInfo() {
-        Map<String, Object> info = new HashMap<>();
-        info.put("userCount", utilisateurRepository.count());
-        info.put("joueurCount", joueurRepository.count());
-        info.put("timestamp", java.time.LocalDateTime.now());
-        return ResponseEntity.ok(info);
-    }
 
     // Dépendances injectées dans le controller
     private final UtilisateurRepository utilisateurRepository;
@@ -123,6 +113,7 @@ public class RegistrationLoginController {
                     authData.put("email", userFromDb.getEmail());
                     if (userFromDb.getJoueur() != null) {
                         authData.put("username", userFromDb.getJoueur().getPseudo());
+                        authData.put("joueurId", userFromDb.getJoueur().getId());
                     } else {
                         authData.put("username",
                                 userFromDb.getNom() != null ? userFromDb.getNom() : userFromDb.getEmail());
