@@ -24,9 +24,10 @@ public class MlProfileService {
     private final PartieJoueeRepository partieJoueeRepository;
     private final ObjectMapper objectMapper;
 
-    // Hardcode the script path or load from env. Assuming running from project root "lichess-2025-2026-1"
-    private final String PYTHON_SCRIPT_PATH = "../ml_chess_profile.py";
-    private final String PYTHON_EXEC = "python";
+    // Paths for Docker container
+    private final String PYTHON_SCRIPT_PATH = "/app/ml_chess_profile.py";
+    private final String PYTHON_EXEC = "python3";
+    private final String BASELINE_CSV_PATH = "/app/games_final_clean.csv";
 
     public MlProfileService(PartieRepository partieRepository, PartieJoueeRepository partieJoueeRepository, ObjectMapper objectMapper) {
         this.partieRepository = partieRepository;
@@ -62,7 +63,8 @@ public class MlProfileService {
                     PYTHON_EXEC,
                     PYTHON_SCRIPT_PATH,
                     "--target-user", username,
-                    "--user-games-file", tempInputFile.getAbsolutePath()
+                    "--user-games-file", tempInputFile.getAbsolutePath(),
+                    "--baseline-default", BASELINE_CSV_PATH
             );
             
             // INDISPENSABLE sur Windows : forcer Python à écrire en UTF-8 sur la sortie standard
