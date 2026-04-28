@@ -112,8 +112,8 @@ class GameRoom:
         self.board = chess.Board()
         self.white: str = white
         self.black: Optional[str] = None
-        self.white_elo = 1200
-        self.black_elo = 1200
+        self.white_elo = 800
+        self.black_elo = 800
         self.time_minutes = time_minutes
         self.increment = increment
         self.white_time: float = time_minutes * 60.0
@@ -400,10 +400,10 @@ async def get_player_elo(username: str) -> int:
             resp = await client.get(f"{BACKEND_URL}/api/joueurs/search", params={"pseudo": username}, timeout=5.0)
             if resp.status_code == 200:
                 data = resp.json()
-                return data.get("elo", 1200)
+                return data.get("elo", 800)
     except Exception as e:
         logger.error(f"Failed to fetch ELO for {username}: {e}")
-    return 1200
+    return 800
 
 
 # =========================================================

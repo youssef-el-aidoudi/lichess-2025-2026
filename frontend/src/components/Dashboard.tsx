@@ -22,7 +22,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
-  const [userElo, setUserElo] = useState<number>(1200);
+  const [userElo, setUserElo] = useState<number>(800);
 
   useEffect(() => {
     const fetchElo = async () => {

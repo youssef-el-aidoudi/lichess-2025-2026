@@ -133,7 +133,7 @@ export function ChessGame({ username: propUsername, mode, timeControl, engineSet
       console.warn("TTS error", e);
     }
   };
-  const [userElo, setUserElo] = useState<number>(1200);
+  const [userElo, setUserElo] = useState<number>(800);
 
   useEffect(() => {
     const fetchElo = async () => {

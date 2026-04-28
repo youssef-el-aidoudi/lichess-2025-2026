@@ -13,19 +13,19 @@ export function ChessMiniBoard({
     <div className="bg-white border rounded-xl p-6 shadow-sm">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
 
-      <div className="border-2 border-gray-300 rounded-lg overflow-hidden w-fit">
+      <div className="border-2 border-gray-300 rounded-lg overflow-hidden w-full max-w-[384px] aspect-square mx-auto">
         <div
-          className="grid"
+          className="grid w-full h-full"
           style={{
-            gridTemplateColumns: 'repeat(8, 48px)',
-            gridTemplateRows: 'repeat(8, 48px)',
+            gridTemplateColumns: 'repeat(8, 1fr)',
+            gridTemplateRows: 'repeat(8, 1fr)',
           }}
         >
           {board.map((row, rowIndex) =>
             row.map((piece, colIndex) => (
               <div
                 key={`${rowIndex}-${colIndex}`}
-                className={`w-12 h-12 flex items-center justify-center text-2xl select-none ${
+                className={`flex items-center justify-center text-[min(3vw,24px)] md:text-2xl select-none aspect-square ${
                   isLightSquare(rowIndex, colIndex) ? 'bg-amber-100' : 'bg-green-700'
                 }`}
               >

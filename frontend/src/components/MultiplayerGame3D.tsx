@@ -534,7 +534,7 @@ export function MultiplayerGame3D({ gameId, username, onBack, fromChallenge = fa
               </div>
               <span className="text-sm">
                 {opponent || 'En attente...'}
-                {opponent && <span className="ml-2 font-bold text-[10px] opacity-60">({(myColor === 'white' ? gameState.blackElo : gameState.whiteElo) || 1200})</span>}
+                {opponent && <span className="ml-2 font-bold text-[10px] opacity-60">({(myColor === 'white' ? gameState.blackElo : gameState.whiteElo) || 800})</span>}
               </span>
             </div>
           </div>
@@ -608,7 +608,7 @@ export function MultiplayerGame3D({ gameId, username, onBack, fromChallenge = fa
               </div>
               <span className="text-sm">
                 {username} (Vous)
-                <span className="ml-2 font-bold text-[10px] opacity-60">({(myColor === 'white' ? gameState.whiteElo : gameState.blackElo) || 1200})</span>
+                <span className="ml-2 font-bold text-[10px] opacity-60">({(myColor === 'white' ? gameState.whiteElo : gameState.blackElo) || 800})</span>
               </span>
             </div>
           </div>
