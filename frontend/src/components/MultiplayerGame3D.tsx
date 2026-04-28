@@ -36,6 +36,8 @@ interface BlunderInfo {
   moveIndex: number;
   severity: 'inaccuracy' | 'mistake' | 'blunder';
   evalDrop: number;
+  from: { row: number; col: number };
+  to: { row: number; col: number };
 }
 
 function fenToBoard(fen: string): string[][] {
@@ -80,7 +82,11 @@ export function MultiplayerGame3D({ gameId, username, onBack, fromChallenge = fa
   const [drawOffered, setDrawOffered] = useState(false);
   const [waitingForOpponent, setWaitingForOpponent] = useState(true);
   const [blunders, setBlunders] = useState<BlunderInfo[]>([]);
+  const [lastBlunderSquares, setLastBlunderSquares] = useState<{ from: { row: number; col: number }; to: { row: number; col: number }; severity: string } | null>(null);
   const [currentView, setCurrentView] = useState<'play' | 'analysis'>('play');
+  const [currentEval, setCurrentEval] = useState<number | null>(null);
+  const [currentBestMove, setCurrentBestMove] = useState<string | null>(null);
+  const [isThinking, setIsThinking] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -179,7 +185,17 @@ export function MultiplayerGame3D({ gameId, username, onBack, fromChallenge = fa
             else if (evalDrop >= 50) severity = 'inaccuracy';
 
             if (severity) {
-              setBlunders(prev => [...prev, { moveIndex: moveIdx, severity, evalDrop }]);
+              const lastMoveUci = data.moves[moveIdx];
+              const fromCol = lastMoveUci.charCodeAt(0) - 97;
+              const fromRow = 8 - parseInt(lastMoveUci[1]);
+              const toCol = lastMoveUci.charCodeAt(2) - 97;
+              const toRow = 8 - parseInt(lastMoveUci[3]);
+              const from = { row: fromRow, col: fromCol };
+              const to = { row: toRow, col: toCol };
+
+              setBlunders(prev => [...prev, { moveIndex: moveIdx, severity, evalDrop, from, to }]);
+              setLastBlunderSquares({ from, to, severity });
+              setTimeout(() => setLastBlunderSquares(null), 3000);
             }
           } catch (err) {
             console.error('Blunder detection error:', err);
@@ -208,6 +224,41 @@ export function MultiplayerGame3D({ gameId, username, onBack, fromChallenge = fa
 
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [gameState?.turn, gameState?.started, gameState?.finished]);
+
+  // Live analysis in analysis mode
+  useEffect(() => {
+    if (currentView !== 'analysis' || gameState?.finished) {
+      setCurrentEval(null);
+      setCurrentBestMove(null);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchAnalysis = async () => {
+      if (!gameState?.moves || gameState.moves.length === 0) return;
+      setIsThinking(true);
+      try {
+        const movesStr = gameState.moves.join(' ');
+        const result = await evaluatePosition(movesStr, 12);
+        if (isMounted) {
+          // Invert score if it's black's turn to get absolute score
+          const score = gameState.turn === 'white' ? result.score : -result.score;
+          setCurrentEval(score);
+          setCurrentBestMove(result.bestMove);
+        }
+      } catch (err) {
+        console.error('Analysis fetch error', err);
+      } finally {
+        if (isMounted) setIsThinking(false);
+      }
+    };
+
+    const timeout = setTimeout(fetchAnalysis, 500);
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+    };
+  }, [gameState?.moves, currentView, gameState?.turn, gameState?.finished]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -383,7 +434,7 @@ export function MultiplayerGame3D({ gameId, username, onBack, fromChallenge = fa
           board={board}
           selectedSquare={selectedSquare}
           legalMoves={legalMoves3D}
-          lastBlunderSquares={null}
+          lastBlunderSquares={lastBlunderSquares}
           onSquareClick={handleSquareClick}
           currentView={currentView}
         />
@@ -486,6 +537,36 @@ export function MultiplayerGame3D({ gameId, username, onBack, fromChallenge = fa
             {formatTime(myColor === 'white' ? displayBlackTime : displayWhiteTime)}
           </div>
         </div>
+
+        {/* Analysis info */}
+        {currentView === 'analysis' && currentEval !== null && (
+          <div className="mb-4 p-4 rounded-xl bg-blue-900/40 border border-blue-500/30">
+            <div className="text-xs text-blue-300 uppercase tracking-wider mb-1 font-bold">Évaluation</div>
+            <div className="flex items-center justify-between">
+              <div className={`text-2xl font-mono font-bold ${currentEval >= 0 ? 'text-white' : 'text-gray-400'}`}>
+                {currentEval > 0 ? '+' : ''}{(currentEval / 100).toFixed(1)}
+              </div>
+              <div className="w-1/2 h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 ${currentEval >= 0 ? 'bg-white' : 'bg-gray-500'}`}
+                  style={{ width: `${Math.min(Math.max(50 + (currentEval / 20), 5), 95)}%` }}
+                />
+              </div>
+            </div>
+            {currentBestMove && (
+              <div className="mt-2 text-xs text-blue-200">
+                Meilleur: <span className="font-mono font-bold text-white">{currentBestMove}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isThinking && (
+          <div className="mb-4 flex items-center gap-2 text-xs text-purple-300 animate-pulse px-2">
+            <Brain className="w-3.5 h-3.5" />
+            <span>Analyse Stockfish...</span>
+          </div>
+        )}
 
         {/* Move history + blunders */}
         <div className="flex-1 overflow-y-auto py-4 px-2 my-2 min-h-0 border-y border-white/10 custom-scrollbar">

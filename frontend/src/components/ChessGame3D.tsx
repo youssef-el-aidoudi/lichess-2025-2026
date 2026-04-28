@@ -23,7 +23,8 @@ export function ChessGame3D(props: ChessGame3DProps) {
   const gameState = useChessGame({
     mode: props.mode,
     timeControl: props.timeControl,
-    engineSettings: props.engineSettings
+    engineSettings: props.engineSettings,
+    isAnalysisMode: currentView === 'analysis'
   });
 
   const formatTime = (seconds: number): string => {
@@ -146,12 +147,48 @@ export function ChessGame3D(props: ChessGame3DProps) {
             </div>
           )}
 
-          <div className="space-y-1">
-            {gameState.moveHistory.map((m, i) => (
-              <div key={i} className="text-sm text-gray-400 py-1 border-b border-gray-800">
-                <span className="text-gray-600 inline-block w-6">{Math.floor(i / 2) + 1}.</span> {m}
+          {currentView === 'analysis' && gameState.currentEval !== null && (
+            <div className="mb-4 p-4 rounded-xl bg-blue-900/40 border border-blue-500/30">
+              <div className="text-xs text-blue-300 uppercase tracking-wider mb-1 font-bold">Évaluation</div>
+              <div className="flex items-center justify-between">
+                <div className={`text-2xl font-mono font-bold ${gameState.currentEval >= 0 ? 'text-white' : 'text-gray-400'}`}>
+                  {gameState.currentEval > 0 ? '+' : ''}{(gameState.currentEval / 100).toFixed(1)}
+                </div>
+                <div className="w-1/2 h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ${gameState.currentEval >= 0 ? 'bg-white' : 'bg-gray-500'}`}
+                    style={{ width: `${Math.min(Math.max(50 + (gameState.currentEval / 20), 5), 95)}%` }}
+                  />
+                </div>
               </div>
-            ))}
+              {gameState.currentBestMove && (
+                <div className="mt-2 text-xs text-blue-200">
+                  Meilleur coup suggéré: <span className="font-mono font-bold text-white">{gameState.currentBestMove}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-1">
+            {gameState.moveHistory.map((m, i) => {
+              const blunder = gameState.blunders.find(b => b.moveIndex === i);
+              return (
+                <div key={i} className={`text-sm py-1.5 px-2 rounded flex items-center gap-2 ${blunder
+                    ? blunder.severity === 'blunder' ? 'bg-red-500/20 text-red-300'
+                      : blunder.severity === 'mistake' ? 'bg-orange-500/20 text-orange-300'
+                        : 'bg-yellow-500/20 text-yellow-300'
+                    : 'text-gray-400 border-b border-gray-800'
+                  }`}>
+                  <span className="text-gray-600 inline-block w-6 text-xs">{Math.floor(i / 2) + 1}.</span>
+                  <span className="font-mono flex-1">{m}</span>
+                  {blunder && (
+                    <span className="text-[10px] font-bold">
+                      {blunder.severity === 'blunder' ? '🔴' : blunder.severity === 'mistake' ? '🟠' : '🟡'}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 

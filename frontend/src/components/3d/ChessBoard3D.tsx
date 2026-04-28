@@ -55,7 +55,13 @@ export function ChessBoard3D({
   });
 
   const blunderMaterial = new THREE.MeshBasicMaterial({
-    color: '#ff0000', transparent: true, opacity: 0.5, depthWrite: false
+    color: '#ff0000', transparent: true, opacity: 0.6, depthWrite: false
+  });
+  const mistakeMaterial = new THREE.MeshBasicMaterial({
+    color: '#ff8c00', transparent: true, opacity: 0.6, depthWrite: false
+  });
+  const inaccuracyMaterial = new THREE.MeshBasicMaterial({
+    color: '#ffff00', transparent: true, opacity: 0.6, depthWrite: false
   });
 
   const renderSquares = () => {
@@ -94,7 +100,16 @@ export function ChessBoard3D({
             {(isSelected || isHovered || isBlunder) && (
               <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
                 <planeGeometry args={[SQUARE_SIZE * 0.95, SQUARE_SIZE * 0.95]} />
-                <primitive object={isBlunder ? blunderMaterial : (isSelected ? selectedMaterial : hoverMaterial)} attach="material" />
+                <primitive
+                  object={
+                    isBlunder
+                      ? (lastBlunderSquares?.severity === 'blunder' ? blunderMaterial
+                        : lastBlunderSquares?.severity === 'mistake' ? mistakeMaterial
+                          : inaccuracyMaterial)
+                      : (isSelected ? selectedMaterial : hoverMaterial)
+                  }
+                  attach="material"
+                />
               </mesh>
             )}
 
