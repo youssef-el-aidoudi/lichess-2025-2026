@@ -67,7 +67,7 @@ export function Stats() {
   const applyStats = (stats: any) => {
     setWinRate(stats?.winRate || 0);
     // On s'assure que openingStats est toujours un tableau
-    setOpeningStats(stats?.bestOpenings || []); 
+    setOpeningStats(stats?.bestOpenings || []);
     setAccuracy(stats?.accuracy || 0);
     setLogEtl(stats?.logEtl || null);
     setNbParties(stats?.nbParties || 0);
@@ -217,45 +217,45 @@ export function Stats() {
 
   const colorPerformance = couleurStats
     ? [
-        {
-          key: "white",
-          label: "Blancs",
-          badge: <div className="w-5 h-5 rounded-full border-2 border-gray-300 bg-white shadow" />,
-          breakdown: buildColorBreakdown(
-            couleurStats.nbPartiesBlanc,
-            couleurStats.winRateBlanc,
-            couleurStats.nullRateBlanc
-          ),
-        },
-        {
-          key: "black",
-          label: "Noirs",
-          badge: <div className="w-5 h-5 rounded-full shadow" style={{ backgroundColor: "#000000" }} />,
-          breakdown: buildColorBreakdown(
-            couleurStats.nbPartiesNoir,
-            couleurStats.winRateNoir,
-            couleurStats.nullRateNoir
-          ),
-        },
-      ]
+      {
+        key: "white",
+        label: "Blancs",
+        badge: <div className="w-5 h-5 rounded-full border-2 border-gray-300 bg-white shadow" />,
+        breakdown: buildColorBreakdown(
+          couleurStats.nbPartiesBlanc,
+          couleurStats.winRateBlanc,
+          couleurStats.nullRateBlanc
+        ),
+      },
+      {
+        key: "black",
+        label: "Noirs",
+        badge: <div className="w-5 h-5 rounded-full shadow" style={{ backgroundColor: "#000000" }} />,
+        breakdown: buildColorBreakdown(
+          couleurStats.nbPartiesNoir,
+          couleurStats.winRateNoir,
+          couleurStats.nullRateNoir
+        ),
+      },
+    ]
     : [];
 
 
 
   return (
     <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={refreshStats}
-            className="p-2 rounded-lg bg-white shadow-sm border border-gray-200 text-gray-500 hover:text-blue-600 transition-all"
-            title="Rafraîchir"
-          >
-            <Activity className="w-5 h-5" />
-          </button>
-          <button
-            onClick={exportStats}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
+      <div className="flex items-center gap-4">
+        <button
+          onClick={refreshStats}
+          className="p-2 rounded-lg bg-white shadow-sm border border-gray-200 text-gray-500 hover:text-blue-600 transition-all"
+          title="Rafraîchir"
+        >
+          <Activity className="w-5 h-5" />
+        </button>
+        <button
+          onClick={exportStats}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
           <Download className="w-4 h-4" />
           Exporter les stats
         </button>
@@ -297,20 +297,20 @@ export function Stats() {
         </div>
 
         {/* ENGINE MATCH */}
-          <div className="bg-gradient-to-br from-indigo-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm opacity-90">Match avec Stockfish</div>
-              <Activity className="w-5 h-5 opacity-90" />
-            </div>
-
-            <div className="text-3xl font-bold">
-              {nbParties > 0 && engineRate != null ? `${engineRate}%` : "—"}
-            </div>
-
-            <div className="text-xs mt-1 opacity-80">
-              % de vos coups validés comme optimaux par l'IA
-            </div>
+        <div className="bg-gradient-to-br from-indigo-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm opacity-90">Match avec Stockfish</div>
+            <Activity className="w-5 h-5 opacity-90" />
           </div>
+
+          <div className="text-3xl font-bold">
+            {nbParties > 0 && engineRate != null ? `${engineRate}%` : "—"}
+          </div>
+
+          <div className="text-xs mt-1 opacity-80">
+            % de vos coups validés comme optimaux par l'IA
+          </div>
+        </div>
 
         {/* PARTIES */}
         <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
@@ -331,321 +331,320 @@ export function Stats() {
       </div>
 
       {/* Performance par mois */}
-    <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-gray-900 mb-4">Performance mensuelle</h3>
-      
-      {selectedYear ? (
-        <>
-      {/* Boutons années */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {Object.keys(groupedData)
-          .sort((a, b) => Number(b) - Number(a)) // années décroissantes
-          .map((year) => (
-            <button
-              key={year}
-              className={`px-3 py-1 rounded-lg border transition ${
-                Number(year) === selectedYear
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-              }`}
-              onClick={() => setSelectedYear(Number(year))}
-            >
-              {year}
-            </button>
-          ))}
-      </div>
 
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={selectedYear ? groupedData[selectedYear] : []}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="mois" />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="victoires" fill="#10b981" />
-          <Bar dataKey="defaites" fill="#ef4444" />
-          <Bar dataKey="nulles" fill="#94a3b8" />
-        </BarChart>
-        </ResponsiveContainer>
-      </>
-      ) : (
-        <div className="h-[300px] flex flex-col items-center justify-center bg-gray-50 rounded-lg border-2 border-dashed">
-          <Activity className="w-12 h-12 text-gray-300 mb-2" />
-          <p className="text-gray-500">Aucune donnée historique disponible</p>
-        </div>
-      )}
-    </div>
-
-
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    {/* Évolution de la précision */}
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="mb-4">
-        <h3 className="text-gray-900">
-          Évolution de performance
-        </h3>
-
-        <p className="text-xs text-gray-500 mt-1">
-          Basé sur la progression de la précision
-        </p>
-      </div>
-      {accuracyOverTime && accuracyOverTime.length > 0 ? (
-        <ResponsiveContainer width="100%" height={500}>
-          <LineChart data={accuracyOverTime}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="game" />
-            <YAxis
-              domain={['dataMin - 2', 'dataMax + 2']}
-              tickFormatter={(value) => Number(value).toFixed(1)}
-            />
-            <Tooltip
-              formatter={(value) => {
-                const v = Number(value);
-
-                if (Number.isNaN(v)) return ["0.0%", "Précision"];
-
-                return [`${v.toFixed(1)}%`, "Précision"];
-              }}
-            />
-            <Legend 
-            content={() => (
-            <div className="text-sm text-gray-600 mt-2 space-y-1">
-              <div>
-                <span className="font-semibold">Axe X (horizontal)</span> : progression des parties par groupes (ex : 1-10, 11-20...)
-              </div>
-
-              <div>
-                <span className="font-semibold">Axe Y (vertical)</span> : précision moyenne des coups en %
-              </div>
-
-              <div>
-                📈 Une courbe qui monte = amélioration de ton niveau de jeu
-              </div>
-
-              <div>
-                📉 Une courbe qui baisse = pertes de précision ou erreurs plus fréquentes
-              </div>
-
-              <div>
-                🎯 Chaque point = moyenne de précision sur une tranche de parties consécutives
-              </div>
+        {selectedYear ? (
+          <>
+            {/* Boutons années */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {Object.keys(groupedData)
+                .sort((a, b) => Number(b) - Number(a)) // années décroissantes
+                .map((year) => (
+                  <button
+                    key={year}
+                    className={`px-3 py-1 rounded-lg border transition ${Number(year) === selectedYear
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                      }`}
+                    onClick={() => setSelectedYear(Number(year))}
+                  >
+                    {year}
+                  </button>
+                ))}
             </div>
-          )}/>
-            <Line
-              type="monotone"
-              dataKey="accuracy"
-              stroke="#92f63b"
-              strokeWidth={3}
-              dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
-              name="Précision (%)"
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      ) : (
-        <div className="h-[300px] flex flex-col items-center justify-center bg-gray-50 rounded-lg border-2 border-dashed">
-          <Activity className="w-12 h-12 text-gray-300 mb-2" />
-          <p className="text-gray-500">Aucune évolution disponible</p>
-          <p className="text-sm text-gray-400">
-            Analyse Stockfish en cours... Les résultats s'afficheront une fois les premières variantes calculées.
-          </p>
-        </div>
-      )}
-    </div>
 
-      {/* Meilleurs coups avec probabilités */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Analyse des coups les plus joués (Stockfish)
-        </h3>
-
-        {bestMovesProbability && bestMovesProbability.length > 0 ? (
-          <div className="space-y-4">
-            {bestMovesProbability.map((move, index) => {
-              const rate = Math.min(Math.max(move.engineMatchRate ?? 0, 0), 100);
-
-              return (
-                <div key={index} className="border-b pb-4 last:border-b-0">
-                  
-                  {/* TOP ROW */}
-                  <div className="flex items-center justify-between mb-2">
-
-                    {/* LEFT */}
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <span className="font-mono text-sm">{move.moveUci}</span>
-                      </div>
-                      <div>
-                        <div className="text-gray-900">
-                          {move.count} parties
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          Précision: {Number(move.avgAccuracy).toFixed(1)}%
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* RIGHT */}
-                    <div className="text-right">
-                      <div className="text-blue-600">
-                        {rate.toFixed(1)}%
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        Match avec Stockfish
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* PROGRESS BAR */}
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all"
-                      style={{ width: `${Number(move.avgAccuracy).toFixed(1)}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={selectedYear ? groupedData[selectedYear] : []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="mois" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="victoires" fill="#10b981" />
+                <Bar dataKey="defaites" fill="#ef4444" />
+                <Bar dataKey="nulles" fill="#94a3b8" />
+              </BarChart>
+            </ResponsiveContainer>
+          </>
         ) : (
-          <div className="h-[200px] flex flex-col items-center justify-center bg-gray-50 rounded-lg border-2 border-dashed">
-            <Activity className="w-10 h-10 text-gray-300 mb-2" />
-            <p className="text-gray-500">Aucune analyse disponible</p>
-            <p className="text-sm text-gray-400">
-              Analyse Stockfish en cours... Les résultats s'afficheront une fois les premières variantes calculées.
+          <div className="h-[300px] flex flex-col items-center justify-center bg-gray-50 rounded-lg border-2 border-dashed">
+            <Activity className="w-12 h-12 text-gray-300 mb-2" />
+            <p className="text-gray-500">Aucune donnée historique disponible</p>
+          </div>
+        )}
+      </div>
+
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Évolution de la précision */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="mb-4">
+            <h3 className="text-gray-900">
+              Évolution de performance
+            </h3>
+
+            <p className="text-xs text-gray-500 mt-1">
+              Basé sur la progression de la précision
+            </p>
+          </div>
+          {accuracyOverTime && accuracyOverTime.length > 0 ? (
+            <ResponsiveContainer width="100%" height={500}>
+              <LineChart data={accuracyOverTime}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="game" />
+                <YAxis
+                  domain={['dataMin - 2', 'dataMax + 2']}
+                  tickFormatter={(value) => Number(value).toFixed(1)}
+                />
+                <Tooltip
+                  formatter={(value) => {
+                    const v = Number(value);
+
+                    if (Number.isNaN(v)) return ["0.0%", "Précision"];
+
+                    return [`${v.toFixed(1)}%`, "Précision"];
+                  }}
+                />
+                <Legend
+                  content={() => (
+                    <div className="text-sm text-gray-600 mt-2 space-y-1">
+                      <div>
+                        <span className="font-semibold">Axe X (horizontal)</span> : progression des parties par groupes (ex : 1-10, 11-20...)
+                      </div>
+
+                      <div>
+                        <span className="font-semibold">Axe Y (vertical)</span> : précision moyenne des coups en %
+                      </div>
+
+                      <div>
+                        📈 Une courbe qui monte = amélioration de ton niveau de jeu
+                      </div>
+
+                      <div>
+                        📉 Une courbe qui baisse = pertes de précision ou erreurs plus fréquentes
+                      </div>
+
+                      <div>
+                        🎯 Chaque point = moyenne de précision sur une tranche de parties consécutives
+                      </div>
+                    </div>
+                  )} />
+                <Line
+                  type="monotone"
+                  dataKey="accuracy"
+                  stroke="#92f63b"
+                  strokeWidth={3}
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
+                  name="Précision (%)"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex flex-col items-center justify-center bg-gray-50 rounded-lg border-2 border-dashed">
+              <Activity className="w-12 h-12 text-gray-300 mb-2" />
+              <p className="text-gray-500">Aucune évolution disponible</p>
+              <p className="text-sm text-gray-400">
+                Analyse Stockfish en cours... Les résultats s'afficheront une fois les premières variantes calculées.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Meilleurs coups avec probabilités */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Analyse des coups les plus joués (Stockfish)
+          </h3>
+
+          {bestMovesProbability && bestMovesProbability.length > 0 ? (
+            <div className="space-y-4">
+              {bestMovesProbability.map((move, index) => {
+                const rate = Math.min(Math.max(move.engineMatchRate ?? 0, 0), 100);
+
+                return (
+                  <div key={index} className="border-b pb-4 last:border-b-0">
+
+                    {/* TOP ROW */}
+                    <div className="flex items-center justify-between mb-2">
+
+                      {/* LEFT */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <span className="font-mono text-sm">{move.moveUci}</span>
+                        </div>
+                        <div>
+                          <div className="text-gray-900">
+                            {move.count} parties
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            Précision: {Number(move.avgAccuracy).toFixed(1)}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* RIGHT */}
+                      <div className="text-right">
+                        <div className="text-blue-600">
+                          {rate.toFixed(1)}%
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          Match avec Stockfish
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* PROGRESS BAR */}
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all"
+                        style={{ width: `${Number(move.avgAccuracy).toFixed(1)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="h-[200px] flex flex-col items-center justify-center bg-gray-50 rounded-lg border-2 border-dashed">
+              <Activity className="w-10 h-10 text-gray-300 mb-2" />
+              <p className="text-gray-500">Aucune analyse disponible</p>
+              <p className="text-sm text-gray-400">
+                Analyse Stockfish en cours... Les résultats s'afficheront une fois les premières variantes calculées.
+              </p>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* Qualité de jeu selon contexte */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="mb-4">
+          <h3 className="text-gray-900 font-semibold text-lg">
+            Qualité de jeu selon contexte
+          </h3>
+
+          <p className="text-sm text-gray-500 mt-1">
+            Compare ta précision selon les situations de jeu
+          </p>
+
+          {/* EXPLICATION AXES */}
+          <div className="mt-2 text-xs text-gray-600 space-y-1">
+            <div>
+              <span className="font-semibold">Axe X :</span> situation de jeu (Winning, Equal, Under pressure)
+            </div>
+            <div>
+              <span className="font-semibold">Axe Y :</span> précision moyenne des coups en %
+            </div>
+          </div>
+        </div>
+
+        {accuracyBySituation && accuracyBySituation.length > 0 ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={accuracyBySituation}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis dataKey="situation" tick={{ fontSize: 12 }} />
+              <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+
+              <Tooltip
+                formatter={(value) => [
+                  `${Number(value).toFixed(1)}%`,
+                  "Précision"
+                ]}
+              />
+
+              <Legend />
+
+              <Bar dataKey="accuracy" name="Précision (%)" radius={[6, 6, 0, 0]}>
+                {accuracyBySituation.map((entry, index) => (
+                  <Cell
+                    key={index}
+                    fill={
+                      entry.situation === "Winning"
+                        ? "#22c55e"
+                        : entry.situation === "Equal"
+                          ? "#3b82f6"
+                          : "#ef4444"
+                    }
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-[300px] flex flex-col items-center justify-center bg-gray-50 rounded-lg border-2 border-dashed">
+            <div className="text-4xl mb-2">📊</div>
+            <p className="text-gray-500 font-medium">
+              Aucune donnée de contexte disponible -
+              Analyse Stockfish -&gt Les résultats s'afficheront une fois les premières variantes calculées.
             </p>
           </div>
         )}
       </div>
 
-</div>
 
-{/* Qualité de jeu selon contexte */}
-<div className="bg-white rounded-xl shadow-lg p-6">
-  <div className="mb-4">
-    <h3 className="text-gray-900 font-semibold text-lg">
-      Qualité de jeu selon contexte
-    </h3>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        {/* Répartition des ouvertures */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Répartition des ouvertures
+          </h3>
+          {openingStats.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie
+                    data={openingStats}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    dataKey="utilisation"
+                    label={({ ouverture, percent }) =>
+                      `${ouverture} ${(percent * 100).toFixed(0)}%`
+                    }
+                  >
+                    {openingStats.map((_, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: any) => `${value}%`} />
+                </PieChart>
+              </ResponsiveContainer>
 
-    <p className="text-sm text-gray-500 mt-1">
-      Compare ta précision selon les situations de jeu
-    </p>
+              {/* Légende détaillée */}
+              <div className="mt-6 space-y-3">
+                {openingStats.map((opening, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between text-sm bg-gray-50 rounded p-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                      />
+                      <span className="font-medium text-gray-800">{opening.ouverture}</span>
+                    </div>
 
-    {/* EXPLICATION AXES */}
-    <div className="mt-2 text-xs text-gray-600 space-y-1">
-      <div>
-        <span className="font-semibold">Axe X :</span> situation de jeu (Winning, Equal, Under pressure)
-      </div>
-      <div>
-        <span className="font-semibold">Axe Y :</span> précision moyenne des coups en %
-      </div>
-    </div>
-  </div>
-
-  {accuracyBySituation && accuracyBySituation.length > 0 ? (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={accuracyBySituation}>
-        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-        <XAxis dataKey="situation" tick={{ fontSize: 12 }} />
-        <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-
-        <Tooltip
-          formatter={(value) => [
-            `${Number(value).toFixed(1)}%`,
-            "Précision"
-          ]}
-        />
-
-        <Legend />
-
-        <Bar dataKey="accuracy" name="Précision (%)" radius={[6, 6, 0, 0]}>
-          {accuracyBySituation.map((entry, index) => (
-            <Cell
-              key={index}
-              fill={
-                entry.situation === "Winning"
-                  ? "#22c55e"
-                  : entry.situation === "Equal"
-                  ? "#3b82f6"
-                  : "#ef4444"
-              }
-            />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  ) : (
-    <div className="h-[300px] flex flex-col items-center justify-center bg-gray-50 rounded-lg border-2 border-dashed">
-      <div className="text-4xl mb-2">📊</div>
-      <p className="text-gray-500 font-medium">
-        Aucune donnée de contexte disponible - 
-        Analyse Stockfish -&gt Les résultats s'afficheront une fois les premières variantes calculées.
-      </p>
-    </div>
-  )}
-</div>
-
-
-<div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-  {/* Répartition des ouvertures */}
-  <div className="bg-white rounded-xl shadow-lg p-6">
-    <h3 className="text-lg font-semibold text-gray-900 mb-4">
-      Répartition des ouvertures
-    </h3> 
-    {openingStats.length > 0 ? (
-    <>
-    <ResponsiveContainer width="100%" height={280}>
-      <PieChart>
-        <Pie
-          data={openingStats}
-          cx="50%"
-          cy="50%"
-          outerRadius={100}
-          dataKey="utilisation"
-          label={({ ouverture, percent }) =>
-            `${ouverture} ${(percent * 100).toFixed(0)}%`
-          }
-        >
-          {openingStats.map((_, index) => (
-            <Cell
-              key={`cell-${index}`}
-              fill={COLORS[index % COLORS.length]}
-            />
-          ))}
-        </Pie>
-        <Tooltip formatter={(value: any) => `${value}%`} />
-      </PieChart>
-    </ResponsiveContainer>
-
-    {/* Légende détaillée */}
-    <div className="mt-6 space-y-3">
-      {openingStats.map((opening, index) => (
-        <div
-          key={index}
-          className="flex items-center justify-between text-sm bg-gray-50 rounded p-3"
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: COLORS[index % COLORS.length] }}
-            />
-            <span className="font-medium text-gray-800">{opening.ouverture}</span>
-          </div>
-
-          <div className="text-right text-gray-600">
-            <div>{opening.parties} parties</div>
-            <div className="text-green-600 font-medium">{opening.winrate}% victoires</div>
-          </div>
+                    <div className="text-right text-gray-600">
+                      <div>{opening.parties} parties</div>
+                      <div className="text-green-600 font-medium">{opening.winrate}% victoires</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="h-[400px] flex items-center justify-center text-gray-500 italic">
+              Analysez vos premières parties pour voir vos ouvertures favorites.
+            </div>
+          )}
         </div>
-      ))}
-    </div>
-    </>
-    ) : (
-    <div className="h-[400px] flex items-center justify-center text-gray-500 italic">
-      Analysez vos premières parties pour voir vos ouvertures favorites.
-    </div>
-  )}
-  </div>
 
 
 
@@ -799,28 +798,7 @@ export function Stats() {
       )}
 
 
-      {/* Informations ETL */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="text-gray-900 mb-2">Configuration ETL Lichess</h3>
-        <p className="text-gray-600 mb-4">
-          Les données sont automatiquement extraites de Lichess, traitées par votre backend Java,
-          et analysées avec Stockfish pour calculer les probabilités des meilleurs coups.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div className="bg-white p-3 rounded-md">
-            <div className="text-gray-600">Dernière extraction</div>
-            <div className="text-gray-900">{lastAnalyze}</div>
-          </div>
-          <div className="bg-white p-3 rounded-md">
-            <div className="text-gray-600">Nombre de parties de la dernières extraction</div>
-            <div className="text-gray-900">{etlLog?.nbParties}</div>
-          </div>
-          <div className="bg-white p-3 rounded-md">
-            <div className="text-gray-600">Prochain ETL</div>
-            <div className="text-gray-900">-</div>
-          </div>
-        </div>
-      </div>
+
     </div>
   );
 }
