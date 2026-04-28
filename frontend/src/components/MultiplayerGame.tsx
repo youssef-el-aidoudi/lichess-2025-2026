@@ -431,7 +431,7 @@ export function MultiplayerGame({ gameId, username, onBack, fromChallenge = fals
                         {opponent || 'En attente...'}
                         {opponent && (
                           <span className="ml-2 font-bold text-xs opacity-60">
-                            ({(gameState.white === opponent ? gameState.whiteElo : gameState.blackElo) || 1200})
+                            ({(gameState.white === opponent ? gameState.whiteElo : gameState.blackElo) || 800})
                           </span>
                         )}
                       </div>
@@ -559,7 +559,7 @@ export function MultiplayerGame({ gameId, username, onBack, fromChallenge = fals
                       <div className="text-sm opacity-80">
                         {username} (Vous)
                         <span className="ml-2 font-bold text-xs opacity-60">
-                          ({(gameState.white === username ? gameState.whiteElo : gameState.blackElo) || 1200})
+                          ({(gameState.white === username ? gameState.whiteElo : gameState.blackElo) || 800})
                         </span>
                       </div>
                       <div className={`text-lg font-mono ${(isFlipped ? displayBlackTime : displayWhiteTime) < 30 ? 'text-red-600 animate-pulse' : (!isFlipped ? 'text-slate-900' : 'text-white')}`}>
