@@ -18,10 +18,12 @@ public class OnlinePartieController {
 
     private final OnlinePartieRepository partieRepo;
     private final JoueurRepository joueurRepo;
+    private final com.chessmate.backend.service.EloService eloService;
 
-    public OnlinePartieController(OnlinePartieRepository pr, JoueurRepository jr) {
+    public OnlinePartieController(OnlinePartieRepository pr, JoueurRepository jr, com.chessmate.backend.service.EloService es) {
         this.partieRepo = pr;
         this.joueurRepo = jr;
+        this.eloService = es;
     }
 
     /** POST /api/online-parties/save - Called by ai_engine to save game results */
@@ -41,13 +43,16 @@ public class OnlinePartieController {
             Optional<Joueur> blackOpt = joueurRepo.findByPseudonyme(blackPseudo);
 
             if (whiteOpt.isEmpty() || blackOpt.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Joueur(s) non trouvé(s)");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Joueur(s) non trouv\u00e9(s)");
             }
+
+            Joueur white = whiteOpt.get();
+            Joueur black = blackOpt.get();
 
             OnlinePartie partie = new OnlinePartie();
             partie.setGameId(gameId);
-            partie.setJoueurBlanc(whiteOpt.get());
-            partie.setJoueurNoir(blackOpt.get());
+            partie.setJoueurBlanc(white);
+            partie.setJoueurNoir(black);
             partie.setResultat((short) resultat);
             partie.setResultType(resultType);
             partie.setPgn(pgn);
@@ -56,7 +61,11 @@ public class OnlinePartieController {
             partie.setPlayedAt(LocalDateTime.now());
 
             partieRepo.save(partie);
-            return ResponseEntity.ok(Map.of("message", "Partie sauvegardée", "id", partie.getId()));
+
+            // Update ELO for multiplayer games
+            eloService.updateElo(white, black, resultat);
+
+            return ResponseEntity.ok(Map.of("message", "Partie sauvegard\u00e9e et ELO mis \u00e0 jour", "id", partie.getId()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erreur: " + e.getMessage());
         }
