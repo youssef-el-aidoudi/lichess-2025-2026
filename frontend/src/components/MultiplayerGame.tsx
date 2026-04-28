@@ -21,6 +21,8 @@ interface GameState {
   resultType: string | null;
   white: string | null;
   black: string | null;
+  whiteElo?: number;
+  blackElo?: number;
   timeControl: string;
   legalMoves: string[];
 }
@@ -425,7 +427,14 @@ export function MultiplayerGame({ gameId, username, onBack, fromChallenge = fals
                   {/* Top Player (Opponent) Timer */}
                   <div className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 ${!isFlipped ? 'bg-slate-800 shadow-lg ring-2 ring-purple-500 scale-105 text-white' : 'bg-white shadow-lg ring-2 ring-blue-500 scale-105 text-slate-900'}`}>
                     <div>
-                      <div className="text-sm opacity-80">{opponent || 'En attente...'}</div>
+                      <div className="text-sm opacity-80">
+                        {opponent || 'En attente...'}
+                        {opponent && (
+                          <span className="ml-2 font-bold text-xs opacity-60">
+                            ({(gameState.white === opponent ? gameState.whiteElo : gameState.blackElo) || 1200})
+                          </span>
+                        )}
+                      </div>
                       <div className={`text-lg font-mono ${(isFlipped ? displayWhiteTime : displayBlackTime) < 30 ? 'text-red-500 animate-pulse' : (isFlipped ? 'text-slate-900' : 'text-white')}`}>
                         {formatTime(isFlipped ? displayWhiteTime : displayBlackTime)}
                       </div>
@@ -547,7 +556,12 @@ export function MultiplayerGame({ gameId, username, onBack, fromChallenge = fals
                   {/* Bottom Player (You) Timer */}
                   <div className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 ${!isFlipped ? 'bg-white shadow-lg ring-2 ring-blue-500 scale-105 text-slate-900' : 'bg-slate-800 shadow-lg ring-2 ring-purple-500 scale-105 text-white'}`}>
                     <div>
-                      <div className="text-sm opacity-80">{username} (Vous)</div>
+                      <div className="text-sm opacity-80">
+                        {username} (Vous)
+                        <span className="ml-2 font-bold text-xs opacity-60">
+                          ({(gameState.white === username ? gameState.whiteElo : gameState.blackElo) || 1200})
+                        </span>
+                      </div>
                       <div className={`text-lg font-mono ${(isFlipped ? displayBlackTime : displayWhiteTime) < 30 ? 'text-red-600 animate-pulse' : (!isFlipped ? 'text-slate-900' : 'text-white')}`}>
                         {formatTime(isFlipped ? displayBlackTime : displayWhiteTime)}
                       </div>

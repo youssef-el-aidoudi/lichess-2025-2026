@@ -80,9 +80,12 @@ public class OnlinePartieController {
         List<OnlinePartie> parties = partieRepo.findByJoueur(joueurOpt.get());
         List<Map<String, Object>> result = parties.stream().map(p -> {
             Map<String, Object> data = new HashMap<>();
+            data.put("id", p.getId());
             data.put("gameId", p.getGameId());
             data.put("white", p.getJoueurBlanc().getPseudo());
             data.put("black", p.getJoueurNoir().getPseudo());
+            data.put("whiteElo", p.getJoueurBlanc().getElo());
+            data.put("blackElo", p.getJoueurNoir().getElo());
             data.put("resultat", p.getResultat());
             data.put("resultType", p.getResultType());
             data.put("timeControl", p.getTimeControl());
@@ -92,5 +95,54 @@ public class OnlinePartieController {
         }).toList();
 
         return ResponseEntity.ok(result);
+    }
+
+    /** GET /api/online-parties/{id} */
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getById(@PathVariable Long id) {
+        return partieRepo.findById(id)
+                .map(p -> {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("id", p.getId());
+                    data.put("gameId", p.getGameId());
+                    data.put("titre", "Multiplayer " + p.getGameId());
+                    data.put("dateHeure", p.getPlayedAt());
+                    data.put("resultat", p.getResultat() == 1 ? "Victoire blanc" : p.getResultat() == -1 ? "Victoire noir" : "Nulle");
+                    data.put("variant", p.getTimeControl());
+                    data.put("nombreCoups", p.getTotalMoves());
+                    data.put("joueurBlanc", p.getJoueurBlanc().getPseudo());
+                    data.put("joueurNoir", p.getJoueurNoir().getPseudo());
+                    return ResponseEntity.ok(data);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/joueurs")
+    public ResponseEntity<?> getJoueurs(@PathVariable Long id) {
+        return partieRepo.findById(id)
+                .map(p -> {
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("joueurBlanc", Map.of("pseudonyme", p.getJoueurBlanc().getPseudo(), "elo", p.getJoueurBlanc().getElo()));
+                    result.put("joueurNoir", Map.of("pseudonyme", p.getJoueurNoir().getPseudo(), "elo", p.getJoueurNoir().getElo()));
+                    return ResponseEntity.ok(result);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/ouverture")
+    public ResponseEntity<?> getOuverture(@PathVariable Long id) {
+        return ResponseEntity.ok(Map.of("libelle", "Multiplayer Game", "code", "ONLINE"));
+    }
+
+    @GetMapping("/{id}/suiteCoups")
+    public ResponseEntity<?> getSuiteCoups(@PathVariable Long id) {
+        return partieRepo.findById(id)
+                .map(p -> ResponseEntity.ok(Map.of("pgn", p.getPgn())))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/tournoi")
+    public ResponseEntity<?> getTournoi(@PathVariable Long id) {
+        return ResponseEntity.ok(Map.of("libelle", "ChessMate Online", "code", "ONLINE"));
     }
 }

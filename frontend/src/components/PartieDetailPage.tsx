@@ -406,9 +406,10 @@ export function PartieDetailPage({ partieId, onBack }: PartieDetailPageProps) {
           ? { Authorization: `Bearer ${token}` }
           : {};
 
+        const isOnlineGame = partieId >= 2000000;
         const isPlayedGame = partieId < 0;
-        const realId = Math.abs(partieId);
-        const basePath = isPlayedGame ? `/parties-jouees/${realId}` : `/parties/${realId}`;
+        const realId = isOnlineGame ? partieId - 2000000 : Math.abs(partieId);
+        const basePath = isOnlineGame ? `/api/online-parties/${realId}` : (isPlayedGame ? `/parties-jouees/${realId}` : `/parties/${realId}`);
 
         const fetchJson = async (url: string) => {
           const response = await fetch(`${API_URL}${url}`, { headers });

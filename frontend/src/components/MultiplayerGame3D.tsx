@@ -22,6 +22,8 @@ interface GameState {
   resultType: string | null;
   white: string | null;
   black: string | null;
+  whiteElo?: number;
+  blackElo?: number;
   timeControl: string;
   legalMoves: string[];
 }
@@ -530,7 +532,10 @@ export function MultiplayerGame3D({ gameId, username, onBack, fromChallenge = fa
               <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center shadow-inner">
                 <div className={`w-5 h-5 rounded-full ${myColor === 'white' ? 'bg-gray-900 border border-gray-600' : 'bg-white'}`} />
               </div>
-              <span className="text-sm">{opponent || 'En attente...'}</span>
+              <span className="text-sm">
+                {opponent || 'En attente...'}
+                {opponent && <span className="ml-2 font-bold text-[10px] opacity-60">({(myColor === 'white' ? gameState.blackElo : gameState.whiteElo) || 1200})</span>}
+              </span>
             </div>
           </div>
           <div className={`text-3xl font-mono text-center tracking-wider text-white ${(myColor === 'white' ? displayBlackTime : displayWhiteTime) <= 30 ? 'text-red-400 animate-pulse' : ''}`}>
@@ -601,7 +606,10 @@ export function MultiplayerGame3D({ gameId, username, onBack, fromChallenge = fa
               <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm">
                 <div className={`w-5 h-5 rounded-full ${myColor === 'white' ? 'bg-white border border-gray-200' : 'bg-gray-900'}`} />
               </div>
-              <span className="text-sm">{username} (Vous)</span>
+              <span className="text-sm">
+                {username} (Vous)
+                <span className="ml-2 font-bold text-[10px] opacity-60">({(myColor === 'white' ? gameState.whiteElo : gameState.blackElo) || 1200})</span>
+              </span>
             </div>
           </div>
           <div className={`text-3xl font-mono text-center tracking-wider text-white ${(myColor === 'white' ? displayWhiteTime : displayBlackTime) <= 30 ? 'text-red-400 animate-pulse' : ''}`}>

@@ -133,6 +133,25 @@ export function ChessGame({ username: propUsername, mode, timeControl, engineSet
       console.warn("TTS error", e);
     }
   };
+  const [userElo, setUserElo] = useState<number>(1200);
+
+  useEffect(() => {
+    const fetchElo = async () => {
+      try {
+        const joueurId = localStorage.getItem('joueurId');
+        if (joueurId) {
+          const resp = await fetch(`${BACKEND_API_URL}/joueurs/${joueurId}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.elo) setUserElo(data.elo);
+          }
+        }
+      } catch (e) {
+        console.error("Erreur fetch elo:", e);
+      }
+    };
+    fetchElo();
+  }, []);
 
   const isMoveLegal = (fromRow: number, fromCol: number, toRow: number, toCol: number) => {
     if (!isValidMove(board, fromRow, fromCol, toRow, toCol)) return false;
@@ -1499,6 +1518,16 @@ ${formattedMoves}${result}`;
                     ))}
                   </div>
 
+                <div className="flex flex-col items-center">
+                  {/* Info Joueur Haut (Noir ou Bot) */}
+                  <div className="mb-4 flex items-center gap-4 bg-slate-800 text-white px-6 py-2 rounded-xl shadow-lg border border-slate-700 w-full max-w-md justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-xs">🤖</div>
+                      <span className="font-bold">{mode === 'bot' ? 'Stockfish' : mode === 'bot_ml' ? 'Bot ML' : 'Adversaire'}</span>
+                    </div>
+                    <div className="text-amber-400 font-mono font-bold">ELO: {mode === 'human' ? '?' : (mode === 'bot_ml' ? 1800 : 3500)}</div>
+                  </div>
+
                   {/* Échiquier principal */}
                   <div className="border-8 border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
                     {board.map((row, rowIndex) => (
@@ -1590,6 +1619,14 @@ ${formattedMoves}${result}`;
                       </div>
                     ))}
                   </div>
+                </div>
+
+                <div className="mt-4 flex items-center gap-4 bg-white text-slate-900 px-6 py-2 rounded-xl shadow-lg border border-slate-200 w-full max-w-md justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">VS</div>
+                    <span className="font-bold">{username} (Vous)</span>
+                  </div>
+                  <div className="text-blue-600 font-mono font-bold">ELO: {userElo}</div>
                 </div>
 
                 {/* Ligne de lettres en bas */}

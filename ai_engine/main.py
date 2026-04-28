@@ -112,6 +112,8 @@ class GameRoom:
         self.board = chess.Board()
         self.white: str = white
         self.black: Optional[str] = None
+        self.white_elo = 1200
+        self.black_elo = 1200
         self.time_minutes = time_minutes
         self.increment = increment
         self.white_time: float = time_minutes * 60.0
@@ -147,6 +149,8 @@ class GameRoom:
             "resultType": self.result_type,
             "white": self.white,
             "black": self.black,
+            "whiteElo": self.white_elo,
+            "blackElo": self.black_elo,
             "timeControl": f"{self.time_minutes}+{self.increment}",
             "color": color,
             "legalMoves": [move.uci() for move in self.board.legal_moves],
@@ -389,6 +393,17 @@ async def get_custom_bot_move(moves: str = "", color: str = "black"):
         legal = list(chess.Board().legal_moves) # Using fresh board if current failed
         move = random.choice(legal) if legal else None
         return {"bestmove": move.uci() if move else "", "fallback": "random", "error": str(e)}
+async def get_player_elo(username: str) -> int:
+    """Fetch player ELO from the backend REST API"""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{BACKEND_URL}/joueurs/search?pseudo={username}", timeout=5.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("elo", 1200)
+    except Exception as e:
+        logger.error(f"Failed to fetch ELO for {username}: {e}")
+    return 1200
 
 
 # =========================================================
@@ -416,8 +431,9 @@ class CancelMatchmakingRequest(BaseModel):
 async def create_game(req: CreateGameRequest):
     game_id = uuid.uuid4().hex[:8]
     room = GameRoom(game_id, req.username, req.timeMinutes, req.increment)
+    room.white_elo = await get_player_elo(req.username)
     game_rooms[game_id] = room
-    print(f"🎮 Game created: {game_id} by {req.username} ({req.timeMinutes}+{req.increment})")
+    print(f"🎮 Game created: {game_id} by {req.username} ({req.timeMinutes}+{req.increment}) [ELO: {room.white_elo}]")
     return {"gameId": game_id, "white": req.username, "status": "waiting"}
 
 
@@ -434,9 +450,10 @@ async def join_game(game_id: str, req: JoinGameRequest):
         raise HTTPException(status_code=400, detail="Cannot join your own game")
     
     room.black = req.username
+    room.black_elo = await get_player_elo(req.username)
     room.started = True
     room.last_move_time = time.time()
-    print(f"🎮 {req.username} joined game {game_id}. Game started!")
+    print(f"🎮 {req.username} joined game {game_id}. Game started! [ELO: {room.black_elo}]")
 
     # Notify connected WebSocket clients that game has started
     asyncio.create_task(broadcast_game_start(room))

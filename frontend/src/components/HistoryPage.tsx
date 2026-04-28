@@ -169,13 +169,15 @@ export function HistoryPage({ onSelectPartie, onGoToSearch, onGoToPlay }: Histor
             if (onlineResp.ok) {
               const data = await onlineResp.json();
               onlineParties = Array.isArray(data) ? data.map((p: any) => ({
-                id: 1000000 + Math.floor(Math.random() * 1000000), // Fake unique ID for React keys
+                id: 2000000 + (p.id || Math.floor(Math.random() * 1000000)), // Range 2M+ for OnlinePartie
                 title: `Multiplayer ${p.gameId}`,
                 dateHeureUTC: p.playedAt,
                 typeResultat: p.resultat === 1 ? 'Victoire blanc' : p.resultat === -1 ? 'Victoire noir' : 'Nulle',
                 victoryStatus: p.resultType,
                 joueurBlanc: { pseudonyme: p.white },
                 joueurNoir: { pseudonyme: p.black },
+                eloBlanc: p.whiteElo,
+                eloNoir: p.blackElo,
                 ouverture: { libelle: 'Multiplayer' },
                 nombreCoups: p.totalMoves,
                 cadence: p.timeControl,

@@ -22,6 +22,25 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [userElo, setUserElo] = useState<number>(1200);
+
+  useEffect(() => {
+    const fetchElo = async () => {
+      try {
+        const joueurId = localStorage.getItem('joueurId');
+        if (joueurId) {
+          const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/joueurs/${joueurId}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.elo) setUserElo(data.elo);
+          }
+        }
+      } catch (e) {
+        console.error("Erreur fetch elo:", e);
+      }
+    };
+    fetchElo();
+  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -156,13 +175,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
         <div className="glass-panel rounded-2xl p-6 group hover:translate-y-[-2px] hover:shadow-amber-500/10 transition-all duration-300">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-slate-400 text-sm font-semibold uppercase tracking-wider">Dernière analyse</div>
-            <Clock className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
+            <div className="text-slate-400 text-sm font-semibold uppercase tracking-wider">Classement ELO</div>
+            <TrendingUp className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
           </div>
-          <div className="text-2xl font-black text-slate-100 truncate">
-            {etlLog ? new Date(etlLog.dateFin).toLocaleDateString() : 'Aucune'}
-          </div>
-          {etlLog && <div className="text-xs text-slate-500 mt-1">{etlLog.nbParties} parties traitées</div>}
+          <div className="text-4xl font-black text-slate-100">{userElo}</div>
+          <div className="text-xs text-slate-500 mt-1">Niveau compétitif</div>
         </div>
       </div>
 
