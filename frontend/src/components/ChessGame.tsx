@@ -140,7 +140,7 @@ export function ChessGame({ username: propUsername, mode, timeControl, engineSet
       try {
         const joueurId = localStorage.getItem('joueurId');
         if (joueurId) {
-          const resp = await fetch(`${BACKEND_API_URL}/joueurs/${joueurId}`);
+          const resp = await fetch(`${BACKEND_API_URL}/api/joueurs/${joueurId}`);
           if (resp.ok) {
             const data = await resp.json();
             if (data.elo) setUserElo(data.elo);

@@ -110,8 +110,10 @@ public class OnlinePartieController {
                     data.put("resultat", p.getResultat() == 1 ? "Victoire blanc" : p.getResultat() == -1 ? "Victoire noir" : "Nulle");
                     data.put("variant", p.getTimeControl());
                     data.put("nombreCoups", p.getTotalMoves());
-                    data.put("joueurBlanc", p.getJoueurBlanc().getPseudo());
-                    data.put("joueurNoir", p.getJoueurNoir().getPseudo());
+                    data.put("joueurBlanc", Map.of("pseudonyme", p.getJoueurBlanc().getPseudo(), "elo", p.getJoueurBlanc().getElo()));
+                    data.put("joueurNoir", Map.of("pseudonyme", p.getJoueurNoir().getPseudo(), "elo", p.getJoueurNoir().getElo()));
+                    data.put("eloBlanc", p.getJoueurBlanc().getElo());
+                    data.put("eloNoir", p.getJoueurNoir().getElo());
                     return ResponseEntity.ok(data);
                 })
                 .orElse(ResponseEntity.notFound().build());

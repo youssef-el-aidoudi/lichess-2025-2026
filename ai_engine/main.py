@@ -397,7 +397,7 @@ async def get_player_elo(username: str) -> int:
     """Fetch player ELO from the backend REST API"""
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{BACKEND_URL}/joueurs/search?pseudo={username}", timeout=5.0)
+            resp = await client.get(f"{BACKEND_URL}/api/joueurs/search", params={"pseudo": username}, timeout=5.0)
             if resp.status_code == 200:
                 data = resp.json()
                 return data.get("elo", 1200)
@@ -487,6 +487,8 @@ async def join_matchmaking(req: MatchmakingRequest):
             
             game_id = uuid.uuid4().hex[:8]
             room = GameRoom(game_id, opponent, req.timeMinutes, req.increment)
+            room.white_elo = await get_player_elo(opponent)
+            room.black_elo = await get_player_elo(req.username)
             room.black = req.username
             room.started = True
             room.last_move_time = time.time()

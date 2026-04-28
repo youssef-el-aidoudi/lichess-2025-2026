@@ -29,7 +29,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       try {
         const joueurId = localStorage.getItem('joueurId');
         if (joueurId) {
-          const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/joueurs/${joueurId}`);
+          const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/joueurs/${joueurId}`);
           if (resp.ok) {
             const data = await resp.json();
             if (data.elo) setUserElo(data.elo);
