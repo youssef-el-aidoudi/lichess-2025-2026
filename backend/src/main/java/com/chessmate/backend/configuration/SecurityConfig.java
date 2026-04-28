@@ -1,5 +1,6 @@
 package com.chessmate.backend.configuration;
 
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -19,7 +20,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -28,24 +28,40 @@ public class SecurityConfig {
 
     private final CustomUserDetailsService customUserDetailsService;
     private final JwtUtils jwtUtils;
+    private final JwtFilter jwtFilter;
 
-    public SecurityConfig(CustomUserDetailsService s, JwtUtils u) {
+    public SecurityConfig(CustomUserDetailsService s, JwtUtils u, JwtFilter f) {
         this.customUserDetailsService = s;
         this.jwtUtils = u;
+        this.jwtFilter = f;
+    }
+
+    /**
+     * CRITICAL: Prevent Spring Boot from auto-registering JwtFilter as a
+     * standalone Servlet filter. It must ONLY live inside the Spring Security
+     * filter chain (addFilterBefore). Without this, the filter runs twice and
+     * causes unpredictable 403 errors on permitAll() endpoints.
+     */
+    @Bean
+    public FilterRegistrationBean<JwtFilter> jwtFilterRegistration() {
+        FilterRegistrationBean<JwtFilter> registration = new FilterRegistrationBean<>(jwtFilter);
+        registration.setEnabled(false); // Disable auto-registration as servlet filter
+        return registration;
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        
-        // CRITICAL: Use setAllowedOriginPatterns instead of setAllowedOrigins for more flexibility
-        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:*", "http://127.0.0.1:*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+
+        // Use setAllowedOriginPatterns("*") — compatible with allowCredentials(true)
+        // This matches ANY origin including all localhost ports (3000, 5173, 8080, etc.)
+        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        configuration.setExposedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L); // Cache preflight for 1 hour
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
@@ -57,20 +73,36 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
+                        // OPTIONS preflight must always pass
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/**").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/auth/**").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/chess/**").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/chess/**").permitAll()
-                        .requestMatchers(
-                                "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui/index.html"
-                        ).permitAll()
+                        // Public auth endpoints
+                        .requestMatchers("/api/auth/**").permitAll()
+                        // Public game endpoints
+                        .requestMatchers("/api/chess/**").permitAll()
+                        .requestMatchers("/api/stats/**").permitAll()
+                        // Lichess API endpoints
+                        .requestMatchers("/api/parties/**").permitAll()
+                        .requestMatchers("/api/partie/**").permitAll()
+                        // Friends & Chat: completely public — controllers handle auth internally
+                        .requestMatchers("/api/friends/**").permitAll()
+                        .requestMatchers("/api/chat/**").permitAll()
+                        // Online parties
+                        .requestMatchers("/api/online-parties/**").permitAll()
+                        // Parties jouées (saved local games — no /api/ prefix)
+                        .requestMatchers("/parties-jouees/**").permitAll()
+                        // Parties dataset (Lichess import — no /api/ prefix)
+                        .requestMatchers("/parties/**").permitAll()
+                        // Cheat detection
+                        .requestMatchers("/api/cheat/**").permitAll()
+                        // ML analysis
+                        .requestMatchers("/api/ml/**").permitAll()
+                        // Swagger / OpenAPI
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui/index.html").permitAll()
+                        // Everything else requires authentication
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(new JwtFilter(customUserDetailsService, jwtUtils),
-                        UsernamePasswordAuthenticationFilter.class)
+                // Use the Spring-managed JwtFilter bean (not a new instance)
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 

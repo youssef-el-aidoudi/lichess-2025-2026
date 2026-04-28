@@ -1,9 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Download, Brain, Circle } from 'lucide-react';
-import { getStockfishBestMove, analyzePosition } from '../services/api';
+import { getStockfishBestMove, analyzePosition, getCustomBotMove, evaluatePosition, ML_BOT_API_URL, STOCKFISH_API_URL, createPartieJouee } from '../services/api';
+import { useVoiceAccessibility } from '../hooks/useVoiceAccessibility';
+import { useASR } from '../hooks/useASR';
+import { VoiceToggle } from './VoiceToggle';
+import { MicButton } from './MicButton';
+import { parseWithAlternatives, type ChessIntent } from '../services/chessCommandParser';
 
 interface ChessGameProps {
-  mode: 'human' | 'bot';
+  username?: string;
+  mode: 'human' | 'bot' | 'bot_ml';
   timeControl?: {
     minutes: number;
     increment: number;
@@ -20,6 +26,14 @@ interface EngineSettings {
   movetime: number | null;
 }
 
+interface BlunderInfo {
+  moveIndex: number;
+  severity: 'inaccuracy' | 'mistake' | 'blunder';
+  evalDrop: number;
+  fromSquare: { row: number; col: number };
+  toSquare: { row: number; col: number };
+}
+
 const INITIAL_BOARD = [
   ['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜'],
   ['♟', '♟', '♟', '♟', '♟', '♟', '♟', '♟'],
@@ -31,18 +45,22 @@ const INITIAL_BOARD = [
   ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'],
 ];
 
-export function ChessGame({ mode, timeControl, engineSettings: passedEngineSettings }: ChessGameProps) {
+export function ChessGame({ username: propUsername, mode, timeControl, engineSettings: passedEngineSettings }: ChessGameProps) {
+  const username = propUsername || localStorage.getItem('username') || 'Joueur';
   const [board, setBoard] = useState(INITIAL_BOARD);
   const [selectedSquare, setSelectedSquare] = useState<{ row: number; col: number } | null>(null);
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
   const [pgnMoves, setPgnMoves] = useState<string[]>([]);
   const [currentTurn, setCurrentTurn] = useState<'white' | 'black'>('white');
   const [gameStatus, setGameStatus] = useState<string>('En cours');
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [backendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   // Silence unused variable warning until used in UI
   useEffect(() => { if (backendStatus) { } }, [backendStatus]);
   const [thinking, setThinking] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
+
+  const [lastMove, setLastMove] = useState<{ from: [number, number], to: [number, number] } | null>(null);
+  const [markedSquares, setMarkedSquares] = useState<string[]>([]);
 
   const [whiteTime, setWhiteTime] = useState((timeControl?.minutes || 5) * 60);
   const [blackTime, setBlackTime] = useState((timeControl?.minutes || 5) * 60);
@@ -56,6 +74,11 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
   // Track UCI moves for Stockfish (more reliable than parsing moveHistory)
   const uciMovesRef = useRef<string[]>([]);
+
+  // Blunder detection state
+  const [blunders, setBlunders] = useState<BlunderInfo[]>([]);
+  const [lastBlunderSquares, setLastBlunderSquares] = useState<{ from: { row: number; col: number }; to: { row: number; col: number }; severity: string } | null>(null);
+  const lastEvalRef = useRef<number | null>(null);
 
   const [engineSettings] = useState<EngineSettings>(() => {
     if (passedEngineSettings) {
@@ -88,6 +111,202 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
   // Guard against concurrent bot moves
   const botMoveInProgress = useRef(false);
+
+  // Voice Accessibility Integration
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [micFeedback, setMicFeedback] = useState<string>('');
+  const [pendingClicks, setPendingClicks] = useState<{ row: number, col: number }[]>([]);
+
+  const { isSupported: voiceSupported, speak } = useVoiceAccessibility({
+    isEnabled: voiceEnabled,
+    moveHistory,
+    gameStatus,
+    winner,
+  });
+
+  const handleVoiceToggle = (enabled: boolean) => {
+    setVoiceEnabled(enabled);
+    try {
+      if (enabled) speak("Accessibilité vocale activée");
+      else speak("Accessibilité vocale désactivée");
+    } catch (e) {
+      console.warn("TTS error", e);
+    }
+  };
+  const [userElo, setUserElo] = useState<number>(1200);
+
+  useEffect(() => {
+    const fetchElo = async () => {
+      try {
+        const joueurId = localStorage.getItem('joueurId');
+        if (joueurId) {
+          const resp = await fetch(`${BACKEND_API_URL}/api/joueurs/${joueurId}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.elo) setUserElo(data.elo);
+          }
+        }
+      } catch (e) {
+        console.error("Erreur fetch elo:", e);
+      }
+    };
+    fetchElo();
+  }, []);
+
+  const isMoveLegal = (fromRow: number, fromCol: number, toRow: number, toCol: number) => {
+    if (!isValidMove(board, fromRow, fromCol, toRow, toCol)) return false;
+    const testBoard = board.map(r => [...r]);
+    testBoard[toRow][toCol] = testBoard[fromRow][fromCol];
+    testBoard[fromRow][fromCol] = '';
+    return !isKingInCheck(testBoard, currentTurn === 'white');
+  };
+
+  const resolveVoiceMove = (intent: ChessIntent): { ok: true, fromRow: number, fromCol: number, toRow: number, toCol: number } | { ok: false, error: string } => {
+    if (intent.type === 'castle-short' || intent.type === 'castle-long') {
+      const kingRow = currentTurn === 'white' ? 7 : 0;
+      const toCol = intent.type === 'castle-short' ? 6 : 2;
+      if (isMoveLegal(kingRow, 4, kingRow, toCol)) {
+        return { ok: true as const, fromRow: kingRow, fromCol: 4, toRow: kingRow, toCol };
+      }
+      return { ok: false as const, error: 'illegal' };
+    }
+
+    if (intent.type !== 'move') return { ok: false as const, error: 'illegal' };
+
+    const PIECE_SYMBOLS: Record<string, Record<string, string>> = {
+      pawn: { white: '♙', black: '♟' },
+      knight: { white: '♘', black: '♞' },
+      bishop: { white: '♗', black: '♝' },
+      rook: { white: '♖', black: '♜' },
+      queen: { white: '♕', black: '♛' },
+      king: { white: '♔', black: '♚' }
+    };
+    const pieceSymbol = PIECE_SYMBOLS[intent.piece]?.[currentTurn];
+    if (!pieceSymbol) return { ok: false, error: 'illegal' };
+
+    const hasPartial = intent.toSquare.includes('?');
+    if (hasPartial) {
+      const partialFile = intent.partialFile;
+      const partialRank = intent.partialRank;
+      const allCandidates = [];
+      for (let fromR = 0; fromR < 8; fromR++) {
+        for (let fromC = 0; fromC < 8; fromC++) {
+          if (board[fromR][fromC] !== pieceSymbol) continue;
+          for (let toR = 0; toR < 8; toR++) {
+            for (let toC = 0; toC < 8; toC++) {
+              if (partialRank !== undefined && toR !== (8 - parseInt(partialRank, 10))) continue;
+              if (partialFile !== undefined && toC !== (partialFile.charCodeAt(0) - 'a'.charCodeAt(0))) continue;
+              if (isMoveLegal(fromR, fromC, toR, toC)) {
+                allCandidates.push({ fromRow: fromR, fromCol: fromC, toRow: toR, toCol: toC });
+              }
+            }
+          }
+        }
+      }
+      if (allCandidates.length === 1) return { ok: true as const, ...allCandidates[0] };
+      if (allCandidates.length > 1 && intent.piece === 'pawn') {
+        const sorted = [...allCandidates].sort((a, b) => currentTurn === 'white' ? a.fromRow - b.fromRow : b.fromRow - a.fromRow);
+        const oneStep = sorted.filter(c => Math.abs(c.toRow - c.fromRow) === 1);
+        if (oneStep.length === 1) return { ok: true as const, ...oneStep[0] };
+        return { ok: true as const, ...sorted[0] };
+      }
+      return { ok: false as const, error: allCandidates.length === 0 ? 'illegal' : 'ambiguous' };
+    }
+
+    const toCol = intent.toSquare.charCodeAt(0) - 'a'.charCodeAt(0);
+    const toRow = 8 - parseInt(intent.toSquare[1], 10);
+    if (toCol < 0 || toCol > 7 || toRow < 0 || toRow > 7) return { ok: false as const, error: 'illegal' };
+
+    const candidates = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (board[r][c] === pieceSymbol && isMoveLegal(r, c, toRow, toCol)) {
+          candidates.push({ fromRow: r, fromCol: c });
+        }
+      }
+    }
+
+    if (candidates.length === 1) return { ok: true as const, ...candidates[0], toRow, toCol };
+    if (candidates.length > 1 && intent.piece === 'pawn') {
+      const oneStep = candidates.filter(c => Math.abs(toRow - c.fromRow) === 1);
+      if (oneStep.length === 1) return { ok: true as const, ...oneStep[0], toRow, toCol };
+      const sameFile = candidates.filter(c => c.fromCol === toCol);
+      if (sameFile.length === 1) return { ok: true as const, ...sameFile[0], toRow, toCol };
+      return { ok: false as const, error: 'ambiguous' };
+    }
+    if (candidates.length > 1) return { ok: false as const, error: 'ambiguous' };
+    return { ok: false as const, error: 'illegal' };
+  };
+
+  const handleVoiceCommand = (primary: string, alternatives: string[]) => {
+    if (winner) {
+      setMicFeedback('⚠ Partie terminée.');
+      if (voiceEnabled) speak('La partie est terminée.');
+      return;
+    }
+    if (thinking) {
+      setMicFeedback('⚠ L\'adversaire réfléchit…');
+      return;
+    }
+    if (mode === 'bot' && currentTurn !== 'white') {
+      setMicFeedback("⚠ Ce n'est pas votre tour.");
+      return;
+    }
+
+    const parsed = parseWithAlternatives(primary, alternatives);
+    if (!parsed) {
+      setMicFeedback(`❌ Entendu: « ${primary} » — non compris`);
+      if (voiceEnabled) speak('Non compris. Répétez en disant par exemple : e quatre.');
+      return;
+    }
+
+    const resolution = resolveVoiceMove(parsed.intent);
+    if (!resolution.ok) {
+      if (resolution.error === 'ambiguous') {
+        setMicFeedback(`⚠ Ambigu : plusieurs pièces peuvent jouer ce coup.`);
+        if (voiceEnabled) speak('Coup ambigu. Précisez la pièce.');
+      } else {
+        setMicFeedback(`❌ Coup illégal ou impossible.`);
+        if (voiceEnabled) speak('Coup impossible.');
+      }
+      return;
+    }
+
+    // Trigger programmatic click sequence for the UI to handle the move natively
+    setSelectedSquare(null); // Reset selection just in case
+    setPendingClicks([
+      { row: resolution.fromRow, col: resolution.fromCol },
+      { row: resolution.toRow, col: resolution.toCol }
+    ]);
+  };
+
+  const { isListening, startListening, stopListening } = useASR({
+    onResult: (primary, alternatives) => handleVoiceCommand(primary, alternatives),
+    onInterim: (text) => {
+      if (text.trim()) setMicFeedback(`🎤 « ${text} »…`);
+    },
+    onError: (err) => {
+      setMicFeedback(`❌ ${err}`);
+      if (voiceEnabled) speak(err);
+    },
+    lang: 'fr-FR',
+  });
+
+  const handleMicToggle = () => {
+    if (isListening) stopListening();
+    else {
+      setMicFeedback('');
+      startListening();
+    }
+  };
+
+  useEffect(() => {
+    if (pendingClicks.length > 0) {
+      const nextClick = pendingClicks[0];
+      handleSquareClick(nextClick.row, nextClick.col);
+      setPendingClicks(prev => prev.slice(1));
+    }
+  }, [pendingClicks, selectedSquare]);
 
   // Timer
   useEffect(() => {
@@ -206,27 +425,28 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     return true;
   };
 
-  // Check backend connectivity
-  const checkBackendStatus = async () => {
-    try {
-      setBackendStatus('checking');
-      const API_URL = import.meta.env.VITE_API_URL || 'https://api.docker.localhost';
-      const response = await fetch(`${API_URL}/api/chess/bestmove?moves=&mode=depth&color=black&depth=1&movetime=100`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000),
-      });
+  const [mlStatus, setMlStatus] = useState<'checking' | 'ok' | 'fail'>('checking');
+  const [stockfishStatus, setStockfishStatus] = useState<'checking' | 'ok' | 'fail'>('checking');
 
-      if (response.ok) {
-        setBackendStatus('connected');
-        if (gameStatus.includes('❌ Erreur')) {
-          setGameStatus('En cours'); // Clear error status when backend reconnects
-        }
-      } else {
-        setBackendStatus('disconnected');
-      }
-    } catch (error) {
-      console.log('Backend check failed:', error);
-      setBackendStatus('disconnected');
+  const checkBackendStatus = async () => {
+    // Check ML Bot
+    try {
+      setMlStatus('checking');
+      const ML_URL = ML_BOT_API_URL;
+      const response = await fetch(`${ML_URL}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
+      setMlStatus(response.ok ? 'ok' : 'fail');
+    } catch {
+      setMlStatus('fail');
+    }
+
+    // Check Stockfish
+    try {
+      setStockfishStatus('checking');
+      const SF_URL = STOCKFISH_API_URL;
+      const response = await fetch(`${SF_URL}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
+      setStockfishStatus(response.ok ? 'ok' : 'fail');
+    } catch {
+      setStockfishStatus('fail');
     }
   };
 
@@ -240,6 +460,12 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
   const isValidMove = (boardState: string[][], fromRow: number, fromCol: number, toRow: number, toCol: number, isAttackCheck: boolean = false): boolean => {
     const piece = boardState[fromRow][fromCol];
     const targetPiece = boardState[toRow][toCol];
+
+    //pour ne pas bouffer ses pieces
+    if (targetPiece !== '' && (isWhitePiece(piece) === isWhitePiece(targetPiece))) {
+      return false;
+    }
+
     const rowDiff = toRow - fromRow;
     const colDiff = toCol - fromCol;
     const absRowDiff = Math.abs(rowDiff);
@@ -591,7 +817,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
         move += ' (échec)';
         setGameStatus('Échec !');
       }
-      // Check for pawn double move (for en passant on next move)
+      // Vérifier si le pion avance de deux cases (pour la prise en passant au prochain coup)
       const isPawnDoubleMoveWhite = movingPiece === '♙' && selectedSquare.row === 6 && row === 4;
       const isPawnDoubleMoveBlack = movingPiece === '♟' && selectedSquare.row === 1 && row === 3;
 
@@ -603,16 +829,70 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
       const uciMove = `${fromFile}${fromRank}${toFile}${toRank}`;
       uciMovesRef.current = [...uciMovesRef.current, uciMove];
       console.log('=== PLAYER MOVE TRACKING ===');
-      console.log('Player move:', `${movingPiece} ${files[selectedSquare.col]}${8 - selectedSquare.row} → ${files[col]}${8 - row}`);
       console.log('Player UCI move:', uciMove);
       console.log('All UCI moves:', uciMovesRef.current.join(' '));
-      console.log('Updated board will be sent to Stockfish');
-      console.log('================================');
+
+      // Détection de blunder: on évalue la position après le coup
+      const movesBeforeThis = uciMovesRef.current.slice(0, -1).join(' ');
+      const movesAfterThis = uciMovesRef.current.join(' ');
+      const moveIdx = uciMovesRef.current.length - 1;
+      const moveFrom = { row: selectedSquare.row, col: selectedSquare.col };
+      const moveTo = { row, col };
+
+      // on évalue les deux positions de manière asynchrone (on bloque pas le jeu, on décale de 500ms pour permettre au bot de récupérer son coup)
+      setTimeout(() => {
+        (async () => {
+          try {
+            // on évalue les deux positions
+            const [evalBefore, evalAfter] = await Promise.all([
+              evaluatePosition(movesBeforeThis, 10),
+              evaluatePosition(movesAfterThis, 10),
+            ]);
+
+            //en francais
+            // les scores sont calculés du point de vue du joueur qui doit jouer.
+            // avant notre coup : c'est notre tour, donc un score positif = bon pour nous.
+            // après notre coup : c'est le tour de l'adversaire, donc on inverse le score pour le comparer de notre point de vue.
+            const scoreBefore = evalBefore.score;
+            const scoreAfter = -evalAfter.score; // on inverse le score car c'est le tour de l'adversaire
+
+            const evalDrop = scoreBefore - scoreAfter;
+            console.log(`Eval avant: ${scoreBefore}cp, après: ${scoreAfter}cp, chute: ${evalDrop}cp`);
+
+            let severity: 'inaccuracy' | 'mistake' | 'blunder' | null = null;
+            if (evalDrop >= 200) {
+              severity = 'blunder';
+            } else if (evalDrop >= 100) {
+              severity = 'mistake';
+            } else if (evalDrop >= 50) {
+              severity = 'inaccuracy';
+            }
+
+            if (severity) {
+              const blunderInfo: BlunderInfo = {
+                moveIndex: moveIdx,
+                severity,
+                evalDrop,
+                fromSquare: moveFrom,
+                toSquare: moveTo,
+              };
+              setBlunders(prev => [...prev, blunderInfo]);
+              setLastBlunderSquares({ from: moveFrom, to: moveTo, severity });
+
+              // Clear highlight after 3 seconds
+              setTimeout(() => setLastBlunderSquares(null), 3000);
+            }
+          } catch (err) {
+            console.error('Erreur détection blunder:', err);
+          }
+        })();
+      }, 500);
 
       const updatedMoveHistory = [...moveHistory, move];
       setBoard(newBoard);
       setMoveHistory(updatedMoveHistory);
       setPgnMoves([...pgnMoves, pgnMove]);
+      setLastMove({ from: [selectedSquare.row, selectedSquare.col], to: [row, col] });
       setSelectedSquare(null);
 
       // Track pieces that have moved (for castling validation)
@@ -742,7 +1022,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     console.log('Current UCI moves when bot turn starts:', uciMovesRef.current.join(' '));
 
     // Early exit conditions - must be bot mode, black's turn, not thinking, no winner, and bot not in progress
-    if (mode !== 'bot' || currentTurn !== 'black' || thinking || winner || botMoveInProgress.current) {
+    if (!['bot', 'bot_ml'].includes(mode) || currentTurn !== 'black' || thinking || winner || botMoveInProgress.current) {
       console.log('Bot move skipped due to conditions');
       return;
     }
@@ -770,19 +1050,26 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
         console.log('Sending UCI moves to Stockfish:', uciMoves.join(' '));
 
-        // Use movetime if set, otherwise use depth
-        const mode = engineSettings.movetime && engineSettings.movetime > 0 ? 'movetime' : 'depth';
-        const depthValue = engineSettings.depth || 15;
-        const movetimeValue = engineSettings.movetime || 1000;
+        let bestMove = "";
 
-        // Appeler Stockfish via l'API backend
-        const bestMove = await getStockfishBestMove(
-          uciMoves.join(' '),
-          mode,
-          'black',
-          depthValue,
-          movetimeValue
-        );
+        if (mode === 'bot_ml') {
+          console.log('Appel de votre Bot ML TensorFlow personnalisé...');
+          bestMove = await getCustomBotMove(uciMoves.join(' '), 'black');
+        } else {
+          // Use movetime if set, otherwise use depth
+          const modeVal = engineSettings.movetime && engineSettings.movetime > 0 ? 'movetime' : 'depth';
+          const depthValue = engineSettings.depth || 15;
+          const movetimeValue = engineSettings.movetime || 1000;
+
+          // Appeler Stockfish via l'API backend
+          bestMove = await getStockfishBestMove(
+            uciMoves.join(' '),
+            modeVal,
+            'black',
+            depthValue,
+            movetimeValue
+          );
+        }
 
         // Parser le coup retourné par Stockfish (format: "e7e5" ou "e7e8q" pour promotion)
         if (bestMove && bestMove.length >= 4) {
@@ -828,7 +1115,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           // Check if the coordinates are valid first
           if (fromRow < 0 || fromRow >= 8 || fromCol < 0 || fromCol >= 8 ||
             toRow < 0 || toRow >= 8 || toCol < 0 || toCol >= 8) {
-            console.error('❌ Invalid coordinates:', { fromRow, fromCol, toRow, toCol });
+            console.error('Invalid coordinates:', { fromRow, fromCol, toRow, toCol });
             setThinking(false);
             botMoveInProgress.current = false;
             return;
@@ -836,7 +1123,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
           // Check if there's actually a piece at the source
           if (!piece || piece === '') {
-            console.error('❌ No piece at source position');
+            console.error('No piece at source position');
             setThinking(false);
             botMoveInProgress.current = false;
             return;
@@ -844,7 +1131,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
           // Check if it's a black piece (bot should only move black pieces)
           if (isWhitePiece(piece)) {
-            console.error('❌ Bot trying to move white piece');
+            console.error('Bot trying to move white piece');
             setThinking(false);
             botMoveInProgress.current = false;
             return;
@@ -852,7 +1139,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
           // Valider le coup
           if (!isValidMove(currentBoard, fromRow, fromCol, toRow, toCol)) {
-            console.error('❌ Invalid move returned by Stockfish:', bestMove);
+            console.error('Invalid move returned by Stockfish:', bestMove);
             console.error('Move validation failed for:', { fromRow, fromCol, toRow, toCol, piece, targetPiece });
             console.error('Expected move format: UCI notation (e.g., e7e5)');
             setThinking(false);
@@ -914,7 +1201,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           if (capturedPiece) {
             moveStr += ` (capture ${capturedPiece})`;
           }
-          moveStr += ' (Stockfish)';
+          moveStr += mode === 'bot_ml' ? ' (Bot ML)' : ' (Stockfish)';
 
           // Construire la notation PGN
           const pieceNotation = pieceToNotation(movingPiece);
@@ -954,6 +1241,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           setBoard(newBoard);
           setMoveHistory((prev: string[]) => [...prev, moveStr]);
           setPgnMoves((prev: string[]) => [...prev, pgnMove]);
+          setLastMove({ from: [fromRow, fromCol], to: [toRow, toCol] });
 
           // Track pieces that have moved (for castling validation)
           const newMovedPieces = new Set(movedPieces);
@@ -984,16 +1272,16 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
           }
         }
       } catch (error) {
-        console.error('❌ Bot move failed:', error);
+        console.error('Bot move failed:', error);
 
         const errorMessage = error instanceof Error ? error.message : String(error);
 
         if (errorMessage.includes('Backend server not responding')) {
-          setGameStatus('❌ Erreur: Le serveur backend n\'est pas disponible. Veuillez le redémarrer.');
+          setGameStatus('Erreur: Le serveur backend n\'est pas disponible. Veuillez le redémarrer.');
         } else if (errorMessage.includes('Failed to fetch')) {
-          setGameStatus('❌ Erreur: Connexion au serveur interrompue.');
+          setGameStatus('Erreur: Connexion au serveur interrompue.');
         } else {
-          setGameStatus(`❌ Erreur Stockfish: ${errorMessage}`);
+          setGameStatus(`Erreur Stockfish: ${errorMessage}`);
         }
 
         // Don't show alert for network errors, just update game status
@@ -1014,6 +1302,48 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     return () => clearTimeout(timer);
   }, [currentTurn, mode, winner]); // Removed thinking and engineSettings to prevent loops
 
+  // ── Sauvegarder la partie au backend quand elle se termine ──────────────
+  useEffect(() => {
+    if (!winner) return;
+
+    // Construire le PGN complet
+    let formattedMoves = '';
+    for (let i = 0; i < pgnMoves.length; i += 2) {
+      const moveNumber = Math.floor(i / 2) + 1;
+      const whiteMove = pgnMoves[i];
+      const blackMove = pgnMoves[i + 1];
+      formattedMoves += blackMove
+        ? `${moveNumber}. ${whiteMove} ${blackMove} `
+        : `${moveNumber}. ${whiteMove} `;
+    }
+
+    let result = '1/2-1/2';
+    if (winner === 'Blancs') result = '1-0';
+    if (winner === 'Noirs') result = '0-1';
+
+    const opponentName = mode === 'bot' ? 'Stockfish Bot'
+      : mode === 'bot_ml' ? 'ML Bot'
+      : 'Joueur 2';
+
+    const fullPgn = formattedMoves.trim() + ' ' + result;
+
+    createPartieJouee({
+      titre: `Partie vs ${opponentName}`,
+      joueurBlanc: username,
+      joueurNoir: opponentName,
+      resultat: result,
+      variant: 'standard',
+      ouverture: 'Partie locale',
+      source: 'app',
+      vainqueur: winner === 'Blancs' ? 'blanc' : winner === 'Noirs' ? 'noir' : 'nul',
+      nombreCoups: pgnMoves.length,
+      pgn: fullPgn,
+      resumeAnalyse: gameStatus,
+    })
+      .then(() => console.log('\u2705 Partie sauvegard\u00e9e dans l\'historique'))
+      .catch((err) => console.error('\u274c Erreur sauvegarde partie:', err));
+  }, [winner]); // Se d\u00e9clenche uniquement quand winner passe de null \u00e0 une valeur
+
   const resetGame = () => {
     setBoard(INITIAL_BOARD);
     setMoveHistory([]);
@@ -1029,6 +1359,9 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     setPromotionState(null);
     setMovedPieces(new Set());
     setLastEnPassantFile(null);
+    setBlunders([]);
+    setLastBlunderSquares(null);
+    lastEvalRef.current = null;
   };
 
   const exportPGN = () => {
@@ -1052,11 +1385,11 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
     if (winner === 'Noirs') result = '0-1';
 
     const pgn = `[Event "Chess Game"]
-[Site "Chess Analytics Platform"]
+[Site "ChessMate"]
 [Date "${new Date().toISOString().split('T')[0]}"]
 [Round "1"]
-[White "Joueur"]
-[Black "${mode === 'bot' ? 'Stockfish Bot' : 'Joueur 2'}"]
+[White "${username}"]
+[Black "${mode === 'bot' ? 'Stockfish Bot' : mode === 'bot_ml' ? 'ML Bot' : 'Joueur 2'}"]
 [Result "${result}"]
 
 ${formattedMoves}${result}`;
@@ -1072,26 +1405,22 @@ ${formattedMoves}${result}`;
 
   const analyzeWithStockfish = async () => {
     try {
-      // Obtenir l'historique des coups en notation UCI
-      // const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-      const uciMoves: string[] = [];
+      const uciMoves = uciMovesRef.current.join(' ');
+      const result = await analyzePosition(uciMoves, 20);
 
-      moveHistory.forEach((move: string) => {
-        const match = move.match(/([a-h])(\d) → ([a-h])(\d)/);
-        if (match) {
-          const fromSquare = match[1] + match[2];
-          const toSquare = match[3] + match[4];
-          uciMoves.push(fromSquare + toSquare);
-        }
-      });
-
-      // Appeler l'analyse Stockfish
-      const result = await analyzePosition(uciMoves.join(' '), 20);
+      const blunderCount = blunders.filter(b => b.severity === 'blunder').length;
+      const mistakeCount = blunders.filter(b => b.severity === 'mistake').length;
+      const inaccuracyCount = blunders.filter(b => b.severity === 'inaccuracy').length;
 
       alert(
         `Analyse Stockfish complétée!\n\n` +
+        `Évaluation: ${result.evaluation > 0 ? '+' : ''}${(result.evaluation / 100).toFixed(2)}\n` +
         `Meilleur coup: ${result.bestmove}\n` +
-        `Position: ${moveHistory.length} coups joués`
+        `Position: ${moveHistory.length} coups joués\n\n` +
+        `--- Résumé des erreurs ---\n` +
+        `🔴 Blunders: ${blunderCount}\n` +
+        `🟠 Erreurs: ${mistakeCount}\n` +
+        `🟡 Imprécisions: ${inaccuracyCount}`
       );
     } catch (error) {
       console.error('Erreur analyse Stockfish:', error);
@@ -1101,7 +1430,7 @@ ${formattedMoves}${result}`;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-gray-900 mb-2">
             {mode === 'bot' ? 'Jouer contre Stockfish' : 'Jouer aux échecs'}
@@ -1111,6 +1440,19 @@ ${formattedMoves}${result}`;
               ? 'Affrontez le moteur d\'échecs Stockfish'
               : 'Jouez une partie libre'}
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <VoiceToggle
+            enabled={voiceEnabled}
+            onToggle={handleVoiceToggle}
+            isSupported={voiceSupported}
+          />
+          <MicButton
+            isListening={isListening}
+            onToggle={handleMicToggle}
+            feedback={micFeedback}
+            isSupported={voiceSupported}
+          />
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1176,6 +1518,16 @@ ${formattedMoves}${result}`;
                     ))}
                   </div>
 
+                <div className="flex flex-col items-center">
+                  {/* Info Joueur Haut (Noir ou Bot) */}
+                  <div className="mb-4 flex items-center gap-4 bg-slate-800 text-white px-6 py-2 rounded-xl shadow-lg border border-slate-700 w-full max-w-md justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-xs">🤖</div>
+                      <span className="font-bold">{mode === 'bot' ? 'Stockfish' : mode === 'bot_ml' ? 'Bot ML' : 'Adversaire'}</span>
+                    </div>
+                    <div className="text-amber-400 font-mono font-bold">ELO: {mode === 'human' ? '?' : (mode === 'bot_ml' ? 1800 : 3500)}</div>
+                  </div>
+
                   {/* Échiquier principal */}
                   <div className="border-8 border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
                     {board.map((row, rowIndex) => (
@@ -1184,38 +1536,80 @@ ${formattedMoves}${result}`;
                           const isLight = (rowIndex + colIndex) % 2 === 0;
                           const isSelected = selectedSquare?.row === rowIndex && selectedSquare?.col === colIndex;
                           const isLegalMove = legalMoves.some(move => move.row === rowIndex && move.col === colIndex);
+                          const isLastMove = lastMove && (
+                            (lastMove.from[0] === rowIndex && lastMove.from[1] === colIndex) ||
+                            (lastMove.to[0] === rowIndex && lastMove.to[1] === colIndex)
+                          );
+                          const squareId = `${rowIndex}-${colIndex}`;
+                          const isMarked = markedSquares.includes(squareId);
+                          const isBlunderSquare = lastBlunderSquares && (
+                            (lastBlunderSquares.from.row === rowIndex && lastBlunderSquares.from.col === colIndex) ||
+                            (lastBlunderSquares.to.row === rowIndex && lastBlunderSquares.to.col === colIndex)
+                          );
+                          const blunderColor = isBlunderSquare
+                            ? lastBlunderSquares?.severity === 'blunder' ? 'ring-red-500 bg-red-500/20'
+                              : lastBlunderSquares?.severity === 'mistake' ? 'ring-orange-500 bg-orange-400/20'
+                                : 'ring-yellow-500 bg-yellow-400/20'
+                            : '';
+
+                          const handleRightClick = (e: React.MouseEvent) => {
+                            e.preventDefault();
+                            setMarkedSquares(prev =>
+                              prev.includes(squareId) ? prev.filter(id => id !== squareId) : [...prev, squareId]
+                            );
+                          };
 
                           return (
                             <button
                               key={`${rowIndex}-${colIndex}`}
-                              onClick={() => handleSquareClick(rowIndex, colIndex)}
+                              onClick={() => {
+                                // If nothing selected and clicking empty square, mark it as requested by "click gauche" constraint
+                                if (!selectedSquare && !piece) {
+                                  setMarkedSquares(prev => prev.includes(squareId) ? prev.filter(id => id !== squareId) : [...prev, squareId]);
+                                } else {
+                                  handleSquareClick(rowIndex, colIndex);
+                                }
+                              }}
+                              onContextMenu={handleRightClick}
                               disabled={thinking}
                               className={`w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-5xl sm:text-6xl transition-all duration-200 relative ${isLight
-                                ? 'bg-gradient-to-br from-amber-50 to-amber-100'
-                                : 'bg-gradient-to-br from-amber-600 to-amber-800'
+                                ? isLastMove ? 'bg-amber-100/80 saturate-150' : 'bg-gradient-to-br from-amber-50 to-amber-100'
+                                : isLastMove ? 'bg-amber-700/80 saturate-150' : 'bg-gradient-to-br from-amber-600 to-amber-800'
                                 } ${isSelected
                                   ? 'ring-4 ring-blue-500 ring-inset scale-95 shadow-inner'
                                   : ''
+                                } ${isBlunderSquare ? `ring-4 ring-inset ${blunderColor} animate-pulse` : ''
                                 } ${!winner && !thinking ? 'hover:brightness-110 active:scale-95' : 'cursor-default'
                                 } ${thinking ? 'opacity-60' : ''
                                 }`}
                             >
                               {piece && (
-                                <span className={`drop-shadow-2xl transition-transform filter ${isSelected ? 'scale-110' : ''
-                                  }`} style={{
-                                    filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
-                                    textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                                    color: isBlackPiece(piece) ? '#1f2937' : '#f9fafb'
-                                  }}>
-                                  {piece}
-                                </span>
+                                (() => {
+                                  const imageMap: { [key: string]: string } = {
+                                    '♔': 'wK', '♕': 'wQ', '♖': 'wR', '♗': 'wB', '♘': 'wN', '♙': 'wP',
+                                    '♚': 'bK', '♛': 'bQ', '♜': 'bR', '♝': 'bB', '♞': 'bN', '♟': 'bP',
+                                  };
+                                  const code = imageMap[piece];
+                                  if (!code) return <span className="text-4xl">{piece}</span>;
+                                  return (
+                                    <img
+                                      src={`https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/cburnett/${code}.svg`}
+                                      alt={piece}
+                                      className={`absolute inset-0 m-auto w-[85%] h-[85%] object-contain drop-shadow-xl pointer-events-none select-none transition-transform ${isSelected ? 'scale-110' : ''}`}
+                                      draggable={false}
+                                    />
+                                  );
+                                })()
+                              )}
+                              {isMarked && (
+                                <div className="absolute inset-0 ring-4 ring-green-500 ring-inset bg-green-500/20 pointer-events-none rounded-lg" />
                               )}
                               {isLegalMove && (
                                 <div className={`absolute inset-0 flex items-center justify-center pointer-events-none`}>
                                   {board[rowIndex][colIndex] === '' ? (
-                                    <div className="w-4 h-4 bg-green-500/60 rounded-full shadow-lg" />
+                                    <div className="w-6 h-6 bg-red-600/70 rounded-full shadow-lg" />
                                   ) : (
-                                    <div className="absolute inset-0 bg-red-500/30 rounded-sm ring-2 ring-red-500/60 ring-inset" />
+                                    <div className="absolute inset-0 bg-transparent rounded-sm ring-4 ring-red-600/70 ring-inset" />
                                   )}
                                 </div>
                               )}
@@ -1226,6 +1620,15 @@ ${formattedMoves}${result}`;
                     ))}
                   </div>
                 </div>
+
+                <div className="mt-4 flex items-center gap-4 bg-white text-slate-900 px-6 py-2 rounded-xl shadow-lg border border-slate-200 w-full max-w-md justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">VS</div>
+                    <span className="font-bold">{username} (Vous)</span>
+                  </div>
+                  <div className="text-blue-600 font-mono font-bold">ELO: {userElo}</div>
+                </div>
+              </div>
 
                 {/* Ligne de lettres en bas */}
                 <div className="flex pl-8">
@@ -1307,6 +1710,20 @@ ${formattedMoves}${result}`;
             )}
 
             {/* Statut de la partie */}
+            <div className="mt-8 flex items-center justify-center gap-6">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${mlStatus === 'ok' ? 'bg-green-500' : mlStatus === 'checking' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                <span className="text-xs text-gray-500 uppercase tracking-widest font-mono">
+                  ML Bot: {mlStatus === 'ok' ? 'Online' : mlStatus === 'checking' ? 'Connecting...' : 'Offline'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${stockfishStatus === 'ok' ? 'bg-green-500' : stockfishStatus === 'checking' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                <span className="text-xs text-gray-500 uppercase tracking-widest font-mono">
+                  Stockfish: {stockfishStatus === 'ok' ? 'Online' : stockfishStatus === 'checking' ? 'Connecting...' : 'Offline'}
+                </span>
+              </div>
+            </div>
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className={`px-6 py-3 rounded-xl transition-all duration-300 ${winner
                 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 shadow-lg ring-2 ring-yellow-600 scale-105'
@@ -1329,7 +1746,9 @@ ${formattedMoves}${result}`;
               {thinking && (
                 <div className="flex items-center gap-3 px-5 py-3 bg-purple-100 rounded-xl shadow-md border border-purple-200">
                   <Brain className="w-5 h-5 text-purple-600 animate-pulse" />
-                  <span className="text-purple-800">Stockfish réfléchit...</span>
+                  <span className="text-purple-800">
+                    {mode === 'bot_ml' ? 'Le Bot ML réfléchit...' : 'Stockfish réfléchit...'}
+                  </span>
                 </div>
               )}
             </div>
@@ -1395,6 +1814,18 @@ ${formattedMoves}${result}`;
                           {Math.floor(index / 2) + 1}.{index % 2 === 0 ? '' : '..'}
                         </span>
                         <span className="text-gray-900 flex-1">{move}</span>
+                        {blunders.find(b => b.moveIndex === index) && (
+                          <span className={`mt-0.5 px-1.5 py-0.5 rounded text-xs font-bold ${blunders.find(b => b.moveIndex === index)?.severity === 'blunder'
+                            ? 'bg-red-100 text-red-700'
+                            : blunders.find(b => b.moveIndex === index)?.severity === 'mistake'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                            {blunders.find(b => b.moveIndex === index)?.severity === 'blunder' ? '🔴 Blunder'
+                              : blunders.find(b => b.moveIndex === index)?.severity === 'mistake' ? '🟠 Erreur'
+                                : '🟡 Imprécis'}
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}

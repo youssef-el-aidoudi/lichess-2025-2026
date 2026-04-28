@@ -15,7 +15,7 @@ import com.chessmate.backend.entiter.Joueur;
 import com.chessmate.backend.repository.JoueurRepository;
 
 @RestController
-@RequestMapping("/joueurs") // URL de base
+@RequestMapping("/api/joueurs") // URL de base
 public class JoueurController {
 
     private final JoueurRepository joueurRep;

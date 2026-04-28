@@ -20,5 +20,13 @@ public interface UtilisateurRepository extends JpaRepository<Utilisateur, Long>{
     List<Utilisateur> findByConnexionA(@Param("date") LocalDateTime dt);  // recherche par date de connexion
 
     @Query("SELECT u FROM Utilisateur u WHERE u.banniA = :date")
-    List<Utilisateur> findByBanniA(@Param("date") LocalDateTime dt); //  // recherche par date banni
+    List<Utilisateur> findByBanniA(@Param("date") LocalDateTime dt);   // recherche par date banni
+
+    @Query("""
+        SELECT u.joueur.id
+        FROM Utilisateur u
+        WHERE u.joueur IS NOT NULL
+        """)
+    List<Long> findAllJoueurIds();
+
 }

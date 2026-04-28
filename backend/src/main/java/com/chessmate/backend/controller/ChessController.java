@@ -47,4 +47,22 @@ public class ChessController {
             return ResponseEntity.ok(errorResponse);
         }
     }
+
+    @GetMapping("/evaluate")
+    public ResponseEntity<Map<String, Object>> evaluate(
+        @RequestParam(required = false, defaultValue = "") String moves, 
+        @RequestParam(required = false, defaultValue = "15") int depth
+    ) {
+        try {
+            Map<String, Object> evaluation = service.evaluatePosition(moves, depth);
+            return ResponseEntity.ok(evaluation);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("score", 0);
+            errorResponse.put("isMate", false);
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.ok(errorResponse);
+        }
+    }
 }

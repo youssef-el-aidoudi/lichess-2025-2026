@@ -6,6 +6,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -69,6 +71,7 @@ public class Tournoi {
     private Set<Joueur> participants = new HashSet<>();
 
     @OneToMany(mappedBy = "tournoi")
+    @JsonIgnore
     // Liste des parties jouées dans ce tournoi (relation OneToMany)
     private List<Partie> parties;
 

@@ -70,14 +70,17 @@ public class RegistrationLoginController {
                 // Si le pseudo n'existe pas, créer un nouveau joueur
                 Joueur newJoueur = new Joueur();
                 newJoueur.setPseudo(utilisateur.getJoueur().getPseudo());
+                newJoueur.setElo(800); // Default ELO
                 // Sauvegarder le nouveau joueur
                 Joueur savedJoueur = joueurRepository.save(newJoueur);
                 utilisateur.setJoueur(savedJoueur);
             }
         } else {
-            // Si aucun joueur n'est fourni, créer un joueur par défaut avec l'email comme pseudo
+            // Si aucun joueur n'est fourni, créer un joueur par défaut avec l'email comme
+            // pseudo
             Joueur defaultJoueur = new Joueur();
             defaultJoueur.setPseudo(utilisateur.getEmail().split("@")[0]); // Utiliser la partie avant @ comme pseudo
+            defaultJoueur.setElo(800); // Default ELO
             Joueur savedJoueur = joueurRepository.save(defaultJoueur);
             utilisateur.setJoueur(savedJoueur);
         }
@@ -113,6 +116,7 @@ public class RegistrationLoginController {
                     authData.put("email", userFromDb.getEmail());
                     if (userFromDb.getJoueur() != null) {
                         authData.put("username", userFromDb.getJoueur().getPseudo());
+                        authData.put("joueurId", userFromDb.getJoueur().getId());
                     } else {
                         authData.put("username",
                                 userFromDb.getNom() != null ? userFromDb.getNom() : userFromDb.getEmail());

@@ -78,6 +78,7 @@ public class Utilisateur {
 
     // ------------------ GETTERS ------------------
 
+    public long getId() { return this.id; }
     public String getEmail(){ return this.email; }
     public String getNom(){ return this.nom; }
     public String getPrenom(){ return this.prenom; }
