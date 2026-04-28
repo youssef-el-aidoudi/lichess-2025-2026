@@ -8,6 +8,7 @@ import { MicButton } from './MicButton';
 import { parseWithAlternatives, type ChessIntent } from '../services/chessCommandParser';
 
 interface ChessGameProps {
+  username?: string;
   mode: 'human' | 'bot' | 'bot_ml';
   timeControl?: {
     minutes: number;
@@ -44,7 +45,8 @@ const INITIAL_BOARD = [
   ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'],
 ];
 
-export function ChessGame({ mode, timeControl, engineSettings: passedEngineSettings }: ChessGameProps) {
+export function ChessGame({ username: propUsername, mode, timeControl, engineSettings: passedEngineSettings }: ChessGameProps) {
+  const username = propUsername || localStorage.getItem('username') || 'Joueur';
   const [board, setBoard] = useState(INITIAL_BOARD);
   const [selectedSquare, setSelectedSquare] = useState<{ row: number; col: number } | null>(null);
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
@@ -1308,7 +1310,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 
     createPartieJouee({
       titre: `Partie vs ${opponentName}`,
-      joueurBlanc: 'Joueur',
+      joueurBlanc: username,
       joueurNoir: opponentName,
       resultat: result,
       variant: 'standard',
@@ -1367,7 +1369,7 @@ export function ChessGame({ mode, timeControl, engineSettings: passedEngineSetti
 [Site "Chess Analytics Platform"]
 [Date "${new Date().toISOString().split('T')[0]}"]
 [Round "1"]
-[White "Joueur"]
+[White "${username}"]
 [Black "${mode === 'bot' ? 'Stockfish Bot' : mode === 'bot_ml' ? 'ML Bot' : 'Joueur 2'}"]
 [Result "${result}"]
 

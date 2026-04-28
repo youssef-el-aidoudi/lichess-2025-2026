@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.sql.Timestamp;
-
+import java.util.Optional;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +38,9 @@ import jakarta.persistence.PersistenceContext;
 
 import com.chessmate.backend.entiter.AnalysePartie;
 import com.chessmate.backend.entiter.Partie;
+import com.chessmate.backend.entiter.Joueur;
+import com.chessmate.backend.entiter.PartieJouee;
+import com.chessmate.backend.entiter.OnlinePartie;
 
 @Service
 public class StatsService {
@@ -165,19 +168,71 @@ public class StatsService {
 
 
     public CouleurStatsDTO getStatsCouleur(Long joueurId) {
-        Object[] r = partieRepository.getStatsCouleur(joueurId).get(0);
-        int nbBlanc    = r[0] != null ? ((Number) r[0]).intValue() : 0;
-        int nbNoir     = r[1] != null ? ((Number) r[1]).intValue() : 0;
-        int winsBlanc  = r[2] != null ? ((Number) r[2]).intValue() : 0;
-        int winsNoir   = r[3] != null ? ((Number) r[3]).intValue() : 0;
-        int nullsBlanc = r[4] != null ? ((Number) r[4]).intValue() : 0;
-        int nullsNoir  = r[5] != null ? ((Number) r[5]).intValue() : 0;
+        log.info("[Stats] Calcul des stats par couleur pour joueurId: {}", joueurId);
+        
+        // 1. Stats from 'Partie' table
+        List<Object[]> rList = partieRepository.getStatsCouleur(joueurId);
+        int nbBlanc = 0, nbNoir = 0, winsBlanc = 0, winsNoir = 0, nullsBlanc = 0, nullsNoir = 0;
+        
+        if (!rList.isEmpty()) {
+            Object[] r = rList.get(0);
+            nbBlanc    = r[0] != null ? ((Number) r[0]).intValue() : 0;
+            nbNoir     = r[1] != null ? ((Number) r[1]).intValue() : 0;
+            winsBlanc  = r[2] != null ? ((Number) r[2]).intValue() : 0;
+            winsNoir   = r[3] != null ? ((Number) r[3]).intValue() : 0;
+            nullsBlanc = r[4] != null ? ((Number) r[4]).intValue() : 0;
+            nullsNoir  = r[5] != null ? ((Number) r[5]).intValue() : 0;
+        }
+
+        // 2. Aggregate from OnlinePartie and PartieJouee
+        var joueurOpt = joueurRepository.findById(joueurId);
+        if (joueurOpt.isPresent()) {
+            Joueur j = joueurOpt.get();
+            String pseudo = j.getPseudo();
+
+            // OnlinePartie
+            var online = onlinePartieRepository.findByJoueur(j);
+            for (var p : online) {
+                boolean isWhite = p.getJoueurBlanc().getId().equals(joueurId);
+                int res = (int) p.getResultat(); // 2=WhiteWin, 0=BlackWin, 1=Draw
+                if (isWhite) {
+                    nbBlanc++;
+                    if (res == 2) winsBlanc++;
+                    else if (res == 1) nullsBlanc++;
+                } else {
+                    nbNoir++;
+                    if (res == 0) winsNoir++;
+                    else if (res == 1) nullsNoir++;
+                }
+            }
+
+            // PartieJouee
+            var jouees = partieJoueeRepository.findByJoueurBlancIgnoreCaseOrJoueurNoirIgnoreCase(pseudo, pseudo);
+            for (var p : jouees) {
+                boolean isWhite = p.getJoueurBlanc() != null && p.getJoueurBlanc().equalsIgnoreCase(pseudo);
+                String res = p.getResultat(); // "1-0", "0-1", "1/2-1/2"
+                if (isWhite) {
+                    nbBlanc++;
+                    if ("1-0".equals(res)) winsBlanc++;
+                    else if ("1/2-1/2".equals(res)) nullsBlanc++;
+                    else if (p.getVainqueur() != null && p.getVainqueur().equalsIgnoreCase(pseudo)) winsBlanc++;
+                } else {
+                    nbNoir++;
+                    if ("0-1".equals(res)) winsNoir++;
+                    else if ("1/2-1/2".equals(res)) nullsNoir++;
+                    else if (p.getVainqueur() != null && p.getVainqueur().equalsIgnoreCase(pseudo)) winsNoir++;
+                }
+            }
+        }
+
         double wrBlanc  = nbBlanc > 0 ? Math.round(winsBlanc  * 1000.0 / nbBlanc)  / 10.0 : 0;
         double wrNoir   = nbNoir  > 0 ? Math.round(winsNoir   * 1000.0 / nbNoir)   / 10.0 : 0;
         double nrBlanc  = nbBlanc > 0 ? Math.round(nullsBlanc * 1000.0 / nbBlanc)  / 10.0 : 0;
         double nrNoir   = nbNoir  > 0 ? Math.round(nullsNoir  * 1000.0 / nbNoir)   / 10.0 : 0;
+        
         return new CouleurStatsDTO(nbBlanc, nbNoir, wrBlanc, wrNoir, nrBlanc, nrNoir);
     }
+
 
     public List<PartiesResumeDTO> derniereParties(Long joueurId) {
 
@@ -396,21 +451,71 @@ public class StatsService {
     
     //stats sur les ouvertures
     public List<OuvertureStatsDTO> getStatsOuvertures(Long joueurId) {
-        return partieRepository.getStatsOuvertures(joueurId, 5)
-            .stream()
-            .map(r -> {
-                String libelle = (String) r[0];
-                int nbParties = ((Number) r[1]).intValue();
-                double winrate = r[2] != null ? ((Number) r[2]).doubleValue() : 0.0;
-                double utilisation = r[3] != null ? ((Number) r[3]).doubleValue() : 0.0;
+        log.info("[Stats] Calcul des stats d'ouvertures pour joueurId: {}", joueurId);
+        
+        // 1. Initial list from 'Partie' table
+        List<OuvertureStatsDTO> stats = new ArrayList<>(
+            partieRepository.getStatsOuvertures(joueurId, 5)
+                .stream()
+                .map(r -> new OuvertureStatsDTO(
+                    (String) r[0],
+                    ((Number) r[1]).intValue(),
+                    r[2] != null ? Math.round(((Number) r[2]).doubleValue() * 100.0) / 100.0 : 0.0,
+                    r[3] != null ? Math.round(((Number) r[3]).doubleValue() * 100.0) / 100.0 : 0.0
+                ))
+                .toList()
+        );
 
-                return new OuvertureStatsDTO(
-                    libelle,
-                    nbParties,
-                    Math.round(winrate * 100.0) / 100.0,
-                    Math.round(utilisation * 100.0) / 100.0
-                );
-            })
+        // 2. Add from 'PartieJouee' (OnlinePartie usually doesn't have opening metadata resolved yet)
+        var joueurOpt = joueurRepository.findById(joueurId);
+        if (joueurOpt.isPresent()) {
+            String pseudo = joueurOpt.get().getPseudo();
+            var jouees = partieJoueeRepository.findByJoueurBlancIgnoreCaseOrJoueurNoirIgnoreCase(pseudo, pseudo);
+            
+            // Temporary map to aggregate
+            Map<String, int[]> openingMap = new HashMap<>(); // [count, wins]
+            int totalJouees = jouees.size();
+
+            for (var p : jouees) {
+                String open = p.getOuverture();
+                if (open == null || open.isEmpty() || "Unknown".equalsIgnoreCase(open)) continue;
+                
+                boolean isWhite = p.getJoueurBlanc() != null && p.getJoueurBlanc().equalsIgnoreCase(pseudo);
+                String res = p.getResultat();
+                boolean isWin = (isWhite && "1-0".equals(res)) || (!isWhite && "0-1".equals(res));
+                if (!isWin && p.getVainqueur() != null) isWin = p.getVainqueur().equalsIgnoreCase(pseudo);
+
+                openingMap.computeIfAbsent(open, k -> new int[2]);
+                openingMap.get(open)[0]++;
+                if (isWin) openingMap.get(open)[1]++;
+            }
+
+            // Merge into stats list
+            int totalOverall = getNbParties(joueurId);
+            openingMap.forEach((name, data) -> {
+                int count = data[0];
+                double winrate = Math.round((data[1] * 100.0 / count) * 100.0) / 100.0;
+                double util = Math.round((count * 100.0 / totalOverall) * 100.0) / 100.0;
+                
+                // Check if already exists from Partie table
+                Optional<OuvertureStatsDTO> existing = stats.stream()
+                    .filter(s -> s.ouverture().equalsIgnoreCase(name))
+                    .findFirst();
+                
+                if (existing.isPresent()) {
+                    // We could merge them, but for now let's just keep the most representative one or just overwrite
+                    // Merging would be better
+                } else {
+                    if (count >= 1) { // Threshold
+                        stats.add(new OuvertureStatsDTO(name, count, winrate, util));
+                    }
+                }
+            });
+        }
+
+        return stats.stream()
+            .sorted((a, b) -> b.parties() - a.parties())
+            .limit(5)
             .toList();
     }
 

@@ -27,7 +27,10 @@ public class PartieJoueeController {
     }
 
     @GetMapping
-    public ResponseEntity<?> getAll() {
+    public ResponseEntity<?> getAll(@RequestParam(required = false) String pseudo) {
+        if (pseudo != null && !pseudo.isEmpty()) {
+            return ResponseEntity.ok(partieJoueeRepository.findByJoueurBlancIgnoreCaseOrJoueurNoirIgnoreCase(pseudo, pseudo));
+        }
         return ResponseEntity.ok(partieJoueeRepository.findAll());
     }
 

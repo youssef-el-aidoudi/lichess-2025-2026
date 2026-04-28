@@ -159,6 +159,7 @@ export function PlayPage({ username }: PlayPageProps) {
 
       {(gameSettings?.opponent === 'bot' || gameSettings?.opponent === 'bot_ml' || gameSettings?.opponent === 'human') ? (
         <ChessGame
+          username={username}
           mode={gameSettings.opponent as 'human' | 'bot' | 'bot_ml'}
           timeControl={{
             minutes: gameSettings.timeMinutes,

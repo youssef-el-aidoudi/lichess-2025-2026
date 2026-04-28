@@ -127,7 +127,8 @@ export function HistoryPage({ onSelectPartie, onGoToSearch, onGoToPlay }: Histor
         }
 
         try {
-          const played = await getAllPartiesJouees();
+          const currentUsername = localStorage.getItem('username');
+          const played = await getAllPartiesJouees(currentUsername || undefined);
 
           // ── DEBUG : inspecter la réponse brute pour identifier les noms de champs réels ──
           if (Array.isArray(played) && played.length > 0) {

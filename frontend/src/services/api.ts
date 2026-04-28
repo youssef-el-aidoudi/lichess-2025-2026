@@ -191,8 +191,9 @@ export const getJoueurById = async (id: number) => {
 // PARTIES JOUÉES (saved games)
 // =========================================================
 
-export const getAllPartiesJouees = async () => {
-    return fetchWithAuth('/parties-jouees');
+export const getAllPartiesJouees = async (pseudo?: string) => {
+    const query = pseudo ? `?pseudo=${encodeURIComponent(pseudo)}` : '';
+    return fetchWithAuth(`/parties-jouees${query}`);
 };
 
 export const getPartieJoueeById = async (id: number) => {

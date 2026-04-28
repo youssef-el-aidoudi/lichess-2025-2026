@@ -154,6 +154,7 @@ export function Stats() {
 
     if (cached) {
       applyStats(JSON.parse(cached));
+      refreshStats(); // Still refresh in background
     } else {
       refreshStats();
     }
@@ -243,17 +244,18 @@ export function Stats() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-gray-900 mb-2">Statistiques & Analyses ETL</h2>
-          <p className="text-gray-600">
-            Visualisez vos performances et les données extraites de Lichess
-          </p>
-        </div>
-        <button
-          onClick={exportStats} // <--- On ajoute le lien ici
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-        >
+        <div className="flex items-center gap-4">
+          <button
+            onClick={refreshStats}
+            className="p-2 rounded-lg bg-white shadow-sm border border-gray-200 text-gray-500 hover:text-blue-600 transition-all"
+            title="Rafraîchir"
+          >
+            <Activity className="w-5 h-5" />
+          </button>
+          <button
+            onClick={exportStats}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
           <Download className="w-4 h-4" />
           Exporter les stats
         </button>

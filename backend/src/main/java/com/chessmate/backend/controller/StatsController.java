@@ -76,6 +76,7 @@ public class StatsController {
 
     @GetMapping("/joueur/{id}/allStats")
     public DashboardStatsDTO getAllStats(@PathVariable Long id) {
+        System.out.println("[StatsController] Requesting allStats for joueurId: " + id);
         return statsService.getDashboardStats(id);
     }   
 
