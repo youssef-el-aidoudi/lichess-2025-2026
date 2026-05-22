@@ -22,3 +22,7 @@ Thumbs.db
 
 # Env
 .env
+# Large files
+*.pgn
+*.pkl
+*.exe
